@@ -20,21 +20,20 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 packages = [
-    { include = "cherno", from = "python" }
+    { include = "cherno" }
 ]
 include = ["cherno/etc/*", "cextern/**/*", "LICENSE.md"]
-build = "build.py"
 
 [tool.poetry.scripts]
-cherno = "cherno.cli:main"
+cherno = "cherno.__main__:cherno"
 
 [tool.poetry.dependencies]
 python = "^3.7"
 sdss-tree = ">=2.15.2"
 sdss-access = ">=0.2.3"
 sdsstools = "^0.1.0"
+sdss-clu = "^0.2.0"
 Sphinx = { "version"="^2.2.0", optional=true }
-
 
 [tool.poetry.dev-dependencies]
 ipython = "^7.11.0"
@@ -57,9 +56,10 @@ docs = ["Sphinx"]
 
 [tool.isort]
 line_length = 79
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "SDSS", "FIRSTPARTY", "LOCALFOLDER"]
 default_section = "THIRDPARTY"
 known_first_party = "cherno"
+known_sdss_party = ["clu", "sdsstools"]
 balanced_wrapping = true
 include_trailing_comma = false
 lines_after_imports = 2
@@ -78,7 +78,7 @@ max-line-length = 99
 
 [tool.coverage.run]
 branch = true
-include = ["python/cherno/*"]
+include = ["cherno/*"]
 omit = [
     "*/__init__.py",
 ]

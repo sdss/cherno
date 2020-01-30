@@ -33,23 +33,6 @@ class ChernoNotImplemented(ChernoError):
         super(ChernoNotImplemented, self).__init__(message)
 
 
-class ChernoAPIError(ChernoError):
-    """A custom exception for API errors"""
-
-    def __init__(self, message=None):
-        if not message:
-            message = 'Error with Http Response from Cherno API'
-        else:
-            message = 'Http response error from Cherno API. {0}'.format(message)
-
-        super(ChernoAPIError, self).__init__(message)
-
-
-class ChernoApiAuthError(ChernoAPIError):
-    """A custom exception for API authentication errors"""
-    pass
-
-
 class ChernoMissingDependency(ChernoError):
     """A custom exception for missing dependencies."""
     pass
@@ -61,11 +44,6 @@ class ChernoWarning(Warning):
 
 class ChernoUserWarning(UserWarning, ChernoWarning):
     """The primary warning class."""
-    pass
-
-
-class ChernoSkippedTestWarning(ChernoUserWarning):
-    """A warning for when a test is skipped."""
     pass
 
 
