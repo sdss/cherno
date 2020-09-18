@@ -7,10 +7,11 @@
 # @License: BSD 3-clause (http://www.opensource.org/licenses/BSD-3-Clause)
 
 import subprocess
+import time
 
 
 class AstrometryNet:
-    """A wrapper for astrometry.net.
+    """A wrapper for the astrometry.net ``solve-field`` command.
 
     Parameters
     ----------
@@ -40,6 +41,39 @@ class AstrometryNet:
         The parameters this method accepts are identical to those of
         ``solve-field`` and are passed unchanged.
 
+        Parameters
+        ----------
+        backend_config : str
+            Use this config file for the ``astrometry-engine`` program.
+        width : int
+            Specify the field width, in pixels.
+        height : int
+            Specify the field height, in pixels.
+        sort_column : str
+            The FITS column that should be used to sort the sources.
+        sort_ascending : bool
+            Sort in ascending order (smallest first);
+            default is descending order.
+        no_plot : bool
+            Do not produce plots.
+        ra : float
+            RA of field center for search, in degrees.
+        dec : float
+            Dec of field center for search, in degrees.
+        radius : float
+            Only search in indexes within ``radius`` degrees of the field
+            center given by ``ra`` and ``dec``.
+        scale_low : float
+            Lower bound of image scale estimate.
+        scale_high : float
+            Upper bound of image scale estimate.
+        scale_units : str
+            In what units are the lower and upper bounds? Choices:
+            ``'degwidth'``, ``'arcminwidth'``, ``'arcsecperpix'``,
+            ``'focalmm'``.
+        dir : str
+            Path to the directory where all output files will be saved.
+
         """
 
         self._options = {
@@ -58,21 +92,27 @@ class AstrometryNet:
             'dir': dir
         }
 
-    def _build_command(self, files):
+        return
+
+    def _build_command(self, files, options=None):
+        """Builds the ``solve-field`` command to run."""
+
+        if options is None:
+            options = self._options
 
         flags = ['no-plots', 'sort-ascending']
 
         cmd = [self.solve_field_cmd]
 
-        for option in self._options:
-            if self._options[option] is None:
+        for option in options:
+            if options[option] is None:
                 continue
             if option in flags:
-                if self._options[option] is True:
+                if options[option] is True:
                     cmd.append('--' + option)
             else:
                 cmd.append('--' + option)
-                cmd.append(str(self._options[option]))
+                cmd.append(str(options[option]))
 
         cmd += list(files)
 
