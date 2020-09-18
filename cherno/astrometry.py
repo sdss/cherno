@@ -79,14 +79,45 @@ class AstrometryNet:
         return cmd
 
     def run(self, files, shell=True, stdout=None, stderr=None, **kwargs):
+        """ Runs astromerty.net.
+
+        Parameters
+        ----------
+        files : list
+            List of files to be processed.
+        shell : bool
+            Whether to call `subprocess.run` with ``shell=True``.
+        stdout : str
+            Path where to save the stdout output.
+        stderr : str
+            Path where to save the stderr output.
+        kwargs : dict
+            Configuration parameters (see `.configure`) to override. The
+            configuration applies only to this run of ``solve-field`` and it
+            is not saved.
+
+        Returns
+        -------
+        `subprocess.CompletedProcess`
+            The completed process.
+
+        """
+
+        options = self._options.copy()
+        options.update(kwargs)
 
         if not isinstance(files, (tuple, list)):
             files = [files]
 
-        cmd = ' '.join(self._build_command(files))
+        cmd = ' '.join(self._build_command(files, options=options))
+
+        t0 = time.time()
+
         solve_field = subprocess.run(cmd,
                                      capture_output=True,
                                      shell=shell)
+
+        solve_field.time = time.time() - t0
 
         if stdout:
             with open(stdout, 'wb') as out:
