@@ -119,7 +119,7 @@ class AstrometryNet:
         return cmd
 
     def run(self, files, shell=True, stdout=None, stderr=None, **kwargs):
-        """ Runs astromerty.net.
+        """ Runs astrometry.net.
 
         Parameters
         ----------
