@@ -8,6 +8,16 @@
 
 import subprocess
 import time
+from os import PathLike
+
+from typing import NamedTuple, Optional
+
+
+class TimedProcess(NamedTuple):
+    """A completed process which includes its elapsed time."""
+
+    process: subprocess.CompletedProcess
+    elapsed: float
 
 
 class AstrometryNet:
@@ -15,16 +25,14 @@ class AstrometryNet:
 
     Parameters
     ----------
-    configure_params : dict
+    configure_params
         Parameters to be passed to `.configure`.
-
     """
 
     def __init__(self, **configure_params):
-
-        solve_field_cmd = subprocess.run('which solve-field',
-                                         shell=True,
-                                         capture_output=True)
+        solve_field_cmd = subprocess.run(
+            "which solve-field", shell=True, capture_output=True
+        )
         solve_field_cmd.check_returncode()
 
         self.solve_field_cmd = solve_field_cmd.stdout.decode().strip()
@@ -32,10 +40,22 @@ class AstrometryNet:
         self._options = {}
         self.configure(**configure_params)
 
-    def configure(self, backend_config=None, width=None, height=None,
-                  sort_column=None, sort_ascending=None, no_plots=None,
-                  ra=None, dec=None, radius=None, scale_low=None,
-                  scale_high=None, scale_units=None, dir=None):
+    def configure(
+        self,
+        backend_config: Optional[str] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        sort_column: Optional[str] = None,
+        sort_ascending: Optional[bool] = None,
+        no_plots: Optional[bool] = None,
+        ra: Optional[float] = None,
+        dec: Optional[float] = None,
+        radius: Optional[float] = None,
+        scale_low: Optional[float] = None,
+        scale_high: Optional[float] = None,
+        scale_units: Optional[str] = None,
+        dir: Optional[str] = None,
+    ):
         """Configures how to run of ``solve-field```.
 
         The parameters this method accepts are identical to those of
@@ -43,53 +63,52 @@ class AstrometryNet:
 
         Parameters
         ----------
-        backend_config : str
+        backend_config
             Use this config file for the ``astrometry-engine`` program.
-        width : int
+        width
             Specify the field width, in pixels.
-        height : int
+        height
             Specify the field height, in pixels.
-        sort_column : str
+        sort_column
             The FITS column that should be used to sort the sources.
-        sort_ascending : bool
+        sort_ascending
             Sort in ascending order (smallest first);
             default is descending order.
-        no_plot : bool
+        no_plot
             Do not produce plots.
-        ra : float
+        ra
             RA of field center for search, in degrees.
-        dec : float
+        dec
             Dec of field center for search, in degrees.
-        radius : float
+        radius
             Only search in indexes within ``radius`` degrees of the field
             center given by ``ra`` and ``dec``.
-        scale_low : float
+        scale_low
             Lower bound of image scale estimate.
-        scale_high : float
+        scale_high
             Upper bound of image scale estimate.
-        scale_units : str
+        scale_units
             In what units are the lower and upper bounds? Choices:
             ``'degwidth'``, ``'arcminwidth'``, ``'arcsecperpix'``,
             ``'focalmm'``.
-        dir : str
+        dir
             Path to the directory where all output files will be saved.
-
         """
 
         self._options = {
-            'backend-config': backend_config,
-            'width': width,
-            'height': height,
-            'sort-column': sort_column,
-            'sort-ascending': sort_ascending,
-            'no-plots': no_plots,
-            'ra': ra,
-            'dec': dec,
-            'radius': radius,
-            'scale-low': scale_low,
-            'scale-high': scale_high,
-            'scale-units': scale_units,
-            'dir': dir
+            "backend-config": backend_config,
+            "width": width,
+            "height": height,
+            "sort-column": sort_column,
+            "sort-ascending": sort_ascending,
+            "no-plots": no_plots,
+            "ra": ra,
+            "dec": dec,
+            "radius": radius,
+            "scale-low": scale_low,
+            "scale-high": scale_high,
+            "scale-units": scale_units,
+            "dir": dir,
         }
 
         return
@@ -100,7 +119,7 @@ class AstrometryNet:
         if options is None:
             options = self._options
 
-        flags = ['no-plots', 'sort-ascending']
+        flags = ["no-plots", "sort-ascending"]
 
         cmd = [self.solve_field_cmd]
 
@@ -109,29 +128,36 @@ class AstrometryNet:
                 continue
             if option in flags:
                 if options[option] is True:
-                    cmd.append('--' + option)
+                    cmd.append("--" + option)
             else:
-                cmd.append('--' + option)
+                cmd.append("--" + option)
                 cmd.append(str(options[option]))
 
         cmd += list(files)
 
         return cmd
 
-    def run(self, files, shell=True, stdout=None, stderr=None, **kwargs):
-        """ Runs astrometry.net.
+    def run(
+        self,
+        files: list[PathLike],
+        shell: bool = True,
+        stdout: Optional[PathLike] = None,
+        stderr: Optional[PathLike] = None,
+        **kwargs,
+    ) -> TimedProcess:
+        """Runs astrometry.net.
 
         Parameters
         ----------
-        files : list
+        files
             List of files to be processed.
-        shell : bool
+        shell
             Whether to call `subprocess.run` with ``shell=True``.
-        stdout : str
+        stdout
             Path where to save the stdout output.
-        stderr : str
+        stderr
             Path where to save the stderr output.
-        kwargs : dict
+        kwargs
             Configuration parameters (see `.configure`) to override. The
             configuration applies only to this run of ``solve-field`` and it
             is not saved.
@@ -149,23 +175,21 @@ class AstrometryNet:
         if not isinstance(files, (tuple, list)):
             files = [files]
 
-        cmd = ' '.join(self._build_command(files, options=options))
+        cmd = " ".join(self._build_command(files, options=options))
 
         t0 = time.time()
 
-        solve_field = subprocess.run(cmd,
-                                     capture_output=True,
-                                     shell=shell)
+        solve_field = subprocess.run(cmd, capture_output=True, shell=shell)
 
-        solve_field.time = time.time() - t0
+        elapsed = time.time() - t0
 
         if stdout:
-            with open(stdout, 'wb') as out:
-                out.write(cmd.encode() + b'\n')
+            with open(stdout, "wb") as out:
+                out.write(cmd.encode() + b"\n")
                 out.write(solve_field.stdout)
 
         if stderr:
-            with open(stderr, 'wb') as err:
+            with open(stderr, "wb") as err:
                 err.write(solve_field.stderr)
 
-        return solve_field
+        return TimedProcess(solve_field, elapsed)

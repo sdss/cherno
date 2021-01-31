@@ -14,8 +14,7 @@ class ChernoError(Exception):
 
     def __init__(self, message=None):
 
-        message = 'There has been an error' \
-            if not message else message
+        message = "There has been an error" if not message else message
 
         super(ChernoError, self).__init__(message)
 
@@ -25,14 +24,14 @@ class ChernoNotImplemented(ChernoError):
 
     def __init__(self, message=None):
 
-        message = 'This feature is not implemented yet.' \
-            if not message else message
+        message = "This feature is not implemented yet." if not message else message
 
         super(ChernoNotImplemented, self).__init__(message)
 
 
 class ChernoMissingDependency(ChernoError):
     """A custom exception for missing dependencies."""
+
     pass
 
 
@@ -42,9 +41,11 @@ class ChernoWarning(Warning):
 
 class ChernoUserWarning(UserWarning, ChernoWarning):
     """The primary warning class."""
+
     pass
 
 
 class ChernoDeprecationWarning(ChernoUserWarning):
     """A warning for deprecated features."""
+
     pass
