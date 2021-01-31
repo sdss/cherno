@@ -2,14 +2,14 @@
 .. _api:
 
 cherno Reference
-=========================
+================
 
-.. _api-main:
+.. _api-astrometry:
 
-Main
-----
+Astrometry
+----------
 
-.. automodule:: cherno.main
+.. automodule:: cherno.astrometry
    :members:
    :undoc-members:
    :show-inheritance:
