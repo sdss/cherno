@@ -4,7 +4,6 @@ from typing import cast
 
 from sdsstools import get_logger, get_package_version
 
-
 NAME = "sdss-cherno"
 
 # Inits the logging system. Only shell logging, and exception and warning catching.
