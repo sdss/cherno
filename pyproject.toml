@@ -60,16 +60,12 @@ target-version = ['py38']
 fast = true
 
 [tool.isort]
-line_length = 79
+profile = "black"
 sections = ["FUTURE", "STDLIB", "TYPING", "THIRDPARTY", "SDSS", "FIRSTPARTY", "LOCALFOLDER"]
 default_section = "THIRDPARTY"
 known_first_party = "cherno"
-known_sdss = ["clu", "sdsstools", "sdssdb"]
 known_typing = ["typing"]
-balanced_wrapping = true
-include_trailing_comma = false
-lines_after_imports = 2
-use_parentheses = true
+known_sdss = ["clu", "sdsstools", "sdssdb"]
 
 [tool.pytest.ini_options]
 addopts = "--cov cherno --cov-report xml --cov-report html --cov-report term"

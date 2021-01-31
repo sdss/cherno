@@ -11,17 +11,14 @@
 
 import os
 
-from typing import cast
-
-from pkg_resources import parse_version
-
+from packaging.version import parse
 
 try:
     from cherno import __version__
 except ModuleNotFoundError:
     from sdsstools import get_package_version
 
-    __version__: str = cast(str, get_package_version(__file__, "sdss-cherno") or "dev")
+    __version__ = get_package_version(__file__, "sdss-cherno") or "dev"
 
 
 # Are we building in RTD?
@@ -82,7 +79,7 @@ author = "José Sánchez-Gallego"
 # built documents.
 
 # The short X.Y version.
-version = parse_version(__version__).base_version
+version = parse(__version__).base_version
 # The full version, including alpha/beta/rc tags.
 release = __version__
 
