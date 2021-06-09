@@ -26,7 +26,6 @@ on_rtd = os.environ.get("READTHEDOCS") == "True"
 
 # Sphinx template selected in cookiecutter and whether to use releases
 sphinx_template = "alabaster"
-use_releases = "yes"
 
 
 # Importing matplotlib here with agg to prevent tkinter error in readthedocs
@@ -51,6 +50,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
+    "myst_parser",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -243,11 +243,3 @@ texinfo_documents = [
         "Miscellaneous",
     ),
 ]
-
-if use_releases == "yes":
-
-    extensions += ["sdsstools.releases"]
-
-    releases_github_path = "sdss/cherno"
-    releases_document_name = ["CHANGELOG"]
-    releases_unstable_prehistory = True

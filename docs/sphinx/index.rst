@@ -15,7 +15,7 @@ Contents
 .. toctree::
   :maxdepth: 2
 
-  What's new in cherno? <CHANGELOG>
+  What's new in cherno? <changelog>
   Introduction to cherno <intro>
 
 
