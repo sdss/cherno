@@ -8,17 +8,29 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+import pathlib
 import subprocess
 import time
-from os import PathLike
+from functools import partial
 
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Union
+
+import pandas
+import sep
+from astropy.io import fits
+from astropy.table import Table
+from astropy.wcs import WCS
+
+
+PathType = Union[str, pathlib.Path]
 
 
 class TimedProcess(NamedTuple):
     """A completed process which includes its elapsed time."""
 
-    process: subprocess.CompletedProcess
+    process: asyncio.subprocess.Process
     elapsed: float
 
 
@@ -111,6 +123,7 @@ class AstrometryNet:
             "scale-high": scale_high,
             "scale-units": scale_units,
             "dir": dir,
+            "overwrite": True,
         }
 
         return
@@ -121,7 +134,7 @@ class AstrometryNet:
         if options is None:
             options = self._options
 
-        flags = ["no-plots", "sort-ascending"]
+        flags = ["no-plots", "sort-ascending", "overwrite"]
 
         cmd = [self.solve_field_cmd]
 
@@ -139,12 +152,12 @@ class AstrometryNet:
 
         return cmd
 
-    def run(
+    async def run(
         self,
-        files: list[PathLike],
+        files: list[PathType],
         shell: bool = True,
-        stdout: Optional[PathLike] = None,
-        stderr: Optional[PathLike] = None,
+        stdout: Optional[PathType] = None,
+        stderr: Optional[PathType] = None,
         **kwargs,
     ) -> TimedProcess:
         """Runs astrometry.net.
@@ -177,21 +190,149 @@ class AstrometryNet:
         if not isinstance(files, (tuple, list)):
             files = [files]
 
-        cmd = " ".join(self._build_command(files, options=options))
-
         t0 = time.time()
 
-        solve_field = subprocess.run(cmd, capture_output=True, shell=shell)
+        args = self._build_command(files, options=options)
+
+        if shell:
+            cmd = await asyncio.create_subprocess_shell(
+                " ".join(args),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            cmd_str = args[0]
+
+        else:
+            cmd = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            cmd_str = " ".join(args)
+
+        stdout_bytes, stderr_bytes = await cmd.communicate()
+        if cmd.returncode and cmd.returncode > 0:
+            raise subprocess.CalledProcessError(
+                cmd.returncode,
+                cmd=cmd_str,
+                output=stdout_bytes,
+                stderr=stderr_bytes,
+            )
 
         elapsed = time.time() - t0
 
         if stdout:
             with open(stdout, "wb") as out:
-                out.write(cmd.encode() + b"\n")
-                out.write(solve_field.stdout)
+                out.write(" ".join(args).encode() + b"\n")
+                out.write(stdout_bytes)
 
         if stderr:
             with open(stderr, "wb") as err:
-                err.write(solve_field.stderr)
+                err.write(stderr_bytes)
 
-        return TimedProcess(solve_field, elapsed)
+        return TimedProcess(cmd, elapsed)
+
+
+async def extract_and_run(
+    images: PathType | list[PathType],
+    outdir: PathType,
+    sigma: float = 10.0,
+    min_npix: int = 50,
+) -> list[fits.Header | None]:
+    """Extracts sources and runs Astrometry.net.
+
+    Returns the WCS object for each processed image or `None` if failed.
+
+    """
+
+    if isinstance(images, (list, tuple)):
+        results = await asyncio.gather(
+            *[
+                extract_and_run(image, outdir, sigma=sigma, min_npix=min_npix)
+                for image in images
+            ]
+        )
+        return [result[0] for result in results]
+
+    assert isinstance(images, (pathlib.Path, str))
+    image = images
+
+    path = pathlib.Path(image)
+    mjd = path.parts[-2]
+    basename = "proc-" + path.parts[-1]
+
+    outdir = os.path.join(outdir, mjd)
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    data: Any = fits.getdata(image)
+    back = sep.Background(data.astype("int32"))
+
+    regions = pandas.DataFrame(
+        sep.extract(
+            data - back.back(),
+            sigma,
+            err=back.globalrms,
+        )
+    )
+    regions.loc[regions.npix > min_npix, "valid"] = 1
+    regions.to_hdf(os.path.join(outdir, basename + ".hdf"), "data")
+
+    if len(regions) < 5:  # Don't even try.
+        return [None]
+
+    gfa_xyls = Table.from_pandas(regions.loc[:, ["x", "y"]])
+    gfa_xyls_file = os.path.join(outdir, basename + ".xyls")
+    gfa_xyls.write(gfa_xyls_file, format="fits", overwrite=True)
+
+    header = fits.getheader(image, 1)
+
+    pixel_scale = 0.216
+
+    backend_config = os.path.join(os.path.dirname(__file__), "../etc/astrometrynet.cfg")
+    astrometry_net = AstrometryNet()
+    astrometry_net.configure(
+        backend_config=backend_config,
+        width=2048,
+        height=2048,
+        no_plots=True,
+        scale_low=pixel_scale * 0.9,
+        scale_high=pixel_scale * 1.1,
+        scale_units="arcsecperpix",
+        radius=2.0,
+        dir=outdir,
+    )
+
+    wcs_output = os.path.join(outdir, basename + ".wcs")
+    if os.path.exists(wcs_output):
+        os.remove(wcs_output)
+
+    proc = await astrometry_net.run(
+        [gfa_xyls_file],
+        stdout=os.path.join(outdir, basename + ".stdout"),
+        stderr=os.path.join(outdir, basename + ".stderr"),
+        ra=header["RA"],
+        dec=header["DEC"],
+    )
+
+    proc_hdu = fits.open(image).copy()
+
+    if not os.path.exists(wcs_output):
+        proc_hdu[1].header["SOLVED"] = False
+        proc_hdu[1].header["SOLVTIME"] = proc.elapsed
+        wcs = None
+    else:
+        proc_hdu[1].header["SOLVED"] = True
+        proc_hdu[1].header["SOLVTIME"] = proc.elapsed
+        wcs = WCS(open(wcs_output).read())
+        proc_hdu[1].header.update(wcs.to_header())
+
+    loop = asyncio.get_running_loop()
+    func = partial(
+        proc_hdu.writeto,
+        os.path.join(outdir, "proc-" + basename),
+        overwrite=True,
+    )
+    await loop.run_in_executor(None, func)
+
+    return [proc_hdu[1].header]

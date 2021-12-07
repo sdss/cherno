@@ -21,7 +21,7 @@ classifiers = [
 packages = [
     { include = "cherno" }
 ]
-include = []
+include = ["cherno/etc"]
 
 [tool.poetry.scripts]
 cherno = "cherno.__main__:cherno"
@@ -30,10 +30,11 @@ cherno = "cherno.__main__:cherno"
 python = "^3.8"
 sdsstools = ">=0.1.0"
 sdss-clu = "^1.0.0"
-sdssdb = "^0.4.3"
+sdssdb = ">=0.4.3"
 numpy = "^1.19.2"
-astropy = "^4.0.1"
+astropy = "^5.0.0"
 click-default-group = "^1.2.2"
+sep = "^1.2.0"
 
 [tool.poetry.dev-dependencies]
 ipython = ">=7.11.0"
@@ -59,7 +60,7 @@ myst-parser = ">=0.14.0"
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py39']
 fast = true
 
 [tool.isort]
@@ -69,6 +70,7 @@ default_section = "THIRDPARTY"
 known_first_party = "cherno"
 known_typing = ["typing"]
 known_sdss = ["clu", "sdsstools", "sdssdb"]
+lines_after_imports = 2
 
 [tool.pytest.ini_options]
 addopts = "--cov cherno --cov-report xml --cov-report html --cov-report term"

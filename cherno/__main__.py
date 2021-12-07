@@ -38,10 +38,10 @@ async def shutdown(signal, loop, actor):
     help="Debug mode. Use additional v for more details.",
 )
 @click.pass_context
-def cherno(ctx, config_file, verbose):
+def cherno(ctx, verbose):
     """Cherno CLI."""
 
-    ctx.obj = {"verbose": verbose, "config_file": config_file}
+    ctx.obj = {"verbose": verbose}
 
 
 @cherno.group(cls=DaemonGroup, prog="cherno_actor", workdir=os.getcwd())
@@ -50,33 +50,27 @@ def cherno(ctx, config_file, verbose):
 async def actor(ctx):
     """Runs the actor."""
 
-    default_config_file = os.path.join(os.path.dirname(__file__), "etc/archon.yml")
-    config_file = ctx.obj["config_file"] or default_config_file
+    config_file = os.path.join(os.path.dirname(__file__), "etc/cherno.yml")
 
-    archon_actor = ArchonActor.from_config(config_file)
-
-    if ctx.obj["verbose"]:
-        archon_actor.log.fh.setLevel(0)
-        archon_actor.log.sh.setLevel(0)
+    cherno_actor = ChernoActor.from_config(config_file)
 
     loop = asyncio.get_event_loop()
-
     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
     for s in signals:
         loop.add_signal_handler(
             s,
-            lambda s=s: asyncio.create_task(shutdown(s, loop, archon_actor)),
+            lambda s=s: asyncio.create_task(shutdown(s, loop, cherno_actor)),
         )
 
     try:
-        await archon_actor.start()
-        await archon_actor.run_forever()
+        await cherno_actor.start()
+        await cherno_actor.run_forever()
     except asyncio.CancelledError:
         pass
     finally:
-        await archon_actor.stop()
+        await cherno_actor.stop()
         loop.stop()
 
 
 if __name__ == "__main__":
-    archon()
+    cherno()
