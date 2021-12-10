@@ -15,13 +15,15 @@ import subprocess
 import time
 from functools import partial
 
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, NamedTuple, Optional, Union, cast
 
 import pandas
 import sep
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
+
+from cherno.actor import ChernoCommandType
 
 
 PathType = Union[str, pathlib.Path]
@@ -234,8 +236,9 @@ class AstrometryNet:
 
 
 async def extract_and_run(
-    images: PathType | list[PathType],
-    outdir: PathType,
+    images: pathlib.Path | str | list[pathlib.Path] | list[str],
+    astrometry_outdir: PathType = "astrometry",
+    proc_image_outdir: PathType | None = None,
     sigma: float = 10.0,
     min_npix: int = 50,
 ) -> list[fits.Header | None]:
@@ -248,7 +251,12 @@ async def extract_and_run(
     if isinstance(images, (list, tuple)):
         results = await asyncio.gather(
             *[
-                extract_and_run(image, outdir, sigma=sigma, min_npix=min_npix)
+                extract_and_run(
+                    image,
+                    astrometry_outdir,
+                    sigma=sigma,
+                    min_npix=min_npix,
+                )
                 for image in images
             ]
         )
@@ -259,11 +267,16 @@ async def extract_and_run(
 
     path = pathlib.Path(image)
     mjd = path.parts[-2]
-    basename = "proc-" + path.parts[-1]
+    dirname = path.parent
+    proc_basename = "proc-" + path.parts[-1]
 
-    outdir = os.path.join(outdir, mjd)
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+    if os.path.isabs(astrometry_outdir):
+        astrometry_outdir = os.path.join(astrometry_outdir, mjd)
+    else:
+        astrometry_outdir = os.path.join(dirname, astrometry_outdir)
+
+    if not os.path.exists(astrometry_outdir):
+        os.makedirs(astrometry_outdir)
 
     data: Any = fits.getdata(image)
     back = sep.Background(data.astype("int32"))
@@ -276,13 +289,13 @@ async def extract_and_run(
         )
     )
     regions.loc[regions.npix > min_npix, "valid"] = 1
-    regions.to_hdf(os.path.join(outdir, basename + ".hdf"), "data")
+    regions.to_hdf(os.path.join(astrometry_outdir, proc_basename + ".hdf"), "data")
 
     if len(regions) < 5:  # Don't even try.
         return [None]
 
     gfa_xyls = Table.from_pandas(regions.loc[:, ["x", "y"]])
-    gfa_xyls_file = os.path.join(outdir, basename + ".xyls")
+    gfa_xyls_file = os.path.join(astrometry_outdir, proc_basename + ".xyls")
     gfa_xyls.write(gfa_xyls_file, format="fits", overwrite=True)
 
     header = fits.getheader(image, 1)
@@ -300,17 +313,17 @@ async def extract_and_run(
         scale_high=pixel_scale * 1.1,
         scale_units="arcsecperpix",
         radius=2.0,
-        dir=outdir,
+        dir=astrometry_outdir,
     )
 
-    wcs_output = os.path.join(outdir, basename + ".wcs")
+    wcs_output = os.path.join(astrometry_outdir, proc_basename + ".wcs")
     if os.path.exists(wcs_output):
         os.remove(wcs_output)
 
     proc = await astrometry_net.run(
         [gfa_xyls_file],
-        stdout=os.path.join(outdir, basename + ".stdout"),
-        stderr=os.path.join(outdir, basename + ".stderr"),
+        stdout=os.path.join(astrometry_outdir, proc_basename + ".stdout"),
+        stderr=os.path.join(astrometry_outdir, proc_basename + ".stderr"),
         ra=header["RA"],
         dec=header["DEC"],
     )
@@ -330,9 +343,32 @@ async def extract_and_run(
     loop = asyncio.get_running_loop()
     func = partial(
         proc_hdu.writeto,
-        os.path.join(outdir, "proc-" + basename),
+        os.path.join(proc_image_outdir or dirname, "proc-" + proc_basename),
         overwrite=True,
     )
     await loop.run_in_executor(None, func)
 
     return [proc_hdu[1].header]
+
+
+async def process_and_correct(command: ChernoCommandType, filenames: list[str]):
+    """Processes a series of files for the same pointing and applies a correction."""
+
+    # Create instance of AstrometryNet
+    headers = await extract_and_run(filenames)
+
+    if not any(headers):
+        return command.fail(acquisition_valid=0)
+
+    for header in headers:
+        if header is None:
+            continue
+
+        camera = header["CAMNAME"]
+
+        if header["SOLVED"] is False:
+            command.info(acquisition_data=[camera, False, -999.0, -999.0])
+        else:
+            wcs = WCS(header)
+            ra, dec = wcs.pixel_to_world_values([[1024, 1024]])[0]
+            command.info(acquisition_data=[camera, True, ra, dec])
