@@ -8,39 +8,67 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 import clu
-from clu.tools import ActorHandler
+from clu.legacy import TronKey
 
-from cherno import __version__, log
-from cherno.exceptions import ChernoUserWarning
-from cherno.maskbits import GuiderStatus
+from cherno import __version__
+from cherno.maskbits import CameraStatus, GuiderStatus
 
 
 class ChernoActor(clu.LegacyActor):
-    """The jaeger SDSS-style actor."""
+    """The Cherno SDSS-style actor."""
 
     def __init__(self, *args, **kwargs):
 
-        super().__init__(*args, version=__version__, **kwargs)
+        models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
 
-        self.state = ChernoState()
+        super().__init__(*args, version=__version__, models=models, **kwargs)
 
-        # Add ActorHandler to log and to the warnings logger.
-        self.actor_handler = ActorHandler(
-            self,
-            level=logging.WARNING,
-            filter_warnings=[ChernoUserWarning],
-        )
-        log.addHandler(self.actor_handler)
-        if log.warnings_logger:
-            log.warnings_logger.addHandler(self.actor_handler)
+        self.state = ChernoState(self)
+
+        self.models["fliswarm"].register_callback(self._process_fliswarm_status)
+
+    async def _process_fliswarm_status(self, model: dict, key: TronKey):
+        """Updates FLISwarm messages."""
+
+        camera_state = self.state.camera_state
+
+        if key.name == "exposure_state":
+            camera_name, camera_id, status, *_ = key.value
+            if camera_name not in camera_state:
+                camera_state[camera_name] = CameraState(camera_name)
+            camera_state[camera_name].status = CameraStatus(status)
+        elif key.name == "status":
+            camera_name = key.value[0]
+            temperature = key.value[16]
+            if camera_name not in camera_state:
+                camera_state[camera_name] = CameraState(camera_name)
+            camera_state[camera_name].temperature = temperature
+        else:
+            pass
 
 
 @dataclass
 class ChernoState:
     """Stores the state of the guider."""
 
+    actor: ChernoActor
     status: GuiderStatus = GuiderStatus.IDLE
+    camera_state: dict[str, CameraState] = {}
+
+    def set_status(self, status: GuiderStatus, mode="override"):
+        """Sets the status and broadcasts it."""
+
+        self.status = status
+        self.actor.write("i", message={"guider_status": hex(self.status.value)})
+
+
+@dataclass
+class CameraState:
+    """Stores the state of a camera."""
+
+    name: str
+    temperature: float | None = None
+    status: CameraStatus = CameraStatus("idle")
