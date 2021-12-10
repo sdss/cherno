@@ -10,3 +10,5 @@ actor:
   tron_port: 6093
   schema: etc/schema.json
   log_dir: /data/logs/actors/cherno
+
+cameras: [gfa2, gfa3, gfa4, gfa5, gfa6]

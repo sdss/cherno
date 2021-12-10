@@ -19,6 +19,12 @@ class ChernoError(Exception):
         super(ChernoError, self).__init__(message)
 
 
+class ExposerError(ChernoError):
+    """An error in the `.Exposer` class."""
+
+    pass
+
+
 class ChernoNotImplemented(ChernoError):
     """A custom exception for not yet implemented features."""
 

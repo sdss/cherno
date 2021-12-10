@@ -45,3 +45,4 @@ class CameraStatus(Enum):
     EXPOSURE_POST_PROCESSING = "post_processing"
     EXPOSURE_POST_PROCESS_DONE = "post_process_done"
     EXPOSURE_POST_PROCESS_FAILED = "post_process_failed"
+    UNKNWON = 'unknown'
