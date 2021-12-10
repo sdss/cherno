@@ -1,11 +1,12 @@
 ---
 actor:
-    name: cherno
-    host: 0.0.0.0
-    port: 19992
-    models: [fliswarm]
-    verbose: 30
-    tron_host: sdss5-hub
-    tron_port: 6093
-    schema: etc/schema.json
-    log_dir: /data/logs/actors/cherno
+  name: cherno
+  host: 0.0.0.0
+  port: 19992
+  models:
+    - fliswarm
+  verbose: 30
+  tron_host: sdss5-hub
+  tron_port: 6093
+  schema: etc/schema.json
+  log_dir: /data/logs/actors/cherno

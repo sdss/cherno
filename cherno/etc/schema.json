@@ -11,7 +11,15 @@
         { "title": "deccen", "type": "number" }
       ]
     },
-    "acquisition_valid": { "type": "number" }
+    "acquisition_valid": { "type": "number" },
+    "guider_status": { "type": "string" },
+    "loop_iteration": {
+      "type": "array",
+      "items": [
+        { "title": "current_iteration", "type": "number" },
+        { "title": "number_iteration", "type": "number" }
+      ]
+    }
   },
   "additionalProperties": false
 }

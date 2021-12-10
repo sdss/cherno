@@ -8,9 +8,10 @@
 
 from __future__ import annotations
 
-from enum import Flag
+from enum import Enum, Flag
 
-__all__ = ["GuiderStatus"]
+
+__all__ = ["GuiderStatus", "CameraStatus"]
 
 
 class GuiderStatus(Flag):
@@ -27,3 +28,20 @@ class GuiderStatus(Flag):
         """Returns a list of active bit names."""
 
         return [bit.name for bit in GuiderStatus if self & bit]
+
+
+class CameraStatus(Enum):
+    """Enumeration of camera statuses."""
+
+    EXPOSURE_IDLE = "idle"
+    EXPOSURE_FLUSHING = "flushing"
+    EXPOSURE_INTEGRATING = "integrating"
+    EXPOSURE_READING = "reading"
+    EXPOSURE_READ = "read"
+    EXPOSURE_DONE = "done"
+    EXPOSURE_FAILED = "failed"
+    EXPOSURE_WRITING = "writing"
+    EXPOSURE_WRITTEN = "written"
+    EXPOSURE_POST_PROCESSING = "post_processing"
+    EXPOSURE_POST_PROCESS_DONE = "post_process_done"
+    EXPOSURE_POST_PROCESS_FAILED = "post_process_failed"
