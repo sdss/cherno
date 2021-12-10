@@ -8,11 +8,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 
 import clu
 from clu.legacy import TronKey
 
+import cherno
 from cherno import __version__
 from cherno.maskbits import CameraStatus, GuiderStatus
 
@@ -24,7 +26,17 @@ class ChernoActor(clu.LegacyActor):
 
         models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
 
-        super().__init__(*args, version=__version__, models=models, **kwargs)
+        schema = kwargs.pop("schema", None)
+        if schema is not None and os.path.isabs(schema) is False:
+            schema = os.path.join(os.path.dirname(cherno.__file__), schema)
+
+        super().__init__(
+            *args,
+            version=__version__,
+            models=models,
+            schema=schema,
+            **kwargs,
+        )
 
         self.state = ChernoState(self)
 
@@ -42,7 +54,7 @@ class ChernoActor(clu.LegacyActor):
             camera_state[camera_name].status = CameraStatus(status)
         elif key.name == "status":
             camera_name = key.value[0]
-            temperature = key.value[16]
+            temperature = float(key.value[16])
             if camera_name not in camera_state:
                 camera_state[camera_name] = CameraState(camera_name)
             camera_state[camera_name].temperature = temperature
@@ -56,7 +68,7 @@ class ChernoState:
 
     actor: ChernoActor
     status: GuiderStatus = GuiderStatus.IDLE
-    camera_state: dict[str, CameraState] = {}
+    camera_state: dict[str, CameraState] = field(default_factory=dict)
 
     def set_status(self, status: GuiderStatus, mode="override"):
         """Sets the status and broadcasts it."""
@@ -71,4 +83,4 @@ class CameraState:
 
     name: str
     temperature: float | None = None
-    status: CameraStatus = CameraStatus("idle")
+    status: CameraStatus = CameraStatus("unknown")
