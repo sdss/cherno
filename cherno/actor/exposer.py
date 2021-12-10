@@ -64,6 +64,23 @@ class Exposer:
         self.actor_state.set_status(GuiderStatus.FAILED)
         raise ExposerError(message)
 
+    async def one(self, exposure_time: float, **kwargs):
+        """Exposes the cameras once.
+
+        Parameters
+        ----------
+        exposure_time
+            The exposure time to command.
+        kwargs
+            Arguments to pass to `.loop`.
+
+        """
+
+        if "count" in kwargs:
+            raise ExposerError("Cannot specify count with one().")
+
+        return await loop(exposure_time, count=1, **kwargs)
+
     async def loop(
         self,
         exposure_time: float,
@@ -152,6 +169,8 @@ class Exposer:
                     filenames,
                     callback=callback or self.callback,
                 )
+
+            n_exp += 1
 
     def _get_filename_bundle(self, command: Command):
         """Returns the ``filename_bundle`` values from the list of command replies."""
