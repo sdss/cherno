@@ -36,7 +36,7 @@ class ChernoActor(clu.LegacyActor):
         camera_state = self.state.camera_state
 
         if key.name == "exposure_state":
-            camera_name, camera_id, status, *_ = key.value
+            camera_name, _, status, *_ = key.value
             if camera_name not in camera_state:
                 camera_state[camera_name] = CameraState(camera_name)
             camera_state[camera_name].status = CameraStatus(status)
