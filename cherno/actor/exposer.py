@@ -21,7 +21,7 @@ from cherno.maskbits import GuiderStatus
 from . import ChernoCommandType
 
 
-CallbackType = Union[Callable[[list[str]], Any], None]
+CallbackType = Union[Callable[[Command, list[str]], Any], None]
 
 
 class Exposer:
@@ -33,11 +33,11 @@ class Exposer:
         Actor command requesting the exposure loop.
     callback
         A callback to invoke every time a group of exposures finishes. The
-        callback is invoked with the list of new exposure files. If the
-        callback is a coroutine it is run in a task if blocking is disabled
-        and awaited otherwise. Use `.set_blocking` to change the blocking
-        behaviour. The default behaviour is to block. If the callback is a
-        function, it is run in an executor.
+        callback is invoked with the command and a list of new exposure files.
+        If the callback is a coroutine it is run in a task if blocking is
+        disabled and awaited otherwise. Use `.set_blocking` to change the
+        blocking behaviour. The default behaviour is to block. If the callback
+        is a function, it is run in an executor.
 
     """
 
@@ -79,7 +79,7 @@ class Exposer:
         if "count" in kwargs:
             raise ExposerError("Cannot specify count with one().")
 
-        return await loop(exposure_time, count=1, **kwargs)
+        return await self.loop(exposure_time, count=1, **kwargs)
 
     async def loop(
         self,
@@ -197,9 +197,14 @@ class Exposer:
             self.fail("No callback defined.")
 
         if asyncio.iscoroutinefunction(callback):
-            task = asyncio.create_task(callback(filenames))
+            task = asyncio.create_task(callback(self.command, filenames))
         else:
-            task = asyncio.get_running_loop().run_in_executor(None, callback, filenames)
+            task = asyncio.get_running_loop().run_in_executor(
+                None,
+                callback,
+                self.command,
+                filenames,
+            )
 
         if self._blocking:
             await task
