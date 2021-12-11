@@ -254,7 +254,7 @@ class ExtractionData:
     fwhm: float = numpy.nan
     a: float = numpy.nan
     b: float = numpy.nan
-    ecc: float = numpy.nan
+    ellipticity: float = numpy.nan
     nkeep: int = 0
     wcs: WCS = field(default_factory=WCS)
     solve_time: float = 0.0
@@ -359,19 +359,19 @@ async def extract_and_run(
 
     pixel_scale = config["cameras"]["pixel_scale"]
 
-    fwhm, a, b, ecc, nkeep = calculate_fwhm_camera(valid, rej_low=1, rej_high=3)
+    fwhm, a, b, ell, nkeep = calculate_fwhm_camera(valid, rej_low=1, rej_high=3)
     fwhm = numpy.round(fwhm * pixel_scale if fwhm != -999.0 else fwhm, 2)
     a = numpy.round(a * pixel_scale if a != -999.0 else a, 2)
     b = numpy.round(b * pixel_scale if b != -999.0 else b, 2)
-    ecc = numpy.round(ecc, 2)
+    ell = numpy.round(ell, 2)
 
     if command is not None:
-        command.debug(fwhm_camera=[camera, fwhm, a, b, ecc, nkeep])
+        command.debug(fwhm_camera=[camera, fwhm, a, b, ell, nkeep])
 
     extraction_data.fwhm = fwhm
     extraction_data.a = a
     extraction_data.b = b
-    extraction_data.ecc = ecc
+    extraction_data.ellipticity = ell
     extraction_data.nkeep = nkeep
 
     gfa_xyls = Table.from_pandas(regions.loc[:, ["x", "y"]])
@@ -456,6 +456,7 @@ async def extract_and_run(
 
         proc_hdu[1].header.update(wcs.to_header())
 
+        # TODO: consider parallactic angle here.
         cd = wcs.wcs.cd
         rot_rad = numpy.arctan2([-cd[0, 1], cd[0, 0]], [cd[1, 1], cd[1, 0]])
         yrot, xrot = numpy.rad2deg(rot_rad)
@@ -570,6 +571,7 @@ async def process_and_correct(
         return False
 
     fwhm = numpy.average([d.fwhm for d in solved], weights=nkeep)
+    ellipticity = numpy.average([d.ellipticity for d in solved], weights=nkeep)
     camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
 
     command.info(
@@ -578,6 +580,7 @@ async def process_and_correct(
             -999.0,
             -999.0,
             numpy.round(fwhm, 2),
+            numpy.round(ellipticity, 2),
             numpy.round(camera_rotation, 3),
             -999.0,
             -999.0,

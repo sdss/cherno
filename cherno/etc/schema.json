@@ -30,7 +30,7 @@
         { "title": "fwhm", "type": "number" },
         { "title": "a", "type": "number" },
         { "title": "b", "type": "number" },
-        { "title": "ecc", "type": "number" },
+        { "title": "ellipticity", "type": "number" },
         { "title": "nkeep", "type": "number" }
       ]
     }
@@ -42,6 +42,7 @@
       { "title": "racen", "type": "number" },
       { "title": "deccen", "type": "number" },
       { "title": "fwhm", "type": "number" },
+      { "title": "eccentricity", "type": "number" },
       { "title": "camera_rotation", "type": "number" },
       { "title": "fit_ra", "type": "number" },
       { "title": "fit_dec", "type": "number" },
