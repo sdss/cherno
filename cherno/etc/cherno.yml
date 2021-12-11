@@ -12,3 +12,5 @@ actor:
   log_dir: /data/logs/actors/cherno
 
 cameras: [gfa2, gfa3, gfa4, gfa5, gfa6]
+
+observatory: ${OBSERVATORY}

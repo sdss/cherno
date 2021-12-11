@@ -11,20 +11,29 @@ from __future__ import annotations
 import asyncio
 import os
 import pathlib
+import re
 import subprocess
 import time
+import warnings
 from functools import partial
 
-from typing import Any, NamedTuple, Optional, Union, cast
+from typing import Any, NamedTuple, Optional, Union
 
+import matplotlib
 import pandas
 import sep
 from astropy.io import fits
 from astropy.table import Table
-from astropy.wcs import WCS
+from astropy.wcs import WCS, FITSFixedWarning
 
+from clu.command import FakeCommand
+
+from cherno import config
 from cherno.actor import ChernoCommandType
+from cherno.coordinates import gfa_to_radec
 
+
+matplotlib.use("Agg")
 
 PathType = Union[str, pathlib.Path]
 
@@ -71,6 +80,7 @@ class AstrometryNet:
         scale_high: Optional[float] = None,
         scale_units: Optional[str] = None,
         dir: Optional[str] = None,
+        **kwargs,
     ):
         """Configures how to run of ``solve-field```.
 
@@ -127,6 +137,7 @@ class AstrometryNet:
             "dir": dir,
             "overwrite": True,
         }
+        self._options.update(kwargs)
 
         return
 
@@ -202,7 +213,6 @@ class AstrometryNet:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            cmd_str = args[0]
 
         else:
             cmd = await asyncio.create_subprocess_exec(
@@ -210,16 +220,8 @@ class AstrometryNet:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            cmd_str = " ".join(args)
 
         stdout_bytes, stderr_bytes = await cmd.communicate()
-        if cmd.returncode and cmd.returncode > 0:
-            raise subprocess.CalledProcessError(
-                cmd.returncode,
-                cmd=cmd_str,
-                output=stdout_bytes,
-                stderr=stderr_bytes,
-            )
 
         elapsed = time.time() - t0
 
@@ -241,6 +243,9 @@ async def extract_and_run(
     proc_image_outdir: PathType | None = None,
     sigma: float = 10.0,
     min_npix: int = 50,
+    cpulimit: float = 15.0,
+    overwrite: bool = False,
+    plot: bool = True,
 ) -> list[fits.Header | None]:
     """Extracts sources and runs Astrometry.net.
 
@@ -248,14 +253,22 @@ async def extract_and_run(
 
     """
 
+    import matplotlib.pyplot as plt
+
+    plt.ioff()
+
     if isinstance(images, (list, tuple)):
         results = await asyncio.gather(
             *[
                 extract_and_run(
                     image,
-                    astrometry_outdir,
+                    astrometry_outdir=astrometry_outdir,
+                    proc_image_outdir=proc_image_outdir,
                     sigma=sigma,
                     min_npix=min_npix,
+                    cpulimit=cpulimit,
+                    overwrite=overwrite,
+                    plot=plot,
                 )
                 for image in images
             ]
@@ -278,8 +291,17 @@ async def extract_and_run(
     if not os.path.exists(astrometry_outdir):
         os.makedirs(astrometry_outdir)
 
+    outfile_root = os.path.join(astrometry_outdir, proc_basename)
+
     data: Any = fits.getdata(image)
     back = sep.Background(data.astype("int32"))
+
+    if plot:
+        fig, ax = plt.subplots()
+        ax.imshow(back, origin="lower")
+        ax.set_title("Background: " + path.parts[-1])
+        ax.set_gid(False)
+        fig.savefig(outfile_root + "-background.png", dpi=300)
 
     regions = pandas.DataFrame(
         sep.extract(
@@ -289,20 +311,43 @@ async def extract_and_run(
         )
     )
     regions.loc[regions.npix > min_npix, "valid"] = 1
-    regions.to_hdf(os.path.join(astrometry_outdir, proc_basename + ".hdf"), "data")
+    regions.to_hdf(outfile_root + ".hdf", "data")
 
     if len(regions) < 5:  # Don't even try.
         return [None]
 
     gfa_xyls = Table.from_pandas(regions.loc[:, ["x", "y"]])
-    gfa_xyls_file = os.path.join(astrometry_outdir, proc_basename + ".xyls")
+    gfa_xyls_file = outfile_root + ".xyls"
     gfa_xyls.write(gfa_xyls_file, format="fits", overwrite=True)
+
+    if plot:
+        fig, ax = plt.subplots()
+        ax.set_title(path.parts[-1] + r" $(\sigma={})$".format(sigma))
+        ax.set_gid(False)
+
+        data_back = data - back.back()
+        ax.imshow(
+            data_back,
+            origin="lower",
+            cmap="gray",
+            vmin=data_back.mean() - back.globalrms,
+            vmax=data_back.mean() + back.globalrms,
+        )
+        fig.savefig(outfile_root + "-original.png", dpi=300)
+        ax.scatter(
+            regions.loc[regions.valid == 1].x,
+            regions.loc[regions.valid == 1].y,
+            marker="x",  # type: ignore
+            s=3,
+            c="r",
+        )
+        fig.savefig(outfile_root + "-centroids.png", dpi=300)
 
     header = fits.getheader(image, 1)
 
     pixel_scale = 0.216
 
-    backend_config = os.path.join(os.path.dirname(__file__), "../etc/astrometrynet.cfg")
+    backend_config = os.path.join(os.path.dirname(__file__), "etc/astrometrynet.cfg")
     astrometry_net = AstrometryNet()
     astrometry_net.configure(
         backend_config=backend_config,
@@ -312,20 +357,35 @@ async def extract_and_run(
         scale_low=pixel_scale * 0.9,
         scale_high=pixel_scale * 1.1,
         scale_units="arcsecperpix",
-        radius=2.0,
+        radius=0.5,
         dir=astrometry_outdir,
+        cpulimit=cpulimit,
     )
 
-    wcs_output = os.path.join(astrometry_outdir, proc_basename + ".wcs")
+    wcs_output = outfile_root + ".wcs"
     if os.path.exists(wcs_output):
         os.remove(wcs_output)
 
+    match = re.match(r"gfa(\d)[ns]", header["CAMNAME"])
+    if match is None:
+        raise ValueError("Camera ID cannot be parsed.")
+
+    camera_id = int(match.group(1))
+    radec_centre = gfa_to_radec(
+        1024,
+        1024,
+        camera_id,
+        header["RA"],
+        header["DEC"],
+        site_name=config["observatory"],
+    )
+
     proc = await astrometry_net.run(
         [gfa_xyls_file],
-        stdout=os.path.join(astrometry_outdir, proc_basename + ".stdout"),
-        stderr=os.path.join(astrometry_outdir, proc_basename + ".stderr"),
-        ra=header["RA"],
-        dec=header["DEC"],
+        stdout=outfile_root + ".stdout",
+        stderr=outfile_root + ".stderr",
+        ra=radec_centre[0],
+        dec=radec_centre[1],
     )
 
     proc_hdu = fits.open(image).copy()
@@ -337,25 +397,33 @@ async def extract_and_run(
     else:
         proc_hdu[1].header["SOLVED"] = True
         proc_hdu[1].header["SOLVTIME"] = proc.elapsed
-        wcs = WCS(open(wcs_output).read())
-        proc_hdu[1].header.update(wcs.to_header())
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
+            wcs = WCS(open(wcs_output).read())
+            proc_hdu[1].header.update(wcs.to_header())
 
     loop = asyncio.get_running_loop()
     func = partial(
         proc_hdu.writeto,
-        os.path.join(proc_image_outdir or dirname, "proc-" + proc_basename),
-        overwrite=True,
+        str(proc_image_outdir or dirname) + path.parts[-1],
+        overwrite=overwrite,
+        output_verify="silentfix",
     )
     await loop.run_in_executor(None, func)
+
+    plt.close("all")
 
     return [proc_hdu[1].header]
 
 
-async def process_and_correct(command: ChernoCommandType, filenames: list[str]):
+async def process_and_correct(
+    command: ChernoCommandType | FakeCommand,
+    filenames: list[str],
+    run_options={},
+):
     """Processes a series of files for the same pointing and applies a correction."""
 
-    # Create instance of AstrometryNet
-    headers = await extract_and_run(filenames)
+    headers = await extract_and_run(filenames, **run_options)
 
     if not any(headers):
         return command.fail(acquisition_valid=0)
@@ -369,6 +437,9 @@ async def process_and_correct(command: ChernoCommandType, filenames: list[str]):
         if header["SOLVED"] is False:
             command.info(acquisition_data=[camera, False, -999.0, -999.0])
         else:
-            wcs = WCS(header)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FITSFixedWarning)
+                wcs = WCS(header)
+
             ra, dec = wcs.pixel_to_world_values([[1024, 1024]])[0]
             command.info(acquisition_data=[camera, True, ra, dec])

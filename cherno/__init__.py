@@ -14,7 +14,7 @@ log = get_logger(NAME)
 
 
 __ENVVARS__["OBSERVATORY"] = "?"
-config = get_config(NAME)
+config = get_config("cherno")
 
 
 __version__ = cast(str, get_package_version(path=__file__, package_name=NAME))
