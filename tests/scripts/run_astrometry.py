@@ -22,6 +22,8 @@ async def run_astrometry(bundles_file: str):
     """Runs astrometry.net on a list of bundled files."""
 
     logger = get_logger("run-astrometry-test")
+    logger.sh.setLevel(10)
+
     command = FakeCommand(logger)
 
     with open(bundles_file, "r") as f:
@@ -35,7 +37,7 @@ async def run_astrometry(bundles_file: str):
             await process_and_correct(
                 command,
                 files,
-                run_options={"overwrite": True, "plot": True, "cpulimit": 5},
+                run_options={"overwrite": True, "plot": False, "cpulimit": 5},
             )
 
 

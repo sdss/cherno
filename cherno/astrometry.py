@@ -11,15 +11,16 @@ from __future__ import annotations
 import asyncio
 import os
 import pathlib
-import re
 import subprocess
 import time
 import warnings
+from dataclasses import dataclass, field
 from functools import partial
 
 from typing import Any, NamedTuple, Optional, Union
 
 import matplotlib
+import numpy
 import pandas
 import sep
 from astropy.io import fits
@@ -36,6 +37,10 @@ from cherno.coordinates import gfa_to_radec
 matplotlib.use("Agg")
 
 PathType = Union[str, pathlib.Path]
+
+
+warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
+warnings.filterwarnings("ignore", category=FITSFixedWarning)
 
 
 class TimedProcess(NamedTuple):
@@ -237,6 +242,29 @@ class AstrometryNet:
         return TimedProcess(cmd, elapsed)
 
 
+@dataclass
+class ExtractionData:
+    """Data from extraction."""
+
+    camera: str
+    nregions: int
+    nvalid: int
+    background_rms: float
+    solved: bool = False
+    fwhm: float = numpy.nan
+    a: float = numpy.nan
+    b: float = numpy.nan
+    ecc: float = numpy.nan
+    nkeep: int = 0
+    wcs: WCS = field(default_factory=WCS)
+    solve_time: float = 0.0
+    racen: float = numpy.nan
+    deccen: float = numpy.nan
+    xrot: float = numpy.nan
+    yrot: float = numpy.nan
+    rotation: float = numpy.nan
+
+
 async def extract_and_run(
     images: pathlib.Path | str | list[pathlib.Path] | list[str],
     astrometry_outdir: PathType = "astrometry",
@@ -246,7 +274,8 @@ async def extract_and_run(
     cpulimit: float = 15.0,
     overwrite: bool = False,
     plot: bool = True,
-) -> list[fits.Header | None]:
+    command: ChernoCommandType | None = None,
+) -> list[ExtractionData]:
     """Extracts sources and runs Astrometry.net.
 
     Returns the WCS object for each processed image or `None` if failed.
@@ -269,6 +298,7 @@ async def extract_and_run(
                     cpulimit=cpulimit,
                     overwrite=overwrite,
                     plot=plot,
+                    command=command,
                 )
                 for image in images
             ]
@@ -277,6 +307,9 @@ async def extract_and_run(
 
     assert isinstance(images, (pathlib.Path, str))
     image = images
+
+    header = fits.getheader(image, 1)
+    camera = header["CAMNAME"][0:-1]  # Remove the n/s at the end of the camera name.
 
     path = pathlib.Path(image)
     mjd = path.parts[-2]
@@ -311,10 +344,35 @@ async def extract_and_run(
         )
     )
     regions.loc[regions.npix > min_npix, "valid"] = 1
+    valid = regions.loc[regions.valid == 1]
     regions.to_hdf(outfile_root + ".hdf", "data")
 
-    if len(regions) < 5:  # Don't even try.
-        return [None]
+    extraction_data = ExtractionData(
+        camera,
+        len(regions),
+        len(valid),
+        background_rms=back.globalrms,
+    )
+
+    if len(regions.loc[regions.valid == 1]) < 5:  # Don't even try.
+        return [extraction_data]
+
+    pixel_scale = config["cameras"]["pixel_scale"]
+
+    fwhm, a, b, ecc, nkeep = calculate_fwhm_camera(valid, rej_low=1, rej_high=3)
+    fwhm = numpy.round(fwhm * pixel_scale if fwhm != -999.0 else fwhm, 2)
+    a = numpy.round(a * pixel_scale if a != -999.0 else a, 2)
+    b = numpy.round(b * pixel_scale if b != -999.0 else b, 2)
+    ecc = numpy.round(ecc, 2)
+
+    if command is not None:
+        command.debug(fwhm_camera=[camera, fwhm, a, b, ecc, nkeep])
+
+    extraction_data.fwhm = fwhm
+    extraction_data.a = a
+    extraction_data.b = b
+    extraction_data.ecc = ecc
+    extraction_data.nkeep = nkeep
 
     gfa_xyls = Table.from_pandas(regions.loc[:, ["x", "y"]])
     gfa_xyls_file = outfile_root + ".xyls"
@@ -343,10 +401,6 @@ async def extract_and_run(
         )
         fig.savefig(outfile_root + "-centroids.png", dpi=300)
 
-    header = fits.getheader(image, 1)
-
-    pixel_scale = 0.216
-
     backend_config = os.path.join(os.path.dirname(__file__), "etc/astrometrynet.cfg")
     astrometry_net = AstrometryNet()
     astrometry_net.configure(
@@ -366,11 +420,7 @@ async def extract_and_run(
     if os.path.exists(wcs_output):
         os.remove(wcs_output)
 
-    match = re.match(r"gfa(\d)[ns]", header["CAMNAME"])
-    if match is None:
-        raise ValueError("Camera ID cannot be parsed.")
-
-    camera_id = int(match.group(1))
+    camera_id = int(camera[-1])
     radec_centre = gfa_to_radec(
         1024,
         1024,
@@ -390,22 +440,60 @@ async def extract_and_run(
 
     proc_hdu = fits.open(image).copy()
 
-    if not os.path.exists(wcs_output):
-        proc_hdu[1].header["SOLVED"] = False
-        proc_hdu[1].header["SOLVTIME"] = proc.elapsed
-        wcs = None
-    else:
-        proc_hdu[1].header["SOLVED"] = True
-        proc_hdu[1].header["SOLVTIME"] = proc.elapsed
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
-            wcs = WCS(open(wcs_output).read())
-            proc_hdu[1].header.update(wcs.to_header())
+    rec = Table.from_pandas(regions).as_array()
+    proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
+
+    extraction_data.solve_time = proc.elapsed
+
+    if os.path.exists(wcs_output):
+        extraction_data.solved = True
+        wcs = WCS(open(wcs_output).read())
+        extraction_data.wcs = wcs
+
+        racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
+        extraction_data.racen = numpy.round(racen, 6)
+        extraction_data.deccen = numpy.round(deccen, 6)
+
+        proc_hdu[1].header.update(wcs.to_header())
+
+        cd = wcs.wcs.cd
+        rot_rad = numpy.arctan2([-cd[0, 1], cd[0, 0]], [cd[1, 1], cd[1, 0]])
+        yrot, xrot = numpy.rad2deg(rot_rad)
+        extraction_data.xrot = numpy.round(xrot % 360.0, 3)
+        extraction_data.yrot = numpy.round(yrot % 360.0, 3)
+
+        camera_rot = config["cameras"]["rotation"][camera]
+        rotation = numpy.mean([xrot - camera_rot - 90, yrot - camera_rot]) % 360.0
+        if rotation > 180:
+            rotation -= 360.0
+        extraction_data.rotation = numpy.round(rotation, 3)
+
+    proc_hdu[1].header["SOLVED"] = extraction_data.solved
+    proc_hdu[1].header["SOLVTIME"] = (proc.elapsed, "Time to solve the field or fail")
+    proc_hdu[1].header["FWHM"] = (fwhm, "Average FWHM in arcsec")
+
+    if command is not None:
+        if extraction_data.solved is False:
+            command.info(
+                camera_solution=[camera, False, -999.0, -999.0, -999.0, -999.0, -999.0]
+            )
+        else:
+            command.info(
+                camera_solution=[
+                    camera,
+                    True,
+                    extraction_data.racen,
+                    extraction_data.deccen,
+                    extraction_data.xrot,
+                    extraction_data.yrot,
+                    extraction_data.rotation,
+                ]
+            )
 
     loop = asyncio.get_running_loop()
     func = partial(
         proc_hdu.writeto,
-        str(proc_image_outdir or dirname) + path.parts[-1],
+        os.path.join(str(proc_image_outdir or dirname), "proc-" + path.parts[-1]),
         overwrite=overwrite,
         output_verify="silentfix",
     )
@@ -413,7 +501,55 @@ async def extract_and_run(
 
     plt.close("all")
 
-    return [proc_hdu[1].header]
+    return [extraction_data]
+
+
+def calculate_fwhm_camera(
+    regions,
+    rej_low: int = 1,
+    rej_high: int = 3,
+):
+    """Calcualtes the FWHM from a list of detections with outlier rejection.
+
+    Parameters
+    ----------
+    regions
+        The pandas data frame with the list of regions. Usually an output from
+        ``sep``. Must include columns ``valid``, ``a``, and ``b``.
+    rej_low
+        How many of the lowest ranked FWHM measurements to remove for the
+        average.
+    rej_high
+        How many of the highest ranked FWHM measurements to remove for the
+        average.
+
+    Returns
+    -------
+    fwhm,a,b,ell,nkeep
+        The FWHM measured as the average of the circle that envelops the minor
+        and major axis after outlier rejection, the averaged semi-major and
+        smi-minor axes, the ellipticity, and the number of data points kept.
+
+    """
+
+    if len(regions) == 0:
+        return -999, -999, -999, -999, 0
+
+    fwhm = numpy.max([regions.a * 2, regions.b * 2], axis=0)
+    fwhm_argsort = numpy.argsort(fwhm)
+
+    if len(fwhm) - (rej_low + rej_high) <= 0:
+        nkeep = len(fwhm)
+    else:
+        fwhm_argsort = fwhm_argsort.tolist()[rej_low : len(fwhm_argsort) - rej_high]
+        nkeep = len(fwhm_argsort)
+
+    fwhm = numpy.mean(fwhm[fwhm_argsort])
+    a = numpy.mean(regions.a.iloc[fwhm_argsort])
+    b = numpy.mean(regions.b.iloc[fwhm_argsort])
+    ell = 1 - b / a
+
+    return fwhm, a, b, ell, nkeep
 
 
 async def process_and_correct(
@@ -423,23 +559,31 @@ async def process_and_correct(
 ):
     """Processes a series of files for the same pointing and applies a correction."""
 
-    headers = await extract_and_run(filenames, **run_options)
+    run_options["command"] = command
+    data = await extract_and_run(filenames, **run_options)
 
-    if not any(headers):
-        return command.fail(acquisition_valid=0)
+    solved = [d for d in data if d.solved is True]
+    nkeep = [d.nkeep for d in solved]
 
-    for header in headers:
-        if header is None:
-            continue
+    if len(solved) == 0:
+        command.error(acquisition_valid=False)
+        return False
 
-        camera = header["CAMNAME"]
+    fwhm = numpy.average([d.fwhm for d in solved], weights=nkeep)
+    camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
 
-        if header["SOLVED"] is False:
-            command.info(acquisition_data=[camera, False, -999.0, -999.0])
-        else:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FITSFixedWarning)
-                wcs = WCS(header)
+    command.info(
+        astrometry_fit=[
+            len(solved),
+            -999.0,
+            -999.0,
+            numpy.round(fwhm, 2),
+            numpy.round(camera_rotation, 3),
+            -999.0,
+            -999.0,
+            -999.0,
+            -999.0,
+        ]
+    )
 
-            ra, dec = wcs.pixel_to_world_values([[1024, 1024]])[0]
-            command.info(acquisition_data=[camera, True, ra, dec])
+    return True

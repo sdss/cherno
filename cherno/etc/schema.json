@@ -2,16 +2,19 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "acquisition_data": {
+    "camera_solution": {
       "type": "array",
       "items": [
         { "title": "camera", "type": "string" },
         { "title": "solved", "type": "boolean" },
         { "title": "racen", "type": "number" },
-        { "title": "deccen", "type": "number" }
+        { "title": "deccen", "type": "number" },
+        { "title": "x_rotation", "type": "number" },
+        { "title": "y_rotation", "type": "number" },
+        { "title": "rotation", "type": "number" }
       ]
     },
-    "acquisition_valid": { "type": "number" },
+    "acquisition_valid": { "type": "boolean" },
     "guider_status": { "type": "string" },
     "loop_iteration": {
       "type": "array",
@@ -19,7 +22,32 @@
         { "title": "current_iteration", "type": "number" },
         { "title": "number_iteration", "type": "number" }
       ]
+    },
+    "fwhm_camera": {
+      "type": "array",
+      "items": [
+        { "title": "camera", "type": "string" },
+        { "title": "fwhm", "type": "number" },
+        { "title": "a", "type": "number" },
+        { "title": "b", "type": "number" },
+        { "title": "ecc", "type": "number" },
+        { "title": "nkeep", "type": "number" }
+      ]
     }
+  },
+  "astrometry_fit": {
+    "type": "array",
+    "items": [
+      { "title": "nsolved", "type": "number" },
+      { "title": "racen", "type": "number" },
+      { "title": "deccen", "type": "number" },
+      { "title": "fwhm", "type": "number" },
+      { "title": "camera_rotation", "type": "number" },
+      { "title": "fit_ra", "type": "number" },
+      { "title": "fit_dec", "type": "number" },
+      { "title": "fit_rot", "type": "number" },
+      { "title": "fit_scale", "type": "number" }
+    ]
   },
   "additionalProperties": false
 }
