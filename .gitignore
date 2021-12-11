@@ -108,3 +108,5 @@ ENV/
 .vscode
 
 .pytest_cache
+
+pyrightconfig.json
