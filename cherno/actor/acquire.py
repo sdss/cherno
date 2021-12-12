@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from typing import TYPE_CHECKING
 
 import click
@@ -38,14 +40,27 @@ if TYPE_CHECKING:
     is_flag=True,
     help="Run acquisition in continuous mode.",
 )
+@click.option(
+    "--apply/--no-apply",
+    default=True,
+    help="Whether to apply the correction.",
+)
+@click.option(
+    "--plot",
+    is_flag=True,
+    help="Whether to plot results of astrometry.net.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float = 15.0,
     continuous: bool = False,
+    apply: bool = True,
+    plot: bool = False,
 ):
     """Runs the acquisition procedure."""
 
-    exposer = Exposer(command, callback=process_and_correct)
+    callback = partial(process_and_correct, run_options={"plot": plot}, apply=apply)
+    exposer = Exposer(command, callback=callback)
 
     try:
         await exposer.loop(

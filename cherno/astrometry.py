@@ -632,6 +632,7 @@ def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
 async def process_and_correct(
     command: ChernoCommandType | FakeCommand,
     filenames: list[str],
+    apply: bool = True,
     run_options={},
 ):
     """Processes a series of files for the same pointing and applies a correction."""
