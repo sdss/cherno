@@ -124,7 +124,10 @@ class Exposer:
                 self.actor_state.set_status(GuiderStatus.IDLE)
                 return
 
-            names = names or config["cameras"]
+            # Set the status of the guider as EXPOSING.
+            self.actor_state.set_status(GuiderStatus.EXPOSING)
+
+            names = names or config["cameras"]["names"]
             if names is None or len(names) == 0:
                 self.fail("No cameras defined.")
 
@@ -149,7 +152,7 @@ class Exposer:
                 expose_command = await asyncio.wait_for(
                     self.actor.tron.send_command(
                         "fliswarm",
-                        f"talk {names_comma} expose {exposure_time}",
+                        f"talk -n {names_comma} expose {exposure_time}",
                     ),
                     exposure_time + timeout if timeout is not None else None,
                 )
@@ -170,6 +173,9 @@ class Exposer:
                     callback=callback or self.callback,
                 )
 
+            if delay:
+                await asyncio.sleep(delay)
+
             n_exp += 1
 
     def _get_filename_bundle(self, command: Command):
@@ -180,7 +186,7 @@ class Exposer:
                 key_name = reply_key.name.lower()
                 if key_name != "filename_bundle":
                     continue
-                filenames = [value.native for value in reply_key.values]
+                filenames = [value for value in reply_key.values]
                 return filenames
 
         return None
@@ -194,7 +200,8 @@ class Exposer:
 
         callback = callback or self.callback
         if callback is None:
-            self.fail("No callback defined.")
+            self.command.warning("Exposer: no callback defined.")
+            return
 
         if asyncio.iscoroutinefunction(callback):
             task = asyncio.create_task(callback(self.command, filenames))
