@@ -343,7 +343,11 @@ async def extract_and_run(
     outfile_root = os.path.join(astrometry_outdir, proc_basename)
 
     data: Any = fits.getdata(image)
-    back = sep.Background(data.astype("int32"))
+    back = await asyncio.get_running_loop().run_in_executor(
+        None,
+        sep.Background,
+        data.astype("int32"),
+    )
 
     if plot:
         fig, ax = plt.subplots()
@@ -352,12 +356,14 @@ async def extract_and_run(
         ax.set_gid(False)
         fig.savefig(outfile_root + "-background.png", dpi=300)
 
+    extract = partial(
+        sep.extract,
+        data - back.back(),
+        sigma,
+        err=back.globalrms,
+    )
     regions = pandas.DataFrame(
-        sep.extract(
-            data - back.back(),
-            sigma,
-            err=back.globalrms,
-        )
+        await asyncio.get_running_loop().run_in_executor(None, extract)
     )
     regions.loc[regions.npix > min_npix, "valid"] = 1
     valid = regions.loc[regions.valid == 1]
