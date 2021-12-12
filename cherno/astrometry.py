@@ -491,9 +491,8 @@ async def extract_and_run(
         # Calculate field rotation.
         camera_rot = config["cameras"]["rotation"][camera]
         rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
+        rotation[rotation > 180.0] -= 360.0  # type: ignore
         rotation = numpy.mean(rotation)
-        if rotation > 180.0:
-            rotation -= 360.0
         extraction_data.rotation = numpy.round(rotation, 3)
 
     proc_hdu[1].header["SOLVED"] = extraction_data.solved
