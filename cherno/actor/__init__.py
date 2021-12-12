@@ -16,3 +16,4 @@ ChernoCommandType = Command[ChernoActor]
 
 
 from .guide import *
+from .stop import *
