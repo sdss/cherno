@@ -25,6 +25,9 @@ if TYPE_CHECKING:
     from . import ChernoCommandType
 
 
+__all__ = ["acquire"]
+
+
 @cherno_parser.command()
 @click.option(
     "-t",
@@ -49,16 +52,27 @@ if TYPE_CHECKING:
     is_flag=True,
     help="Whether to plot results of astrometry.net.",
 )
+@click.option(
+    "--cpulimit",
+    type=float,
+    default=15.0,
+    help="Maximum runtime for astrometry.net.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float = 15.0,
     continuous: bool = False,
     apply: bool = True,
     plot: bool = False,
+    cpulimit: float = 15.0,
 ):
     """Runs the acquisition procedure."""
 
-    callback = partial(process_and_correct, run_options={"plot": plot}, apply=apply)
+    callback = partial(
+        process_and_correct,
+        run_options={"plot": plot, "cpulimit": cpulimit},
+        apply=apply,
+    )
     exposer = Exposer(command, callback=callback)
 
     try:
