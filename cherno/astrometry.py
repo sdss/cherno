@@ -640,10 +640,10 @@ def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
 
     plate_scale = PLATE_SCALE[data[0].observatory]
 
-    delta_ra = t[0] / plate_scale
-    delta_dec = t[1] / plate_scale
-    delta_rot = -numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0]))
-    delta_scale = c - 1
+    delta_ra = numpy.round(t[0] / plate_scale * 3600.0, 3)
+    delta_dec = numpy.round(t[1] / plate_scale * 3600.0, 3)
+    delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])), 2)
+    delta_scale = numpy.round(c - 1, 6)
 
     return (delta_ra, delta_dec, delta_rot, delta_scale)
 
