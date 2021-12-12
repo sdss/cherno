@@ -15,11 +15,11 @@ cameras:
   names: [gfa2, gfa3, gfa4, gfa5, gfa6]
   pixel_scale: 0.216
   rotation:
-    gfa1: 60
+    gfa1: 300
     gfa2: 0
-    gfa3: 300
-    gfa4: 240
+    gfa3: 60
+    gfa4: 120
     gfa5: 180
-    gfa6: 120
+    gfa6: 240
 
 observatory: ${OBSERVATORY}

@@ -246,7 +246,11 @@ class AstrometryNet:
 class ExtractionData:
     """Data from extraction."""
 
+    image: str
     camera: str
+    boresight_ra: float
+    boresight_dec: float
+    ipa: float
     nregions: int
     nvalid: int
     background_rms: float
@@ -348,9 +352,13 @@ async def extract_and_run(
     regions.to_hdf(outfile_root + ".hdf", "data")
 
     extraction_data = ExtractionData(
+        str(image),
         camera,
-        len(regions),
-        len(valid),
+        boresight_ra=header["RA"],
+        boresight_dec=header["DEC"],
+        ipa=header["IPA"],
+        nregions=len(regions),
+        nvalid=len(valid),
         background_rms=back.globalrms,
     )
 
@@ -458,14 +466,18 @@ async def extract_and_run(
 
         # TODO: consider parallactic angle here.
         cd = wcs.wcs.cd
-        rot_rad = numpy.arctan2([-cd[0, 1], cd[0, 0]], [cd[1, 1], cd[1, 0]])
+        rot_rad = numpy.arctan2([cd[0, 1], cd[0, 0]], [cd[1, 1], cd[1, 0]])
+
+        # Rotation is from N to E to the x and y axes of the GFA.
         yrot, xrot = numpy.rad2deg(rot_rad)
         extraction_data.xrot = numpy.round(xrot % 360.0, 3)
         extraction_data.yrot = numpy.round(yrot % 360.0, 3)
 
+        # Calculate field rotation.
         camera_rot = config["cameras"]["rotation"][camera]
-        rotation = numpy.mean([xrot - camera_rot - 90, yrot - camera_rot]) % 360.0
-        if rotation > 180:
+        rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
+        rotation = numpy.mean(rotation)
+        if rotation > 180.0:
             rotation -= 360.0
         extraction_data.rotation = numpy.round(rotation, 3)
 
