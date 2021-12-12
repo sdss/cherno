@@ -26,12 +26,14 @@ import sep
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
+from coordio.defaults import PLATE_SCALE
+from coordio.utils import radec2wokxy
 
 from clu.command import FakeCommand
 
 from cherno import config
 from cherno.actor import ChernoCommandType
-from cherno.coordinates import gfa_to_radec
+from cherno.coordinates import gfa_to_radec, gfa_to_wok, umeyama
 
 
 matplotlib.use("Agg")
@@ -248,13 +250,15 @@ class ExtractionData:
 
     image: str
     camera: str
+    observatory: str
     boresight_ra: float
     boresight_dec: float
-    ipa: float
     nregions: int
     nvalid: int
     background_rms: float
     solved: bool = False
+    ipa: float = 0.0
+    rotpos: float = 0.0
     fwhm: float = numpy.nan
     a: float = numpy.nan
     b: float = numpy.nan
@@ -262,8 +266,8 @@ class ExtractionData:
     nkeep: int = 0
     wcs: WCS = field(default_factory=WCS)
     solve_time: float = 0.0
-    racen: float = numpy.nan
-    deccen: float = numpy.nan
+    camera_racen: float = numpy.nan
+    camera_deccen: float = numpy.nan
     xrot: float = numpy.nan
     yrot: float = numpy.nan
     rotation: float = numpy.nan
@@ -354,9 +358,11 @@ async def extract_and_run(
     extraction_data = ExtractionData(
         str(image),
         camera,
+        observatory=config["observatory"],
         boresight_ra=header["RA"],
         boresight_dec=header["DEC"],
         ipa=header["IPA"],
+        rotpos=header["ROTPOS"],
         nregions=len(regions),
         nvalid=len(valid),
         background_rms=back.globalrms,
@@ -459,8 +465,8 @@ async def extract_and_run(
         extraction_data.wcs = wcs
 
         racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
-        extraction_data.racen = numpy.round(racen, 6)
-        extraction_data.deccen = numpy.round(deccen, 6)
+        extraction_data.camera_racen = numpy.round(racen, 6)
+        extraction_data.camera_deccen = numpy.round(deccen, 6)
 
         proc_hdu[1].header.update(wcs.to_header())
 
@@ -495,8 +501,8 @@ async def extract_and_run(
                 camera_solution=[
                     camera,
                     True,
-                    extraction_data.racen,
-                    extraction_data.deccen,
+                    extraction_data.camera_racen,
+                    extraction_data.camera_deccen,
                     extraction_data.xrot,
                     extraction_data.yrot,
                     extraction_data.rotation,
@@ -565,6 +571,64 @@ def calculate_fwhm_camera(
     return fwhm, a, b, ell, nkeep
 
 
+def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
+    """Fits translation, rotation, and scale from a WCS solution."""
+
+    xwok_gfa = []
+    ywok_gfa = []
+    xwok_astro = []
+    ywok_astro = []
+
+    for d in data:
+
+        camera_id = int(d.camera[-1])
+        xidx = numpy.arange(2048)[:: 2048 // grid[0]]
+        yidx = numpy.arange(2048)[:: 2048 // grid[1]]
+
+        coords: Any = d.wcs.pixel_to_world(xidx, yidx)
+        ra = coords.ra.value
+        dec = coords.dec.value
+
+        for x, y in zip(xidx, yidx):
+            xw, yw, _ = gfa_to_wok(x, y, camera_id)
+            xwok_gfa.append(xw)
+            ywok_gfa.append(yw)
+
+        _xwok_astro, _ywok_astro, *_ = radec2wokxy(
+            ra,
+            dec,
+            None,
+            "GFA",
+            d.boresight_ra,
+            d.boresight_dec,
+            d.rotpos,
+            "APO",
+            None,
+            pmra=None,
+            pmdec=None,
+            parallax=None,
+        )
+
+        xwok_astro += _xwok_astro.tolist()
+        ywok_astro += _ywok_astro.tolist()
+
+    X = numpy.array([xwok_gfa, ywok_gfa])
+    Y = numpy.array([xwok_astro, ywok_astro])
+    try:
+        c, R, t = umeyama(X, Y)
+    except ValueError:
+        return False
+
+    plate_scale = PLATE_SCALE[data[0].observatory]
+
+    delta_ra = t[0] / plate_scale
+    delta_dec = t[1] / plate_scale
+    delta_rot = -numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0]))
+    delta_scale = c - 1
+
+    return (delta_ra, delta_dec, delta_rot, delta_scale)
+
+
 async def process_and_correct(
     command: ChernoCommandType | FakeCommand,
     filenames: list[str],
@@ -586,6 +650,16 @@ async def process_and_correct(
     ellipticity = numpy.average([d.ellipticity for d in solved], weights=nkeep)
     camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
 
+    fit = astrometry_fit(solved)
+
+    if fit is False:
+        delta_ra = delta_dec = delta_rot = delta_scale = -999.0
+    else:
+        delta_ra = fit[0]
+        delta_dec = fit[1]
+        delta_rot = fit[2]
+        delta_scale = fit[3]
+
     command.info(
         astrometry_fit=[
             len(solved),
@@ -594,10 +668,10 @@ async def process_and_correct(
             numpy.round(fwhm, 2),
             numpy.round(ellipticity, 2),
             numpy.round(camera_rotation, 3),
-            -999.0,
-            -999.0,
-            -999.0,
-            -999.0,
+            delta_ra,
+            delta_dec,
+            delta_rot,
+            delta_scale,
         ]
     )
 
