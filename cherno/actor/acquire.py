@@ -13,7 +13,6 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import click
-from astropy.wcs import WCS
 
 from cherno.actor.exposer import Exposer
 from cherno.astrometry import process_and_correct
