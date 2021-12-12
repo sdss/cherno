@@ -378,6 +378,8 @@ async def extract_and_run(
     )
 
     if len(regions.loc[regions.valid == 1]) < 5:  # Don't even try.
+        if command is not None:
+            command.warning(f"Camera {camera}: not enough sources.")
         return [extraction_data]
 
     pixel_scale = config["cameras"]["pixel_scale"]
