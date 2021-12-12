@@ -15,6 +15,9 @@ from cherno.maskbits import GuiderStatus
 from . import ChernoCommandType, cherno_parser
 
 
+__all__ = ["guide"]
+
+
 @cherno_parser.command()
 @click.option(
     "-o",
