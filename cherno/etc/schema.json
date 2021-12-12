@@ -6,6 +6,7 @@
       "type": "array",
       "items": [
         { "title": "camera", "type": "string" },
+        { "title": "exposure_no", "type": "integer" },
         { "title": "solved", "type": "boolean" },
         { "title": "racen", "type": "number" },
         { "title": "deccen", "type": "number" },
@@ -27,28 +28,29 @@
       "type": "array",
       "items": [
         { "title": "camera", "type": "string" },
+        { "title": "exposure_no", "type": "integer" },
         { "title": "fwhm", "type": "number" },
         { "title": "a", "type": "number" },
         { "title": "b", "type": "number" },
         { "title": "ellipticity", "type": "number" },
-        { "title": "nkeep", "type": "number" }
+        { "title": "nkeep", "type": "integer" }
+      ]
+    },
+    "astrometry_fit": {
+      "type": "array",
+      "items": [
+        { "title": "nsolved", "type": "integer" },
+        { "title": "racen", "type": "number" },
+        { "title": "deccen", "type": "number" },
+        { "title": "fwhm", "type": "number" },
+        { "title": "ellipticity", "type": "number" },
+        { "title": "camera_rotation", "type": "number" },
+        { "title": "delta_ra", "type": "number" },
+        { "title": "delta_dec", "type": "number" },
+        { "title": "delta_rot", "type": "number" },
+        { "title": "delta_scale", "type": "number" }
       ]
     }
-  },
-  "astrometry_fit": {
-    "type": "array",
-    "items": [
-      { "title": "nsolved", "type": "number" },
-      { "title": "racen", "type": "number" },
-      { "title": "deccen", "type": "number" },
-      { "title": "fwhm", "type": "number" },
-      { "title": "eccentricity", "type": "number" },
-      { "title": "camera_rotation", "type": "number" },
-      { "title": "delta_ra", "type": "number" },
-      { "title": "delta_dec", "type": "number" },
-      { "title": "delta_rot", "type": "number" },
-      { "title": "delta_scale", "type": "number" }
-    ]
   },
   "additionalProperties": false
 }
