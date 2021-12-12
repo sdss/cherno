@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import os
 import pathlib
+import re
 import subprocess
 import time
 import warnings
@@ -250,6 +251,7 @@ class ExtractionData:
 
     image: str
     camera: str
+    exposure_no: int
     observatory: str
     boresight_ra: float
     boresight_dec: float
@@ -324,6 +326,12 @@ async def extract_and_run(
     dirname = path.parent
     proc_basename = "proc-" + path.parts[-1]
 
+    match = re.match(r".*gimg\-gfa\d[ns]\-(\d+)\.fits.*", path.parts[-1])
+    if match:
+        exp_no = int(match.group(1))
+    else:
+        exp_no = 0
+
     if os.path.isabs(astrometry_outdir):
         astrometry_outdir = os.path.join(astrometry_outdir, mjd)
     else:
@@ -358,6 +366,7 @@ async def extract_and_run(
     extraction_data = ExtractionData(
         str(image),
         camera,
+        exposure_no=exp_no,
         observatory=config["observatory"],
         boresight_ra=header["RA"],
         boresight_dec=header["DEC"],
@@ -380,7 +389,7 @@ async def extract_and_run(
     ell = numpy.round(ell, 2)
 
     if command is not None:
-        command.debug(fwhm_camera=[camera, fwhm, a, b, ell, nkeep])
+        command.debug(fwhm_camera=[camera, exp_no, fwhm, a, b, ell, nkeep])
 
     extraction_data.fwhm = fwhm
     extraction_data.a = a
@@ -494,12 +503,22 @@ async def extract_and_run(
     if command is not None:
         if extraction_data.solved is False:
             command.info(
-                camera_solution=[camera, False, -999.0, -999.0, -999.0, -999.0, -999.0]
+                camera_solution=[
+                    camera,
+                    exp_no,
+                    False,
+                    -999.0,
+                    -999.0,
+                    -999.0,
+                    -999.0,
+                    -999.0,
+                ]
             )
         else:
             command.info(
                 camera_solution=[
                     camera,
+                    exp_no,
                     True,
                     extraction_data.camera_racen,
                     extraction_data.camera_deccen,
