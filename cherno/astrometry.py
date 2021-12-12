@@ -600,10 +600,10 @@ def calculate_fwhm_camera(
 def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
     """Fits translation, rotation, and scale from a WCS solution."""
 
-    xwok_gfa = []
-    ywok_gfa = []
-    xwok_astro = []
-    ywok_astro = []
+    xwok_gfa: list[float] = []
+    ywok_gfa: list[float] = []
+    xwok_astro: list[float] = []
+    ywok_astro: list[float] = []
 
     for d in data:
 
@@ -652,7 +652,13 @@ def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
     delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])), 2)
     delta_scale = numpy.round(c - 1, 6)
 
-    return (delta_ra, delta_dec, delta_rot, delta_scale)
+    delta_x = (numpy.array(xwok_gfa) - numpy.array(xwok_astro)) ** 2  # type: ignore
+    delta_y = (numpy.array(ywok_gfa) - numpy.array(ywok_astro)) ** 2  # type: ignore
+    xrms = numpy.sqrt(numpy.sum(delta_x))
+    yrms = numpy.sqrt(numpy.sum(delta_y))
+    rms = numpy.sqrt(numpy.sum(delta_x + delta_y))
+
+    return (delta_ra, delta_dec, delta_rot, delta_scale, xrms, yrms, rms)
 
 
 async def process_and_correct(
@@ -686,6 +692,12 @@ async def process_and_correct(
         delta_dec = fit[1]
         delta_rot = fit[2]
         delta_scale = fit[3]
+
+        xrms = fit[4]
+        yrms = fit[5]
+        rms = fit[6]
+
+        command.debug(rms=[xrms, yrms, rms])
 
     command.info(
         astrometry_fit=[

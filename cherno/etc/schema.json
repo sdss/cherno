@@ -50,6 +50,14 @@
         { "title": "delta_rot", "type": "number" },
         { "title": "delta_scale", "type": "number" }
       ]
+    },
+    "rms": {
+      "type": "array",
+      "items": [
+        { "title": "xrms", "type": "number" },
+        { "title": "yrms", "type": "number" },
+        { "title": "rms", "type": "number" }
+      ]
     }
   },
   "additionalProperties": false
