@@ -684,6 +684,8 @@ async def process_and_correct(
 
     fit = astrometry_fit(solved)
 
+    exp_no = solved[0].exposure_no  # Should be the same for all.
+
     if fit is False:
         delta_ra = delta_dec = delta_rot = delta_scale = -999.0
     else:
@@ -696,10 +698,11 @@ async def process_and_correct(
         yrms = fit[5]
         rms = fit[6]
 
-        command.debug(rms=[xrms, yrms, rms])
+        command.debug(rms=[exp_no, xrms, yrms, rms])
 
     command.info(
         astrometry_fit=[
+            exp_no,
             len(solved),
             -999.0,
             -999.0,
@@ -730,5 +733,7 @@ async def process_and_correct(
             rot=-delta_rot if delta_rot is not None else None,
             radec=(-delta_ra, -delta_dec),
         )
+
+        command.info(acquisition_valid=True)
 
     return True
