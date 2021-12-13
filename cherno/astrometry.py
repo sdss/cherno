@@ -656,7 +656,7 @@ def astrometry_fit(
 
     delta_ra = numpy.round(t[0] / plate_scale * 3600.0, 3)
     delta_dec = numpy.round(t[1] / plate_scale * 3600.0, 3)
-    delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])), 5)
+    delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])) * 3600.0, 1)
     delta_scale = numpy.round(c - 1, 6)
 
     delta_x = (numpy.array(xwok_gfa) - numpy.array(xwok_astro)) ** 2  # type: ignore
