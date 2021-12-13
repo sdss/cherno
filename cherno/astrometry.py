@@ -682,6 +682,11 @@ async def process_and_correct(
     ellipticity = numpy.average([d.ellipticity for d in solved], weights=nkeep)
     camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
 
+    if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
+        command.error(acquisition_valid=False)
+        command.error("Field not defined. Cannot run astrometric fit.")
+        return False
+
     fit = astrometry_fit(solved)
 
     exp_no = solved[0].exposure_no  # Should be the same for all.
