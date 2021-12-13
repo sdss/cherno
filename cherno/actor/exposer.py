@@ -202,7 +202,7 @@ class Exposer:
             if (m := re.search(r"gimg\-.+?\-([0-9]+)", file_))
         ]
 
-        return max(set(matches))
+        return max(set(matches)) + 1
 
     def _get_filename_bundle(self, command: Command):
         """Returns the ``filename_bundle`` values from the list of command replies."""
