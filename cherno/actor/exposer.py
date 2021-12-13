@@ -159,7 +159,7 @@ class Exposer:
                 expose_command = await asyncio.wait_for(
                     self.actor.tron.send_command(
                         "fliswarm",
-                        f"talk -n {names_comma} expose -n {num} {exposure_time}",
+                        f"talk -n {names_comma} -- expose -n {num} {exposure_time}",
                     ),
                     exposure_time + timeout if timeout is not None else None,
                 )
