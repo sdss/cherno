@@ -698,7 +698,7 @@ async def process_and_correct(
         yrms = fit[5]
         rms = fit[6]
 
-        command.debug(rms=[exp_no, xrms, yrms, rms])
+        command.debug(guide_rms=[exp_no, xrms, yrms, rms])
 
     command.info(
         astrometry_fit=[

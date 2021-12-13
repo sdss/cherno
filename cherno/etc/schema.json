@@ -45,7 +45,7 @@
         { "title": "delta_scale", "type": "number" }
       ]
     },
-    "rms": {
+    "guide_rms": {
       "type": "array",
       "items": [
         { "title": "exposure_no", "type": "integer" },
