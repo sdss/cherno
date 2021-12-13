@@ -14,6 +14,7 @@ actor:
 
 cameras:
   names: [gfa2, gfa3, gfa4, gfa5, gfa6]
+  path: /data/gcam/
   pixel_scale: 0.216
   rotation:
     gfa1: 300

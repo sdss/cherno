@@ -9,8 +9,13 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import re
+from glob import glob
 
 from typing import Any, Callable, Union
+
+from astropy.time import Time
 
 from clu import Command
 
@@ -131,6 +136,8 @@ class Exposer:
             if names is None or len(names) == 0:
                 self.fail("No cameras defined.")
 
+            num = self._get_num(names)
+
             names_comma = ",".join(names)
 
             # Issue a fliswarm talk status to the cameras to update their status.
@@ -152,7 +159,7 @@ class Exposer:
                 expose_command = await asyncio.wait_for(
                     self.actor.tron.send_command(
                         "fliswarm",
-                        f"talk -n {names_comma} expose {exposure_time}",
+                        f"talk -n {names_comma} expose -n {num} {exposure_time}",
                     ),
                     exposure_time + timeout if timeout is not None else None,
                 )
@@ -177,6 +184,25 @@ class Exposer:
                 await asyncio.sleep(delay)
 
             n_exp += 1
+
+    def _get_num(self, names: list[str]) -> int:
+        """Returns the next sequence number."""
+
+        date = Time.now()
+        mjd = int(date.mjd)
+
+        dirpath = os.path.join(config["cameras"]["path"], str(mjd))
+        if not os.path.exists(dirpath):
+            return 1
+
+        gimgs = glob(os.path.join(dirpath, "*.fits"))
+        matches = [
+            int(m.group(1))
+            for file_ in gimgs
+            if (m := re.search(r"gimg\-.+?\-([0-9]+)", file_))
+        ]
+
+        return max(set(matches))
 
     def _get_filename_bundle(self, command: Command):
         """Returns the ``filename_bundle`` values from the list of command replies."""
