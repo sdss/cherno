@@ -596,7 +596,12 @@ def calculate_fwhm_camera(
     return fwhm, a, b, ell, nkeep
 
 
-def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
+def astrometry_fit(
+    data: list[ExtractionData],
+    grid=(10, 10),
+    offset_ra: float = 0.0,
+    offset_dec: float = 0.0,
+):
     """Fits translation, rotation, and scale from a WCS solution."""
 
     xwok_gfa: list[float] = []
@@ -619,13 +624,15 @@ def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
             xwok_gfa.append(xw)
             ywok_gfa.append(yw)
 
+        offset_ra_corr = offset_ra * numpy.cos(numpy.deg2rad(d.field_dec))
+
         _xwok_astro, _ywok_astro, *_ = radec2wokxy(
             ra,
             dec,
             None,
             "GFA",
-            d.field_ra,
-            d.field_dec,
+            d.field_ra + offset_ra_corr,
+            d.field_dec + offset_dec / 3600.,
             d.field_pa,
             "APO",
             None,
@@ -668,6 +675,8 @@ async def process_and_correct(
 ):
     """Processes a series of files for the same pointing and applies a correction."""
 
+    assert command and command.actor
+
     run_options["command"] = command
     data = await extract_and_run(filenames, **run_options)
 
@@ -687,7 +696,8 @@ async def process_and_correct(
         command.error("Field not defined. Cannot run astrometric fit.")
         return False
 
-    fit = astrometry_fit(solved)
+    offset_ra, offset_dec = command.actor.state.offset
+    fit = astrometry_fit(solved, offset_ra=offset_ra, offset_dec=offset_dec)
 
     exp_no = solved[0].exposure_no  # Should be the same for all.
 
