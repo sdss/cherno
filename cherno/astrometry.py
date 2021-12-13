@@ -661,9 +661,10 @@ def astrometry_fit(
 
     delta_x = (numpy.array(xwok_gfa) - numpy.array(xwok_astro)) ** 2  # type: ignore
     delta_y = (numpy.array(ywok_gfa) - numpy.array(ywok_astro)) ** 2  # type: ignore
-    xrms = numpy.sqrt(numpy.sum(delta_x))
-    yrms = numpy.sqrt(numpy.sum(delta_y))
-    rms = numpy.sqrt(numpy.sum(delta_x + delta_y))
+
+    xrms = numpy.round(numpy.sqrt(numpy.sum(delta_x) / len(delta_x)), 3)
+    yrms = numpy.round(numpy.sqrt(numpy.sum(delta_y) / len(delta_y)), 3)
+    rms = numpy.round(numpy.sqrt(numpy.sum(delta_x + delta_y) / len(delta_x)), 3)
 
     return (delta_ra, delta_dec, delta_rot, delta_scale, xrms, yrms, rms)
 
