@@ -6,13 +6,15 @@
 # @Filename: __init__.py
 # @License: BSD 3-clause (http://www.opensource.org/licenses/BSD-3-Clause)
 
-from clu import Command
+from typing import Union
+
+from clu import Command, FakeCommand
 from clu.parsers.click import command_parser as cherno_parser
 
 from .actor import ChernoActor
 
 
-ChernoCommandType = Command[ChernoActor]
+ChernoCommandType = Union[Command[ChernoActor], FakeCommand]
 
 
 from .acquire import *

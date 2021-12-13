@@ -24,4 +24,9 @@ cameras:
     gfa5: 180
     gfa6: 240
 
+guide_loop:
+  rotation:
+    min_correction: 0.00086
+    min_isolated_correction: 0.5
+
 observatory: ${OBSERVATORY}
