@@ -26,4 +26,4 @@ async def offset(command: ChernoCommandType, ra: float, dec: float, pa: float = 
     assert command.actor
     command.actor.state.offset = (ra, dec, pa)
 
-    return command.finish()
+    return command.finish(offset=[ra, dec, pa])

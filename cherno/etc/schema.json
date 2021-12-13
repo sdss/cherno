@@ -53,6 +53,14 @@
         { "title": "yrms", "type": "number" },
         { "title": "rms", "type": "number" }
       ]
+    },
+    "offset": {
+      "type": "array",
+      "items": [
+        { "title": "ra_offset", "type": "number" },
+        { "title": "dec_offset", "type": "number" },
+        { "title": "pa_offset", "type": "number" }
+      ]
     }
   },
   "additionalProperties": false
