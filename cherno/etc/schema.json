@@ -39,10 +39,26 @@
         { "title": "fwhm", "type": "number" },
         { "title": "ellipticity", "type": "number" },
         { "title": "camera_rotation", "type": "number" },
-        { "title": "delta_ra", "type": "number" },
-        { "title": "delta_dec", "type": "number" },
-        { "title": "delta_rot", "type": "number" },
-        { "title": "delta_scale", "type": "number" }
+        {
+          "title": "delta_ra",
+          "type": "number",
+          "$comment": "RA measured delta in arcsec"
+        },
+        {
+          "title": "delta_dec",
+          "type": "number",
+          "$comment": "Dec measured delta in arcsec"
+        },
+        {
+          "title": "delta_rot",
+          "type": "number",
+          "$comment": "Rotator measured delta in arcsec"
+        },
+        {
+          "title": "delta_scale",
+          "type": "number",
+          "$comment": "Scale measured delta factor"
+        }
       ]
     },
     "guide_rms": {
