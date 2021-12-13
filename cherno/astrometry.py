@@ -35,6 +35,7 @@ from clu.command import FakeCommand
 from cherno import config
 from cherno.actor import ChernoCommandType
 from cherno.coordinates import gfa_to_radec, gfa_to_wok, umeyama
+from cherno.tcc import apply_correction
 
 
 matplotlib.use("Agg")
@@ -253,14 +254,13 @@ class ExtractionData:
     camera: str
     exposure_no: int
     observatory: str
-    boresight_ra: float
-    boresight_dec: float
+    field_ra: float
+    field_dec: float
+    field_pa: float
     nregions: int
     nvalid: int
     background_rms: float
     solved: bool = False
-    ipa: float = 0.0
-    rotpos: float = 0.0
     fwhm: float = numpy.nan
     a: float = numpy.nan
     b: float = numpy.nan
@@ -374,10 +374,9 @@ async def extract_and_run(
         camera,
         exposure_no=exp_no,
         observatory=config["observatory"],
-        boresight_ra=header["RA"],
-        boresight_dec=header["DEC"],
-        ipa=header["IPA"],
-        rotpos=header["ROTPOS"],
+        field_ra=header["RAFIELD"],
+        field_dec=header["DECFIELD"],
+        field_pa=header["FIELDPA"],
         nregions=len(regions),
         nvalid=len(valid),
         background_rms=back.globalrms,
@@ -625,9 +624,9 @@ def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
             dec,
             None,
             "GFA",
-            d.boresight_ra,
-            d.boresight_dec,
-            d.rotpos,
+            d.field_ra,
+            d.field_dec,
+            d.field_pa,
             "APO",
             None,
             pmra=None,
@@ -649,7 +648,7 @@ def astrometry_fit(data: list[ExtractionData], grid=(10, 10)):
 
     delta_ra = numpy.round(t[0] / plate_scale * 3600.0, 3)
     delta_dec = numpy.round(t[1] / plate_scale * 3600.0, 3)
-    delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])), 2)
+    delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])), 5)
     delta_scale = numpy.round(c - 1, 6)
 
     return (delta_ra, delta_dec, delta_rot, delta_scale)
@@ -701,5 +700,23 @@ async def process_and_correct(
             delta_scale,
         ]
     )
+
+    if apply is True:
+        command.info("Applying corrections.")
+
+        min_isolated = config["guide_loop"]["rotation"]["min_isolated_correction"]
+        if abs(delta_rot) >= min_isolated:
+            command.debug("Applying only large rotator correction.")
+            await apply_correction(command, rot=-delta_rot)
+            return True
+
+        if abs(delta_rot) < config["guide_loop"]["rotation"]["min_correction"]:
+            delta_rot = None
+
+        await apply_correction(
+            command,
+            rot=-delta_rot if delta_rot is not None else None,
+            radec=(-delta_ra, -delta_dec),
+        )
 
     return True
