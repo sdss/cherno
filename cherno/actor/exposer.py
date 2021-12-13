@@ -26,7 +26,7 @@ from cherno.maskbits import GuiderStatus
 from . import ChernoCommandType
 
 
-CallbackType = Union[Callable[[Command, list[str]], Any], None]
+CallbackType = Union[Callable[[ChernoCommandType, list[str]], Any], None]
 
 
 class Exposer:
