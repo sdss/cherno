@@ -34,33 +34,33 @@ async def apply_correction(
         corr_radec *= k_radec
 
         if numpy.any(corr_radec > 30 / 3600.0):
-            command.error("RA/Dec correction > 30 arcsec. Not applying correction.")
-            return False
+            command.warning("RA/Dec correction > 30 arcsec. Not applying correction.")
 
-        tcc_offset_cmd = await command.send_command(
-            "tcc",
-            f"offset arc {corr_radec[0]},{corr_radec[1]} /computed",
-        )
+        else:
+            tcc_offset_cmd = await command.send_command(
+                "tcc",
+                f"offset arc {corr_radec[0]},{corr_radec[1]} /computed",
+            )
 
-        if tcc_offset_cmd.status.did_fail:
-            command.error("Failed applying RA/Dec correction.")
-            return False
+            if tcc_offset_cmd.status.did_fail:
+                command.error("Failed applying RA/Dec correction.")
+                return False
 
     if rot is not None:
         corr_rot = numpy.array(rot)
         corr_rot *= k_rot
 
         if numpy.any(corr_rot > 60 / 3600.0):
-            command.error("Rotator correction > 60 arcsec. Not applying correction.")
-            return False
+            command.warning("Rotator correction > 60 arcsec. Not applying correction.")
 
-        tcc_offset_cmd = await command.send_command(
-            "tcc",
-            f"offset rotator {corr_rot} /computed",
-        )
+        else:
+            tcc_offset_cmd = await command.send_command(
+                "tcc",
+                f"offset rotator {corr_rot} /computed",
+            )
 
-        if tcc_offset_cmd.status.did_fail:
-            command.error("Failed applying rotator correction.")
-            return False
+            if tcc_offset_cmd.status.did_fail:
+                command.error("Failed applying rotator correction.")
+                return False
 
     return True
