@@ -19,10 +19,11 @@ __all__ = ["offset"]
 @cherno_parser.command()
 @click.argument("RA", type=float)
 @click.argument("DEC", type=float)
-async def offset(command: ChernoCommandType, ra: float, dec: float):
-    """Offsets the field boresight by RA/DEC arcsec."""
+@click.argument("PA", type=float, required=False, default=0.0)
+async def offset(command: ChernoCommandType, ra: float, dec: float, pa: float = 0.0):
+    """Offsets the field boresight by RA/DEC/PA arcsec."""
 
     assert command.actor
-    command.actor.state.offset = (ra, dec)
+    command.actor.state.offset = (ra, dec, pa)
 
     return command.finish()
