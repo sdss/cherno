@@ -634,7 +634,7 @@ def astrometry_fit(
             "GFA",
             d.field_ra - offset_ra_corr,
             d.field_dec - offset_dec / 3600.0,
-            d.field_pa - offset_pa,
+            d.field_pa - offset_pa / 3600.0,
             "APO",
             None,
             pmra=None,
