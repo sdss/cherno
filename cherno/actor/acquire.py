@@ -33,7 +33,7 @@ __all__ = ["acquire"]
     "-t",
     "--exposure-time",
     type=float,
-    default=15.0,
+    default=None,
     help="Cameras exposure time.",
 )
 @click.option(
@@ -66,7 +66,7 @@ __all__ = ["acquire"]
 )
 async def acquire(
     command: ChernoCommandType,
-    exposure_time: float = 15.0,
+    exposure_time: float | None = None,
     continuous: bool = False,
     apply: bool = True,
     plot: bool = False,
@@ -75,8 +75,16 @@ async def acquire(
 ):
     """Runs the acquisition procedure."""
 
+    assert command.actor
+
     if full is True and continuous is True:
         return command.fail("--full and --continuous are mutually exclusive.")
+
+    if exposure_time is not None:
+        if exposure_time < 1.0:
+            return command.fail("Exposure time not set or too small.")
+        else:
+            command.actor.state.exposure_time = exposure_time
 
     callback = partial(
         process_and_correct,
@@ -88,7 +96,7 @@ async def acquire(
 
     try:
         await exposer.loop(
-            exposure_time,
+            None,
             count=1 if continuous is False else None,
             timeout=25,
         )

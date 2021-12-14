@@ -70,6 +70,7 @@ class ChernoState:
     status: GuiderStatus = GuiderStatus.IDLE
     camera_state: dict[str, CameraState] = field(default_factory=dict)
     offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    exposure_time: float = 15.0
 
     def set_status(self, status: GuiderStatus, mode="override"):
         """Sets the status and broadcasts it."""

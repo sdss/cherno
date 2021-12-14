@@ -66,7 +66,7 @@ class Exposer:
     def fail(self, message=""):
         """Sets the guider status to failed and raises an exception."""
 
-        self.actor_state.set_status(GuiderStatus.FAILED)
+        self.actor_state.set_status(GuiderStatus.FAILED | GuiderStatus.IDLE)
         raise ExposerError(message)
 
     async def one(self, exposure_time: float, **kwargs):
@@ -88,7 +88,7 @@ class Exposer:
 
     async def loop(
         self,
-        exposure_time: float,
+        exposure_time: float | None = None,
         count: int | None = None,
         delay: float = 0.0,
         names: list[str] | None = None,
@@ -100,7 +100,8 @@ class Exposer:
         Parameters
         ----------
         exposure_time
-            The exposure time to command.
+            The exposure time to command. If `None`, uses the stored exposure
+            time in the actor state.
         count
             The number of exposures to take before stopping the loop.
         delay
@@ -120,6 +121,9 @@ class Exposer:
 
         if self.actor.tron is None:
             raise ExposerError("Tron is not connected. Cannot expose.")
+
+        if self.actor_state.status & GuiderStatus.EXPOSING:
+            raise ExposerError("The guider is already exposing.")
 
         n_exp = 0
         while True:
@@ -154,6 +158,8 @@ class Exposer:
 
             if status_command.status.did_fail:
                 self.fail("Failed updating camera status.")
+
+            exposure_time = exposure_time or self.actor_state.exposure_time
 
             try:
                 expose_command = await asyncio.wait_for(
