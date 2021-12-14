@@ -47,7 +47,7 @@ async def apply_correction(
                 return False
 
     if rot is not None:
-        corr_rot = numpy.array(rot)
+        corr_rot = numpy.array(rot) / 3600.0
         corr_rot *= k_rot
 
         if numpy.any(corr_rot > 60 / 3600.0):
