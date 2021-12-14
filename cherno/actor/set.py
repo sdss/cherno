@@ -13,6 +13,9 @@ import click
 from . import ChernoCommandType, cherno_parser
 
 
+__all__ = ["set"]
+
+
 @cherno_parser.command()
 @click.argument("OPTIONS", type=str, nargs=-1)
 async def set(command: ChernoCommandType, options: tuple[str, ...]):
@@ -37,3 +40,5 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
     else:
         return command.fail("Invalid parameter.")
+
+    return command.finish()

@@ -35,6 +35,7 @@ from clu.command import FakeCommand
 from cherno import config
 from cherno.actor import ChernoCommandType
 from cherno.coordinates import gfa_to_radec, gfa_to_wok, umeyama
+from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_correction
 
 
@@ -750,7 +751,10 @@ async def process_and_correct(
         ]
     )
 
-    if apply is True:
+    guider_status = command.actor.state.status
+    stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
+
+    if apply is True and stopping is False:
         command.info("Applying corrections.")
 
         min_isolated = config["guide_loop"]["rotation"]["min_isolated_correction"]

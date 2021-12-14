@@ -122,8 +122,11 @@ class Exposer:
         if self.actor.tron is None:
             raise ExposerError("Tron is not connected. Cannot expose.")
 
-        if self.actor_state.status & GuiderStatus.EXPOSING:
+        if (self.actor_state.status & GuiderStatus.EXPOSING).value > 0:
             raise ExposerError("The guider is already exposing.")
+
+        if exposure_time is not None:
+            self.actor_state.exposure_time = exposure_time
 
         n_exp = 0
         while True:
@@ -159,15 +162,14 @@ class Exposer:
             if status_command.status.did_fail:
                 self.fail("Failed updating camera status.")
 
-            exposure_time = exposure_time or self.actor_state.exposure_time
-
             try:
+                etime = self.actor_state.exposure_time
                 expose_command = await asyncio.wait_for(
                     self.actor.tron.send_command(
                         "fliswarm",
-                        f"talk -n {names_comma} -- expose -n {num} {exposure_time}",
+                        f"talk -n {names_comma} -- expose -n {num} {etime}",
                     ),
-                    exposure_time + timeout if timeout is not None else None,
+                    etime + timeout if timeout is not None else None,
                 )
             except asyncio.TimeoutError:
                 self.fail("Timed out waiting for the exposure to finish.")

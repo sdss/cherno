@@ -20,4 +20,5 @@ ChernoCommandType = Union[Command[ChernoActor], FakeCommand]
 from .acquire import *
 from .guide import *
 from .offset import *
+from .set import *
 from .stop import *
