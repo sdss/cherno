@@ -27,6 +27,10 @@ cameras:
 guide_loop:
   rotation:
     min_correction: 3
+    max_correction: 600
     min_isolated_correction: 30
+  radec:
+    min_correction: 0.05
+    max_correction:
 
 observatory: ${OBSERVATORY}
