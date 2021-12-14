@@ -365,9 +365,13 @@ async def extract_and_run(
     regions = pandas.DataFrame(
         await asyncio.get_running_loop().run_in_executor(None, extract)
     )
-    regions.loc[regions.npix > min_npix, "valid"] = 1
-    valid = regions.loc[regions.valid == 1]
-    regions.to_hdf(outfile_root + ".hdf", "data")
+
+    if len(regions) > 0:
+        regions.loc[regions.npix > min_npix, "valid"] = 1
+        valid = regions.loc[regions.valid == 1]
+        regions.to_hdf(outfile_root + ".hdf", "data")
+    else:
+        valid = []
 
     extraction_data = ExtractionData(
         str(image),
@@ -382,7 +386,7 @@ async def extract_and_run(
         background_rms=back.globalrms,
     )
 
-    if len(regions.loc[regions.valid == 1]) < 5:  # Don't even try.
+    if len(valid) < 5:  # Don't even try.
         if command is not None:
             command.warning(f"Camera {camera}: not enough sources.")
         return [extraction_data]
