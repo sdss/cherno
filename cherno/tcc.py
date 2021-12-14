@@ -33,8 +33,8 @@ async def apply_correction(
         corr_radec = numpy.array(radec) / 3600.0  # In degrees!
         corr_radec *= k_radec
 
-        if numpy.any(corr_radec > 30 / 3600.0):
-            command.warning("RA/Dec correction > 30 arcsec. Not applying correction.")
+        if numpy.any(corr_radec > 60 / 3600):
+            command.warning("RA/Dec correction > 1 arcmin. Not applying correction.")
 
         else:
             tcc_offset_cmd = await command.send_command(
@@ -50,8 +50,8 @@ async def apply_correction(
         corr_rot = numpy.array(rot) / 3600.0
         corr_rot *= k_rot
 
-        if numpy.any(corr_rot > 60 / 3600.0):
-            command.warning("Rotator correction > 60 arcsec. Not applying correction.")
+        if numpy.any(corr_rot > 1):
+            command.warning("Rotator correction > 1 degree. Not applying correction.")
 
         else:
             tcc_offset_cmd = await command.send_command(
