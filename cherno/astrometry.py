@@ -510,6 +510,12 @@ async def extract_and_run(
     proc_hdu[1].header["SOLVTIME"] = (proc.elapsed, "Time to solve the field or fail")
     proc_hdu[1].header["FWHM"] = (fwhm, "Average FWHM in arcsec")
 
+    if command is not None and command.actor is not None:
+        offsets = command.actor.state.offset
+        proc_hdu[1].header["OFFRA"] = (offsets[0], "Offset in RA [arcsec]")
+        proc_hdu[1].header["OFFDEC"] = (offsets[1], "Offset in Dec [arcsec]")
+        proc_hdu[1].header["OFFPA"] = (offsets[2], "Offset in PA [arcsec]")
+
     if command is not None:
         if extraction_data.solved is False:
             command.info(
