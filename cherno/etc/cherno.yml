@@ -25,12 +25,16 @@ cameras:
     gfa6: 240
 
 guide_loop:
+  radec:
+    pid:
+      k: 0.7
+    min_correction: 0.05
+    max_correction:
   rotation:
+    pid:
+      k: 0.6
     min_correction: 3
     max_correction: 600
     min_isolated_correction: 30
-  radec:
-    min_correction: 0.05
-    max_correction:
 
 observatory: ${OBSERVATORY}

@@ -58,6 +58,12 @@ __all__ = ["acquire"]
     default=15.0,
     help="Maximum runtime for astrometry.net.",
 )
+@click.option(
+    "-f",
+    "--full",
+    is_flag=True,
+    help="Applies the full correction once. Cannot be used with --continuous.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float = 15.0,
@@ -65,13 +71,18 @@ async def acquire(
     apply: bool = True,
     plot: bool = False,
     cpulimit: float = 15.0,
+    full: bool = False,
 ):
     """Runs the acquisition procedure."""
+
+    if full is True and continuous is True:
+        return command.fail("--full and --continuous are mutually exclusive.")
 
     callback = partial(
         process_and_correct,
         run_options={"plot": plot, "cpulimit": cpulimit},
         apply=apply,
+        full=full,
     )
     exposer = Exposer(command, callback=callback)
 

@@ -683,6 +683,7 @@ async def process_and_correct(
     command: ChernoCommandType | FakeCommand,
     filenames: list[str],
     apply: bool = True,
+    full: bool = False,
     run_options={},
 ):
     """Processes a series of files for the same pointing and applies a correction."""
@@ -749,16 +750,19 @@ async def process_and_correct(
         min_isolated = config["guide_loop"]["rotation"]["min_isolated_correction"]
         if abs(delta_rot) >= min_isolated:
             command.debug("Applying only large rotator correction.")
-            await apply_correction(command, rot=-delta_rot)
+            await apply_correction(
+                command,
+                rot=-delta_rot,
+                k_rot=None if full is False else 1.0,
+            )
             return True
-
-        if abs(delta_rot) < config["guide_loop"]["rotation"]["min_correction"]:
-            delta_rot = None
 
         await apply_correction(
             command,
-            rot=-delta_rot if delta_rot is not None else None,
+            rot=-delta_rot,
             radec=(-delta_ra, -delta_dec),
+            k_radec=None if full is False else 1.0,
+            k_rot=None if full is False else 1.0,
         )
 
         command.info(acquisition_valid=True)

@@ -26,13 +26,16 @@ async def apply_correction(
     command: ChernoCommandType,
     radec: tuple[float, float] | numpy.ndarray | None = None,
     rot: float | None = None,
-    k_radec=0.6,
-    k_rot=0.5,
+    k_radec: float | None = None,
+    k_rot: float | None = None,
 ):
     """Send corrections to the"""
 
     if radec is not None:
         corr_radec = numpy.array(radec) / 3600.0  # In degrees!
+
+        default_k_radec: float = config["guide_loop"]["radec"]["pid"]["k"]
+        k_radec = k_radec or default_k_radec
 
         min_corr_arcsec = config["guide_loop"]["radec"]["min_correction"]
         max_corr_arcsec = config["guide_loop"]["radec"]["max_correction"]
@@ -58,6 +61,9 @@ async def apply_correction(
 
     if rot is not None:
         corr_rot = numpy.array(rot) / 3600.0  # In degrees!
+
+        default_k_rot: float = config["guide_loop"]["rotation"]["pid"]["k"]
+        k_rot = k_rot or default_k_rot
 
         min_corr_arcsec = config["guide_loop"]["rotation"]["min_correction"]
         max_corr_arcsec = config["guide_loop"]["rotation"]["max_correction"]
