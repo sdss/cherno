@@ -195,7 +195,7 @@ class Exposer:
         if not os.path.exists(dirpath):
             return 1
 
-        gimgs = glob(os.path.join(dirpath, "*.fits"))
+        gimgs = glob(os.path.join(dirpath, "*.fits*"))
         matches = [
             int(m.group(1))
             for file_ in gimgs

@@ -326,7 +326,7 @@ async def extract_and_run(
     dirname = path.parent
     proc_basename = "proc-" + path.parts[-1]
 
-    match = re.match(r".*gimg\-gfa\d[ns]\-(\d+)\.fits.*", path.parts[-1])
+    match = re.match(r".*gimg\-gfa\d[ns]\-(\d+)\.fits\.gz", path.parts[-1])
     if match:
         exp_no = int(match.group(1))
     else:
@@ -708,6 +708,7 @@ async def process_and_correct(
         command.error("Field not defined. Cannot run astrometric fit.")
         return False
 
+    command.debug(offset=list(command.actor.state.offset))
     fit = astrometry_fit(solved, offset=command.actor.state.offset)
 
     exp_no = solved[0].exposure_no  # Should be the same for all.
