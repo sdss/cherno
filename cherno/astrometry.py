@@ -327,7 +327,7 @@ async def extract_and_run(
     dirname = path.parent
     proc_basename = "proc-" + path.parts[-1]
 
-    match = re.match(r".*gimg\-gfa\d[ns]\-(\d+)\.fits\.gz", path.parts[-1])
+    match = re.match(r".*gimg\-gfa\d[ns]\-(\d+)\.fits", path.parts[-1])
     if match:
         exp_no = int(match.group(1))
     else:
