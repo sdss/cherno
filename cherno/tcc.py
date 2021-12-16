@@ -29,7 +29,7 @@ async def apply_correction(
     k_radec: float | None = None,
     k_rot: float | None = None,
 ):
-    """Send corrections to the"""
+    """Send corrections to the TCC. Corrections here are in arcsec."""
 
     if radec is not None:
         corr_radec = numpy.array(radec) / 3600.0  # In degrees!
@@ -40,11 +40,11 @@ async def apply_correction(
         min_corr_arcsec = config["guide_loop"]["radec"]["min_correction"]
         max_corr_arcsec = config["guide_loop"]["radec"]["max_correction"]
 
-        if numpy.all(corr_radec < min_corr_arcsec / 3600.0):
+        if numpy.all(numpy.abs(corr_radec) < (min_corr_arcsec / 3600.0)):
             # Small correction. Do not apply.
             command.debug("Ignoring small ra/dec correction.")
 
-        elif numpy.any(corr_radec > max_corr_arcsec / 3600):
+        elif numpy.any(numpy.abs(corr_radec) > (max_corr_arcsec / 3600)):
             command.warning("RA/Dec correction too large. Not applying correction.")
 
         else:
@@ -68,11 +68,11 @@ async def apply_correction(
         min_corr_arcsec = config["guide_loop"]["rotation"]["min_correction"]
         max_corr_arcsec = config["guide_loop"]["rotation"]["max_correction"]
 
-        if numpy.all(corr_rot < min_corr_arcsec / 3600.0):
+        if numpy.all(numpy.abs(corr_rot) < (min_corr_arcsec / 3600.0)):
             # Small correction. Do not apply.
             command.debug("Ignoring small rotator correction.")
 
-        elif numpy.any(corr_rot > max_corr_arcsec / 3600):
+        elif numpy.any(numpy.abs(corr_rot) > (max_corr_arcsec / 3600)):
             command.warning("Rotator correction too large. Not applying correction.")
 
         else:
