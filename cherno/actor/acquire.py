@@ -77,9 +77,6 @@ async def acquire(
 
     assert command.actor
 
-    if full is True and continuous is True:
-        return command.fail("--full and --continuous are mutually exclusive.")
-
     if exposure_time is not None:
         if exposure_time < 1.0:
             return command.fail("Exposure time not set or too small.")
