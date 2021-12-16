@@ -16,6 +16,7 @@
       ]
     },
     "acquisition_valid": { "type": "boolean" },
+    "correction_applied": { "type": "boolean" },
     "guider_status": { "type": "string" },
     "fwhm_camera": {
       "type": "array",

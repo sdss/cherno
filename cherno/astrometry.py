@@ -708,7 +708,7 @@ async def process_and_correct(
     nkeep = [d.nkeep for d in solved]
 
     if len(solved) == 0:
-        command.error(acquisition_valid=False)
+        command.error(acquisition_valid=False, correction_applied=False)
         return False
 
     fwhm = numpy.average([d.fwhm for d in solved], weights=nkeep)
@@ -718,6 +718,7 @@ async def process_and_correct(
     if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
         command.error(acquisition_valid=False)
         command.error("Field not defined. Cannot run astrometric fit.")
+        update_proc_headers(data, False)
         return False
 
     command.debug(offset=list(command.actor.state.offset))
@@ -760,15 +761,7 @@ async def process_and_correct(
     stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
     will_apply = apply is True and stopping is False
 
-    # Update headers of proc images with deltas.
-    for img in data:
-        if img.proc_image is not None:
-            hdus = fits.open(img.proc_image)
-            hdus[1].header["CAPPLIED"] = (will_apply, "Guide correction applied")
-            hdus[1].header["DELTA_RA"] = (delta_ra, "RA correction [arcsec]")
-            hdus[1].header["DELTA_DEC"] = (delta_dec, "Dec correction [arcsec]")
-            hdus[1].header["DELTA_ROT"] = (delta_rot, "Rotator correction [arcsec]")
-            hdus.close()
+    update_proc_headers(data, will_apply, delta_ra, delta_dec, delta_rot, delta_scale)
 
     if will_apply is True:
         command.info("Applying corrections.")
@@ -781,16 +774,38 @@ async def process_and_correct(
                 rot=-delta_rot,
                 k_rot=None if full is False else 1.0,
             )
-            return True
 
-        await apply_correction(
-            command,
-            rot=-delta_rot,
-            radec=(-delta_ra, -delta_dec),
-            k_radec=None if full is False else 1.0,
-            k_rot=None if full is False else 1.0,
-        )
+        else:
 
-        command.info(acquisition_valid=True)
+            await apply_correction(
+                command,
+                rot=-delta_rot,
+                radec=(-delta_ra, -delta_dec),
+                k_radec=None if full is False else 1.0,
+                k_rot=None if full is False else 1.0,
+            )
+
+    command.info(acquisition_valid=True, correction_applied=will_apply)
 
     return True
+
+
+def update_proc_headers(
+    data: list[ExtractionData],
+    applied: bool,
+    delta_ra: float = -999.0,
+    delta_dec: float = -999.0,
+    delta_rot: float = -999.0,
+    delta_scale: float = -999.0,
+):
+
+    # Update headers of proc images with deltas.
+    for img in data:
+        if img.proc_image is not None:
+            hdus = fits.open(img.proc_image)
+            hdus[1].header["CAPPLIED"] = (applied, "Guide correction applied")
+            hdus[1].header["DELTA_RA"] = (delta_ra, "RA correction [arcsec]")
+            hdus[1].header["DELTA_DEC"] = (delta_dec, "Dec correction [arcsec]")
+            hdus[1].header["DELTA_ROT"] = (delta_rot, "Rotator correction [arcsec]")
+            hdus[1].header["DELTA_SCL"] = (delta_scale, "Scale correction [arcsec]")
+            hdus.close()
