@@ -23,7 +23,7 @@ async def stop(command: ChernoCommandType):
     assert command.actor is not None
 
     if command.actor.state.status & GuiderStatus.IDLE:
-        return command.fail("The guider is idle.`")
+        return command.fail("The guider is idle.")
 
     command.actor.state.set_status(GuiderStatus.STOPPING)
 
