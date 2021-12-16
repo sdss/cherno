@@ -372,8 +372,8 @@ async def extract_and_run(
         regions.loc[regions.npix > min_npix, "valid"] = 1
 
         # Keep only detectons with flux and sort them by highest flux first.
-        regions.dropna(subset=["flux"], inplace=True)
-        regions.sort_values("flux", inplace=True)
+        # regions.dropna(subset=["flux"], inplace=True)
+        # regions.sort_values("flux", inplace=True, ascending=False)
 
         valid = regions.loc[regions.valid == 1]
         regions.to_hdf(outfile_root + ".hdf", "data")
@@ -452,7 +452,7 @@ async def extract_and_run(
         scale_low=pixel_scale * 0.9,
         scale_high=pixel_scale * 1.1,
         scale_units="arcsecperpix",
-        sort_column="flux",
+        # sort_column="flux",
         radius=0.5,
         dir=astrometry_outdir,
         cpulimit=cpulimit,
