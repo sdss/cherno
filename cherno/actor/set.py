@@ -23,6 +23,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
     Valid parameters are:
         exposure-time [EXPTIME]
+        pid radec|rot k [VALUE]
 
     """
 
@@ -37,6 +38,22 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
         exp_time = float(options[1])
         command.actor.state.exposure_time = exp_time
+
+    elif options[0] == "pid":
+        if len(options) < 4:
+            return command.fail("Invalid number of parameters")
+
+        axis = options[1]
+        component = options[2]
+        value = float(options[3])
+
+        if axis not in ["radec", "rot"]:
+            return command.fail(f"Invalid axis {axis}.")
+
+        if value <= 0 or value > 1:
+            return command.fail("Invalid value. Must be between 0 and 1.")
+
+        command.actor.state.guide_loop[axis]["pid"][component] = value
 
     else:
         return command.fail("Invalid parameter.")

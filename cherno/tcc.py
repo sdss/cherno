@@ -31,14 +31,18 @@ async def apply_correction(
 ):
     """Send corrections to the TCC. Corrections here are in arcsec."""
 
+    assert command.actor
+
+    guide_loop = command.actor.state.guide_loop
+
     if radec is not None:
         corr_radec = numpy.array(radec) / 3600.0  # In degrees!
 
-        default_k_radec: float = config["guide_loop"]["radec"]["pid"]["k"]
+        default_k_radec: float = guide_loop["radec"]["pid"]["k"]
         k_radec = k_radec or default_k_radec
 
-        min_corr_arcsec = config["guide_loop"]["radec"]["min_correction"]
-        max_corr_arcsec = config["guide_loop"]["radec"]["max_correction"]
+        min_corr_arcsec = guide_loop["radec"]["min_correction"]
+        max_corr_arcsec = guide_loop["radec"]["max_correction"]
 
         if numpy.all(numpy.abs(corr_radec) < (min_corr_arcsec / 3600.0)):
             # Small correction. Do not apply.
@@ -62,11 +66,11 @@ async def apply_correction(
     if rot is not None:
         corr_rot = numpy.array(rot) / 3600.0  # In degrees!
 
-        default_k_rot: float = config["guide_loop"]["rotation"]["pid"]["k"]
+        default_k_rot: float = guide_loop["rot"]["pid"]["k"]
         k_rot = k_rot or default_k_rot
 
-        min_corr_arcsec = config["guide_loop"]["rotation"]["min_correction"]
-        max_corr_arcsec = config["guide_loop"]["rotation"]["max_correction"]
+        min_corr_arcsec = guide_loop["rot"]["min_correction"]
+        max_corr_arcsec = guide_loop["rot"]["max_correction"]
 
         if numpy.all(numpy.abs(corr_rot) < (min_corr_arcsec / 3600.0)):
             # Small correction. Do not apply.

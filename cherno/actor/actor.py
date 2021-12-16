@@ -15,7 +15,7 @@ import clu
 from clu.legacy import TronKey
 
 import cherno
-from cherno import __version__
+from cherno import __version__, config
 from cherno.maskbits import CameraStatus, GuiderStatus
 
 
@@ -38,7 +38,7 @@ class ChernoActor(clu.LegacyActor):
             **kwargs,
         )
 
-        self.state = ChernoState(self)
+        self.state = ChernoState(self, guide_loop=config["guide_loop"].copy())
 
         self.models["fliswarm"].register_callback(self._process_fliswarm_status)
 
@@ -71,6 +71,7 @@ class ChernoState:
     camera_state: dict[str, CameraState] = field(default_factory=dict)
     offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     exposure_time: float = 15.0
+    guide_loop: dict = field(default_factory=dict)
 
     def set_status(self, status: GuiderStatus, mode="override"):
         """Sets the status and broadcasts it."""

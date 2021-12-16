@@ -30,7 +30,7 @@ guide_loop:
       k: 0.7
     min_correction: 0.05
     max_correction: 600
-  rotation:
+  rot:
     pid:
       k: 0.6
     min_correction: 3

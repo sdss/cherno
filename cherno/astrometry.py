@@ -758,7 +758,8 @@ async def process_and_correct(
         ]
     )
 
-    guider_status = command.actor.state.status
+    actor_state = command.actor.state
+    guider_status = actor_state.status
 
     stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
     will_apply = apply is True and stopping is False
@@ -776,7 +777,7 @@ async def process_and_correct(
     if will_apply is True:
         command.info("Applying corrections.")
 
-        min_isolated = config["guide_loop"]["rotation"]["min_isolated_correction"]
+        min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
         if abs(delta_rot) >= min_isolated:
             command.debug("Applying only large rotator correction.")
             await apply_correction(
