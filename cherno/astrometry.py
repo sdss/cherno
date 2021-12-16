@@ -729,6 +729,7 @@ async def process_and_correct(
 
     if fit is False:
         delta_ra = delta_dec = delta_rot = delta_scale = -999.0
+        rms = -999.0
     else:
         delta_ra = fit[0]
         delta_dec = fit[1]
@@ -762,7 +763,15 @@ async def process_and_correct(
     stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
     will_apply = apply is True and stopping is False
 
-    update_proc_headers(data, will_apply, delta_ra, delta_dec, delta_rot, delta_scale)
+    update_proc_headers(
+        data,
+        will_apply,
+        rms=rms,
+        delta_ra=delta_ra,
+        delta_dec=delta_dec,
+        delta_rot=delta_rot,
+        delta_scale=delta_scale,
+    )
 
     if will_apply is True:
         command.info("Applying corrections.")
@@ -794,6 +803,7 @@ async def process_and_correct(
 def update_proc_headers(
     data: list[ExtractionData],
     applied: bool,
+    rms: float = -999.0,
     delta_ra: float = -999.0,
     delta_dec: float = -999.0,
     delta_rot: float = -999.0,
@@ -804,6 +814,7 @@ def update_proc_headers(
     for img in data:
         if img.proc_image is not None:
             hdus = fits.open(img.proc_image, mode="update")
+            hdus[1].header["RMS"] = (rms, "Guide RMS [arcsec]")
             hdus[1].header["CAPPLIED"] = (applied, "Guide correction applied")
             hdus[1].header["DELTARA"] = (delta_ra, "RA correction [arcsec]")
             hdus[1].header["DELTADEC"] = (delta_dec, "Dec correction [arcsec]")
