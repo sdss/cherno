@@ -709,6 +709,7 @@ async def process_and_correct(
 
     if len(solved) == 0:
         command.error(acquisition_valid=False, correction_applied=False)
+        update_proc_headers(data, False)
         return False
 
     fwhm = numpy.average([d.fwhm for d in solved], weights=nkeep)
@@ -716,7 +717,7 @@ async def process_and_correct(
     camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
 
     if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
-        command.error(acquisition_valid=False)
+        command.error(acquisition_valid=False, correction_applied=False)
         command.error("Field not defined. Cannot run astrometric fit.")
         update_proc_headers(data, False)
         return False
@@ -802,10 +803,10 @@ def update_proc_headers(
     # Update headers of proc images with deltas.
     for img in data:
         if img.proc_image is not None:
-            hdus = fits.open(img.proc_image)
+            hdus = fits.open(img.proc_image, mode="update")
             hdus[1].header["CAPPLIED"] = (applied, "Guide correction applied")
-            hdus[1].header["DELTA_RA"] = (delta_ra, "RA correction [arcsec]")
-            hdus[1].header["DELTA_DEC"] = (delta_dec, "Dec correction [arcsec]")
-            hdus[1].header["DELTA_ROT"] = (delta_rot, "Rotator correction [arcsec]")
-            hdus[1].header["DELTA_SCL"] = (delta_scale, "Scale correction [arcsec]")
+            hdus[1].header["DELTARA"] = (delta_ra, "RA correction [arcsec]")
+            hdus[1].header["DELTADEC"] = (delta_dec, "Dec correction [arcsec]")
+            hdus[1].header["DELTAROT"] = (delta_rot, "Rotator correction [arcsec]")
+            hdus[1].header["DELTASCL"] = (delta_scale, "Scale correction [arcsec]")
             hdus.close()
