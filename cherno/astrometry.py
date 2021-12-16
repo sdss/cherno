@@ -274,6 +274,7 @@ class ExtractionData:
     xrot: float = numpy.nan
     yrot: float = numpy.nan
     rotation: float = numpy.nan
+    proc_image: str | None = None
 
 
 async def extract_and_run(
@@ -551,16 +552,19 @@ async def extract_and_run(
                 ]
             )
 
+    procpath = os.path.join(str(proc_image_outdir or dirname), "proc-" + path.parts[-1])
     loop = asyncio.get_running_loop()
     func = partial(
         proc_hdu.writeto,
-        os.path.join(str(proc_image_outdir or dirname), "proc-" + path.parts[-1]),
+        procpath,
         overwrite=overwrite,
         output_verify="silentfix",
     )
     await loop.run_in_executor(None, func)
 
     plt.close("all")
+
+    extraction_data.proc_image = procpath
 
     return [extraction_data]
 
@@ -752,9 +756,21 @@ async def process_and_correct(
     )
 
     guider_status = command.actor.state.status
-    stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
 
-    if apply is True and stopping is False:
+    stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
+    will_apply = apply is True and stopping is False
+
+    # Update headers of proc images with deltas.
+    for img in data:
+        if img.proc_image is not None:
+            hdus = fits.open(img.proc_image)
+            hdus[1].header["CAPPLIED"] = (will_apply, "Guide correction applied")
+            hdus[1].header["DELTA_RA"] = (delta_ra, "RA correction [arcsec]")
+            hdus[1].header["DELTA_DEC"] = (delta_dec, "Dec correction [arcsec]")
+            hdus[1].header["DELTA_ROT"] = (delta_rot, "Rotator correction [arcsec]")
+            hdus.close()
+
+    if will_apply is True:
         command.info("Applying corrections.")
 
         min_isolated = config["guide_loop"]["rotation"]["min_isolated_correction"]
