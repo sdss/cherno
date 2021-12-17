@@ -34,7 +34,7 @@ guide_loop:
     pid:
       k: 0.6
     min_correction: 3
-    max_correction: 600
+    max_correction: 7200
     min_isolated_correction: 30
 
 observatory: ${OBSERVATORY}
