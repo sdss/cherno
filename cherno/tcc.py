@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 
 import numpy
 
-from cherno import config
-
 
 if TYPE_CHECKING:
     from cherno.actor import ChernoCommandType
