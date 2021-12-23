@@ -709,7 +709,7 @@ async def process_and_correct(
 
     if len(solved) == 0:
         command.error(acquisition_valid=False, correction_applied=False)
-        update_proc_headers(data, False)
+        update_proc_headers(data, False, command.actor.state.guide_loop)
         return False
 
     fwhm = numpy.average([d.fwhm for d in solved], weights=nkeep)
@@ -719,7 +719,7 @@ async def process_and_correct(
     if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
         command.error(acquisition_valid=False, correction_applied=False)
         command.error("Field not defined. Cannot run astrometric fit.")
-        update_proc_headers(data, False)
+        update_proc_headers(data, False, command.actor.state.guide_loop)
         return False
 
     command.debug(offset=list(command.actor.state.offset))
@@ -764,15 +764,7 @@ async def process_and_correct(
     stopping = (guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)).value > 0
     will_apply = apply is True and stopping is False
 
-    update_proc_headers(
-        data,
-        will_apply,
-        rms=rms,
-        delta_ra=delta_ra,
-        delta_dec=delta_dec,
-        delta_rot=delta_rot,
-        delta_scale=delta_scale,
-    )
+    correction_applied: list[float] = [0.0, 0.0, 0.0, 0.0]
 
     if will_apply is True:
         command.info("Applying corrections.")
@@ -780,7 +772,7 @@ async def process_and_correct(
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
         if abs(delta_rot) >= min_isolated:
             command.debug("Applying only large rotator correction.")
-            await apply_correction(
+            correction_applied = await apply_correction(
                 command,
                 rot=-delta_rot,
                 k_rot=None if full is False else 1.0,
@@ -788,7 +780,7 @@ async def process_and_correct(
 
         else:
 
-            await apply_correction(
+            correction_applied = await apply_correction(
                 command,
                 rot=-delta_rot,
                 radec=(-delta_ra, -delta_dec),
@@ -798,27 +790,80 @@ async def process_and_correct(
 
     command.info(acquisition_valid=True, correction_applied=will_apply)
 
+    update_proc_headers(
+        data,
+        will_apply,
+        command.actor.state.guide_loop,
+        rms=rms,
+        delta_ra=delta_ra,
+        delta_dec=delta_dec,
+        delta_rot=delta_rot,
+        delta_scale=delta_scale,
+        correction_applied=correction_applied,
+    )
+
     return True
 
 
 def update_proc_headers(
     data: list[ExtractionData],
     applied: bool,
+    guide_loop: dict,
     rms: float = -999.0,
     delta_ra: float = -999.0,
     delta_dec: float = -999.0,
     delta_rot: float = -999.0,
     delta_scale: float = -999.0,
+    correction_applied: list[float] = [0.0, 0.0, 0.0, 0.0],
 ):
+
+    cra, cdec, crot, cscl = correction_applied
+
+    radec_pid_k = guide_loop["radec"]["pid"]["k"]
+    radec_pid_td = guide_loop["radec"]["pid"].get("Td", 0.0)
+    radec_pid_ti = guide_loop["radec"]["pid"].get("Ti", 0.0)
+
+    rot_pid_k = guide_loop["rot"]["pid"]["k"]
+    rot_pid_td = guide_loop["rot"]["pid"].get("Td", 0.0)
+    rot_pid_ti = guide_loop["rot"]["pid"].get("Ti", 0.0)
+
+    if "scale" in guide_loop:
+        scale_pid_k = guide_loop["scale"]["pid"]["k"]
+        scale_pid_td = guide_loop["scale"]["pid"].get("Td", 0.0)
+        scale_pid_ti = guide_loop["scale"]["pid"].get("Ti", 0.0)
+    else:
+        scale_pid_k = 0.0
+        scale_pid_td = 0.0
+        scale_pid_ti = 0.0
 
     # Update headers of proc images with deltas.
     for img in data:
         if img.proc_image is not None:
             hdus = fits.open(img.proc_image, mode="update")
+
+            hdus[1].header["RADECK"] = (radec_pid_k, "PID K term for RA/Dec")
+            hdus[1].header["RADECTD"] = (radec_pid_td, "PID Td term for RA/Dec")
+            hdus[1].header["RADECTI"] = (radec_pid_ti, "PID Ti term for RA/Dec")
+
+            hdus[1].header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
+            hdus[1].header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
+            hdus[1].header["ROTTI"] = (rot_pid_ti, "PID Ti term for Rot.")
+
+            hdus[1].header["SCLK"] = (scale_pid_k, "PID K term for Scale")
+            hdus[1].header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
+            hdus[1].header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
+
             hdus[1].header["RMS"] = (rms, "Guide RMS [arcsec]")
-            hdus[1].header["CAPPLIED"] = (applied, "Guide correction applied")
-            hdus[1].header["DELTARA"] = (delta_ra, "RA correction [arcsec]")
-            hdus[1].header["DELTADEC"] = (delta_dec, "Dec correction [arcsec]")
-            hdus[1].header["DELTAROT"] = (delta_rot, "Rotator correction [arcsec]")
-            hdus[1].header["DELTASCL"] = (delta_scale, "Scale correction [arcsec]")
+            hdus[1].header["CAPPLIED"] = (applied, "Guide correction applied?")
+
+            hdus[1].header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
+            hdus[1].header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
+            hdus[1].header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
+            hdus[1].header["DELTASCL"] = (delta_scale, "Scale measured delta [arcsec]")
+
+            hdus[1].header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
+            hdus[1].header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
+            hdus[1].header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
+            hdus[1].header["CORR_SCL"] = (cscl, "Scale appliedcorrection [arcsec]")
+
             hdus.close()
