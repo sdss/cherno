@@ -708,7 +708,7 @@ async def process_and_correct(
     nkeep = [d.nkeep for d in solved]
 
     if len(solved) == 0:
-        command.error(acquisition_valid=False, correction_applied=False)
+        command.error(acquisition_valid=False, did_correct=False)
         update_proc_headers(data, False, command.actor.state.guide_loop)
         return False
 
@@ -717,7 +717,7 @@ async def process_and_correct(
     camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
 
     if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
-        command.error(acquisition_valid=False, correction_applied=False)
+        command.error(acquisition_valid=False, did_correct=False)
         command.error("Field not defined. Cannot run astrometric fit.")
         update_proc_headers(data, False, command.actor.state.guide_loop)
         return False
@@ -788,7 +788,14 @@ async def process_and_correct(
                 k_rot=None if full is False else 1.0,
             )
 
-    command.info(acquisition_valid=True, correction_applied=will_apply)
+        command.info(
+            acquisition_valid=True,
+            did_correct=True,
+            correction_applied=correction_applied,
+        )
+
+    else:
+        command.info(acquisition_valid=True, did_correct=False)
 
     update_proc_headers(
         data,
