@@ -27,7 +27,10 @@ class GuiderStatus(Flag):
     def get_names(self):
         """Returns a list of active bit names."""
 
-        return [bit.name for bit in GuiderStatus if self & bit]
+        return [bit.name for bit in GuiderStatus if self & bit and bit.name]
+
+    def __repr__(self):
+        return str(" | ".join(self.get_names()))
 
 
 class CameraStatus(Enum):
@@ -45,4 +48,4 @@ class CameraStatus(Enum):
     EXPOSURE_POST_PROCESSING = "post_processing"
     EXPOSURE_POST_PROCESS_DONE = "post_process_done"
     EXPOSURE_POST_PROCESS_FAILED = "post_process_failed"
-    UNKNWON = 'unknown'
+    UNKNWON = "unknown"

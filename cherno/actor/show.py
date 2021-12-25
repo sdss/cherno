@@ -25,7 +25,7 @@ async def show(command: ChernoCommandType):
     for field in command.actor.state.__dataclass_fields__:
         if field in ["actor", "camera_state"]:
             continue
-        lines = pformat(getattr(command.actor.state, field)).splitlines()
+        lines = pformat(getattr(command.actor.state, field), width=60).splitlines()
         for nline, line in enumerate(lines):
             if nline == 0:
                 command.info(text=f"{field}: {line}")
