@@ -722,7 +722,11 @@ async def process_and_correct(
         update_proc_headers(data, False)
         return False
 
-    command.debug(offset=list(command.actor.state.offset))
+    if (offset := command.actor.state.offset) == (0.0, 0.0, 0.0):
+        command.debug(offset=list(offset))
+    else:
+        command.warning(offset=list(offset))
+
     fit = astrometry_fit(solved, offset=command.actor.state.offset)
 
     exp_no = solved[0].exposure_no  # Should be the same for all.
