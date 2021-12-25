@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from typing import cast
+
 import clu
 from clu.legacy import TronKey
 
@@ -39,6 +41,9 @@ class ChernoActor(clu.LegacyActor):
         )
 
         self.state = ChernoState(self, guide_loop=config["guide_loop"].copy())
+
+        if (offset := config["offset"]) is not None:
+            self.state.offset = cast(tuple[float, float, float], tuple(offset))
 
         self.models["fliswarm"].register_callback(self._process_fliswarm_status)
 

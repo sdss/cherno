@@ -37,4 +37,6 @@ guide_loop:
     max_correction: 7200
     min_isolated_correction: 30
 
+offset: [0, 0, -432]
+
 observatory: ${OBSERVATORY}
