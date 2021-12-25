@@ -33,6 +33,9 @@ async def apply_correction(
 
     guide_loop = command.actor.state.guide_loop
 
+    # Correction applied in ra, dec, rot, scale, in arcsec.
+    correction_applied = [0.0, 0.0, 0.0, 0.0]
+
     if radec is not None:
         corr_radec = numpy.array(radec) / 3600.0  # In degrees!
 
@@ -59,7 +62,10 @@ async def apply_correction(
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying RA/Dec correction.")
-                return False
+                return correction_applied
+
+            correction_applied[0] = corr_radec[0] * 3600.0
+            correction_applied[1] = corr_radec[1] * 3600.0
 
     if rot is not None:
         corr_rot = numpy.array(rot) / 3600.0  # In degrees!
@@ -87,6 +93,8 @@ async def apply_correction(
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying rotator correction.")
-                return False
+                return correction_applied
 
-    return True
+            correction_applied[2] = corr_rot * 3600.0
+
+    return correction_applied

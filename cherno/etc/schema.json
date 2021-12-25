@@ -16,7 +16,16 @@
       ]
     },
     "acquisition_valid": { "type": "boolean" },
-    "correction_applied": { "type": "boolean" },
+    "did_correct": { "type": "boolean" },
+    "correction_applied": {
+      "type": "array",
+      "items": [
+        { "title": "ra_correction", "type": "number" },
+        { "title": "dec_correction", "type": "number" },
+        { "title": "rot_correction", "type": "number" },
+        { "title": "scale_correction", "type": "number" }
+      ]
+    },
     "guider_status": { "type": "string" },
     "fwhm_camera": {
       "type": "array",
