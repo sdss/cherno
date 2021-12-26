@@ -131,6 +131,8 @@ class Exposer:
         n_exp = 0
         while True:
 
+            self._check_ffs()
+
             stopping = (self.actor_state.status & GuiderStatus.STOPPING).value > 0
             if stopping is True or (count is not None and n_exp >= count):
                 self.actor_state.set_status(GuiderStatus.IDLE)
@@ -192,6 +194,16 @@ class Exposer:
                 await asyncio.sleep(delay)
 
             n_exp += 1
+
+    def _check_ffs(self):
+        """Checks that the FFS are open."""
+
+        values = self.actor.models["mcp"]["ffsStatus"].value
+        if len(values) == 0 or all([value is None for value in values]):
+            self.command.warning('FFS status unknown.')
+
+        if not all([int(ss) == 10 for ss in values]):
+            self.command.warning('FFS petals are not open.')
 
     def _get_num(self, names: list[str]) -> int:
         """Returns the next sequence number."""
