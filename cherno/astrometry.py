@@ -870,11 +870,11 @@ def update_proc_headers(
             hdus[1].header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
             hdus[1].header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
             hdus[1].header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
-            hdus[1].header["DELTASCL"] = (delta_scale, "Scale measured delta [arcsec]")
+            hdus[1].header["DELTASCL"] = (delta_scale, "Scale measured factor")
 
             hdus[1].header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
             hdus[1].header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
             hdus[1].header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
-            hdus[1].header["CORR_SCL"] = (cscl, "Scale appliedcorrection [arcsec]")
+            hdus[1].header["CORR_SCL"] = (cscl, "Scale applied correction")
 
             hdus.close()
