@@ -53,7 +53,7 @@ async def apply_correction(
             command.warning("RA/Dec correction too large. Not applying correction.")
 
         else:
-            corr_radec *= k_radec
+            corr_radec *= numpy.round(k_radec, 6)
 
             tcc_offset_cmd = await command.send_command(
                 "tcc",
@@ -84,7 +84,7 @@ async def apply_correction(
             command.warning("Rotator correction too large. Not applying correction.")
 
         else:
-            corr_rot *= k_rot
+            corr_rot *= numpy.round(k_rot, 6)
 
             tcc_offset_cmd = await command.send_command(
                 "tcc",
