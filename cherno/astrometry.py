@@ -469,6 +469,7 @@ async def extract_and_run(
         camera_id,
         header["RA"],
         header["DEC"],
+        position_angle=header["FIELDPA"],
         site_name=config["observatory"],
     )
 
