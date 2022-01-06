@@ -53,7 +53,7 @@ async def apply_correction(
             command.warning("RA/Dec correction too large. Not applying correction.")
 
         else:
-            corr_radec *= numpy.round(k_radec, 6)
+            corr_radec *= k_radec
 
             tcc_offset_cmd = await command.send_command(
                 "tcc",
@@ -64,8 +64,8 @@ async def apply_correction(
                 command.error("Failed applying RA/Dec correction.")
                 return correction_applied
 
-            correction_applied[0] = corr_radec[0] * 3600.0
-            correction_applied[1] = corr_radec[1] * 3600.0
+            correction_applied[0] = numpy.round(corr_radec[0] * 3600.0, 3)
+            correction_applied[1] = numpy.round(corr_radec[1] * 3600.0, 3)
 
     if rot is not None:
         corr_rot = numpy.array(rot) / 3600.0  # In degrees!
@@ -84,7 +84,7 @@ async def apply_correction(
             command.warning("Rotator correction too large. Not applying correction.")
 
         else:
-            corr_rot *= numpy.round(k_rot, 6)
+            corr_rot *= k_rot
 
             tcc_offset_cmd = await command.send_command(
                 "tcc",
@@ -95,6 +95,6 @@ async def apply_correction(
                 command.error("Failed applying rotator correction.")
                 return correction_applied
 
-            correction_applied[2] = corr_rot * 3600.0
+            correction_applied[2] = numpy.round(corr_rot * 3600.0, 3)
 
     return correction_applied

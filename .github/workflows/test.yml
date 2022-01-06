@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8, 3.9]
+        python-version: ['3.9', '3.10']
 
     steps:
       - uses: actions/checkout@v2
@@ -38,17 +38,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Setup node.js (for pyright)
-        uses: actions/setup-node@v2
-        with:
-          node-version: '12'
+      - name: Install HDF5
+        run: sudo apt-get install libhdf5-serial-dev
 
       - name: Setup poetry
-        uses: abatilo/actions-poetry@v2.0.0
+        uses: abatilo/actions-poetry@master
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip wheel setuptools
           poetry install
 
       - name: Lint with flake8
@@ -63,11 +61,6 @@ jobs:
       - name: Lint with isort
         run: |
           poetry run isort -c cherno
-
-      - name: Run type checking
-        run: |
-          npm install -g pyright
-          poetry run pyright
 
       - name: Test with pytest
         run: |
