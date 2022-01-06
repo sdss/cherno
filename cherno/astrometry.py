@@ -676,8 +676,15 @@ def astrometry_fit(
 
     plate_scale = PLATE_SCALE[data[0].observatory]
 
-    delta_ra = numpy.round(t[0] / plate_scale * 3600.0, 3)
-    delta_dec = numpy.round(t[1] / plate_scale * 3600.0, 3)
+    delta_x = numpy.round(t[0] / plate_scale * 3600.0, 3)
+    delta_y = numpy.round(t[1] / plate_scale * 3600.0, 3)
+
+    # delta_x and delta_y only align with RA/Dec if PA=0. Otherwise we need to
+    # project using the PA.
+    pa_rad = numpy.deg2rad(data[0].field_pa)
+    delta_ra = delta_x * numpy.cos(pa_rad) + delta_y * numpy.sin(pa_rad)
+    delta_dec = -delta_x * numpy.sin(pa_rad) + delta_y * numpy.cos(pa_rad)
+
     delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])) * 3600.0, 1)
     delta_scale = numpy.round(c, 6)
 
