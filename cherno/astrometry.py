@@ -685,6 +685,10 @@ def astrometry_fit(
     delta_ra = delta_x * numpy.cos(pa_rad) + delta_y * numpy.sin(pa_rad)
     delta_dec = -delta_x * numpy.sin(pa_rad) + delta_y * numpy.cos(pa_rad)
 
+    # Round up.
+    delta_ra = numpy.round(delta_ra, 3)
+    delta_dec = numpy.round(delta_dec, 3)
+
     delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])) * 3600.0, 1)
     delta_scale = numpy.round(c, 6)
 
