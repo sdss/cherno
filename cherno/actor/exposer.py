@@ -200,10 +200,10 @@ class Exposer:
 
         values = self.actor.models["mcp"]["ffsStatus"].value
         if len(values) == 0 or all([value is None for value in values]):
-            self.command.warning('FFS status unknown.')
+            self.command.warning("FFS status unknown.")
 
         if not all([int(ss) == 10 for ss in values]):
-            self.command.warning('FFS petals are not open.')
+            self.command.warning("FFS petals are not open.")
 
     def _get_num(self, names: list[str]) -> int:
         """Returns the next sequence number."""
