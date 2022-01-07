@@ -53,12 +53,6 @@ __all__ = ["acquire"]
     help="Whether to plot results of astrometry.net.",
 )
 @click.option(
-    "--cpulimit",
-    type=float,
-    default=15.0,
-    help="Maximum runtime for astrometry.net.",
-)
-@click.option(
     "-f",
     "--full",
     is_flag=True,
@@ -70,7 +64,6 @@ async def acquire(
     continuous: bool = False,
     apply: bool = True,
     plot: bool = False,
-    cpulimit: float = 15.0,
     full: bool = False,
 ):
     """Runs the acquisition procedure."""
@@ -85,7 +78,7 @@ async def acquire(
 
     callback = partial(
         process_and_correct,
-        run_options={"plot": plot, "cpulimit": cpulimit},
+        run_options={"plot": plot},
         apply=apply,
         full=full,
     )

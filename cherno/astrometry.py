@@ -707,14 +707,22 @@ async def process_and_correct(
     filenames: list[str],
     apply: bool = True,
     full: bool = False,
-    run_options={},
 ):
     """Processes a series of files for the same pointing and applies a correction."""
 
     assert command and command.actor
 
-    run_options["command"] = command
-    data = await extract_and_run(filenames, **run_options)
+    min_npix = command.actor.state.acquisition["min_npix"]
+    cpulimit = command.actor.state.acquisition["cpulimit"]
+    sigma = command.actor.state.acquisition["sigma"]
+
+    data = await extract_and_run(
+        filenames,
+        sigma=sigma,
+        cpulimit=cpulimit,
+        min_npix=min_npix,
+        command=command,
+    )
 
     solved = [d for d in data if d.solved is True]
     nkeep = [d.nkeep for d in solved]

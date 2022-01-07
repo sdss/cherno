@@ -38,6 +38,11 @@ guide_loop:
     max_correction: 7200
     min_isolated_correction: 30
 
+acquisition:
+  cpulimit: 15.0
+  sigma: 10.0
+  min_npix: 50
+
 offset: [0, 0, -432]
 
 observatory: ${OBSERVATORY}
