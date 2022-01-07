@@ -721,6 +721,7 @@ async def process_and_correct(
 
     data = await extract_and_run(
         filenames,
+        plot=False,
         sigma=sigma,
         cpulimit=cpulimit,
         min_npix=min_npix,

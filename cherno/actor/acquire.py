@@ -76,12 +76,7 @@ async def acquire(
         else:
             command.actor.state.exposure_time = exposure_time
 
-    callback = partial(
-        process_and_correct,
-        run_options={"plot": plot},
-        apply=apply,
-        full=full,
-    )
+    callback = partial(process_and_correct, apply=apply, full=full)
     exposer = Exposer(command, callback=callback)
 
     try:
