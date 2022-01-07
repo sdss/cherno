@@ -601,6 +601,9 @@ def calculate_fwhm_camera(
     if len(regions) == 0:
         return -999, -999, -999, -999, 0
 
+    if len(regions) < 10:
+        rej_low = rej_high = 0
+
     fwhm = numpy.max([regions.a * 2, regions.b * 2], axis=0)
     fwhm_argsort = numpy.argsort(fwhm)
 
