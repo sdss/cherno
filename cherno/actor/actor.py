@@ -40,11 +40,7 @@ class ChernoActor(clu.LegacyActor):
             **kwargs,
         )
 
-        self.state = ChernoState(
-            self,
-            guide_loop=config["guide_loop"].copy(),
-            acquisition=config["acquisition"].copy(),
-        )
+        self.state = ChernoState(self)
 
         if (offset := config["offset"]) is not None:
             self.state.offset = cast(tuple[float, float, float], tuple(offset))
@@ -82,6 +78,12 @@ class ChernoState:
     exposure_time: float = 15.0
     guide_loop: dict = field(default_factory=dict)
     acquisition: dict = field(default_factory=dict)
+    enabled_cameras: list = field(default_factory=list)
+
+    def __post_init__(self):
+        self.guide_loop = config["guide_loop"].copy()
+        self.acquisition = config["acquisition"].copy()
+        self.enabled_cameras = config["cameras"]["names"].copy()
 
     def set_status(self, status: GuiderStatus, mode="override"):
         """Sets the status and broadcasts it."""

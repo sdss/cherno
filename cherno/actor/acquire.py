@@ -37,6 +37,12 @@ __all__ = ["acquire"]
     help="Cameras exposure time.",
 )
 @click.option(
+    "-m",
+    "--cameras",
+    type=str,
+    help="Comma-separated cameras to expose.",
+)
+@click.option(
     "-c",
     "--continuous",
     is_flag=True,
@@ -65,10 +71,16 @@ async def acquire(
     apply: bool = True,
     plot: bool = False,
     full: bool = False,
+    cameras: str | None = None,
 ):
     """Runs the acquisition procedure."""
 
     assert command.actor
+
+    if cameras is None:
+        names = None
+    else:
+        names = list(cameras.split(","))
 
     if exposure_time is not None:
         if exposure_time < 1.0:
@@ -84,6 +96,7 @@ async def acquire(
             None,
             count=1 if continuous is False else None,
             timeout=25,
+            names=names,
         )
     except ExposerError as err:
         return command.fail(f"Acquisition failed: {err}")

@@ -141,7 +141,7 @@ class Exposer:
             # Set the status of the guider as EXPOSING.
             self.actor_state.set_status(GuiderStatus.EXPOSING)
 
-            names = names or config["cameras"]["names"]
+            names = names or self.actor.state.enabled_cameras
             if names is None or len(names) == 0:
                 self.fail("No cameras defined.")
 
