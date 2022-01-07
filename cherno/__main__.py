@@ -77,7 +77,7 @@ async def actor(ctx):
 @cherno.command()
 @click.argument("IMAGE", type=click.Path(exists=True, dir_okay=False))
 @click.argument("OUTDIR", type=click.Path(dir_okay=True, file_okay=False))
-@click.option("--cpulimit", default=30, type=float, help="astrometry.net time limit.")
+@click.option("--cpulimit", default=15, type=float, help="astrometry.net time limit.")
 @click.option("--npix", default=50, type=int, help="Minimum number of pixels.")
 @click.option("--sigma", default=10.0, type=float, help="Minimum SNR.")
 @cli_coro
