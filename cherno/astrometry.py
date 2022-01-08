@@ -18,7 +18,7 @@ import warnings
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing import Any, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Union, cast
 
 import matplotlib
 import numpy
@@ -37,6 +37,10 @@ from cherno.actor import ChernoCommandType
 from cherno.coordinates import gfa_to_radec, gfa_to_wok, umeyama
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_correction
+
+
+if TYPE_CHECKING:
+    from cherno.actor.actor import ChernoState
 
 
 matplotlib.use("Agg")
@@ -502,8 +506,11 @@ async def extract_and_run(
         proc_hdu[1].header.update(wcs.to_header())
 
         # TODO: consider parallactic angle here.
-        cd = wcs.wcs.cd
-        rot_rad = numpy.arctan2([cd[0, 1], cd[0, 0]], [cd[1, 1], cd[1, 0]])
+        cd: numpy.ndarray = wcs.wcs.cd
+        rot_rad = numpy.arctan2(
+            numpy.array([cd[0, 1], cd[0, 0]]),
+            numpy.array([cd[1, 1], cd[1, 0]]),
+        )
 
         # Rotation is from N to E to the x and y axes of the GFA.
         yrot, xrot = numpy.rad2deg(rot_rad)
@@ -606,7 +613,7 @@ def calculate_fwhm_camera(
     if len(regions) < 10:
         rej_low = rej_high = 0
 
-    fwhm = numpy.max([regions.a * 2, regions.b * 2], axis=0)
+    fwhm = numpy.max(numpy.array([regions.a * 2, regions.b * 2]), axis=0)
     fwhm_argsort = numpy.argsort(fwhm)
 
     if len(fwhm) - (rej_low + rej_high) <= 0:
@@ -649,8 +656,8 @@ def astrometry_fit(
 
         for x, y in zip(xidx, yidx):
             xw, yw, _ = gfa_to_wok(x, y, camera_id)
-            xwok_gfa.append(xw)
-            ywok_gfa.append(yw)
+            xwok_gfa.append(cast(float, xw))
+            ywok_gfa.append(cast(float, yw))
 
         offset_ra_corr = offset_ra * numpy.cos(numpy.deg2rad(d.field_dec)) / 3600.0
 
@@ -738,9 +745,18 @@ async def process_and_correct(
         update_proc_headers(data, False, command.actor.state.guide_loop)
         return False
 
-    fwhm = numpy.average([d.fwhm for d in solved], weights=nkeep)
-    ellipticity = numpy.average([d.ellipticity for d in solved], weights=nkeep)
-    camera_rotation = numpy.average([d.rotation for d in solved], weights=nkeep)
+    fwhm = numpy.average(
+        numpy.array([d.fwhm for d in solved]),
+        weights=nkeep,
+    )
+    ellipticity = numpy.average(
+        numpy.array([d.ellipticity for d in solved]),
+        weights=nkeep,
+    )
+    camera_rotation = numpy.average(
+        numpy.array([d.rotation for d in solved]),
+        weights=nkeep,
+    )
 
     if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
         command.error(acquisition_valid=False, did_correct=False)
