@@ -79,11 +79,13 @@ class ChernoState:
     guide_loop: dict = field(default_factory=dict)
     acquisition: dict = field(default_factory=dict)
     enabled_cameras: list = field(default_factory=list)
+    enabled_axes: list = field(default_factory=list)
 
     def __post_init__(self):
         self.guide_loop = config["guide_loop"].copy()
         self.acquisition = config["acquisition"].copy()
         self.enabled_cameras = config["cameras"]["names"].copy()
+        self.enabled_axes = ["radec", "rot", "focus"]
 
     def set_status(self, status: GuiderStatus, mode="override"):
         """Sets the status and broadcasts it."""

@@ -47,11 +47,12 @@ async def apply_correction(
     assert command.actor
 
     guide_loop = command.actor.state.guide_loop
+    enabled_axes = command.actor.state.enabled_axes
 
     # Correction applied in ra, dec, rot, scale, in arcsec.
     correction_applied = [0.0, 0.0, 0.0, 0.0]
 
-    if radec is not None:
+    if radec is not None and "radec" in enabled_axes:
         corr_radec = numpy.array(radec) / 3600.0  # In degrees!
 
         default_k_radec: float = guide_loop["radec"]["pid"]["k"]
@@ -86,7 +87,7 @@ async def apply_correction(
             correction_applied[0] = numpy.round(corr_radec[0] * 3600.0, 3)
             correction_applied[1] = numpy.round(corr_radec[1] * 3600.0, 3)
 
-    if rot is not None:
+    if rot is not None and "rot" in enabled_axes:
         corr_rot = numpy.array(rot) / 3600.0  # In degrees!
 
         default_k_rot: float = guide_loop["rot"]["pid"]["k"]
