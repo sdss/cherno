@@ -137,15 +137,18 @@ class Exposer:
         while True:
 
             if self.is_stopping() or (count is not None and n_exp >= count):
-            self._check_ffs()
-
-            stopping = (self.actor_state.status & GuiderStatus.STOPPING).value > 0
-            if stopping is True or (count is not None and n_exp >= count):
-                self.actor_state.set_status(GuiderStatus.IDLE)
+                self.actor_state.set_status(
+                    GuiderStatus.STOPPING,
+                    mode="remove",
+                    report=False,
+                )
+                self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
                 return
 
-            # Set the status of the guider as EXPOSING.
-            self.actor_state.set_status(GuiderStatus.EXPOSING)
+            self._check_ffs()
+
+            # Set the status of the guider as EXPOSING. This removes IDLE.
+            self.actor_state.set_status(GuiderStatus.EXPOSING, mode="add")
 
             names = names or self.actor.state.enabled_cameras
             if names is None or len(names) == 0:
@@ -185,6 +188,8 @@ class Exposer:
             if expose_command.status.did_fail:
                 self.fail("Expose command failed.")
 
+            self.actor_state.set_status(GuiderStatus.EXPOSING, mode="remove")
+
             if self.is_stopping():
                 # Continue, the first check in the new iteration will stop the loop.
                 continue
@@ -204,6 +209,8 @@ class Exposer:
                 await asyncio.sleep(delay)
 
             n_exp += 1
+
+            self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
 
     def _check_ffs(self):
         """Checks that the FFS are open."""
@@ -254,7 +261,11 @@ class Exposer:
     ):
         """Invokes the callback with a list of filenames."""
 
-        self.actor_state.set_status(GuiderStatus.PROCESSING)
+        def unset_processing(*args, **kwargs):
+            """Removes the ``PROCESSING`` flag after the callback completes."""
+            self.actor_state.set_status(GuiderStatus.PROCESSING, mode="remove")
+
+        self.actor_state.set_status(GuiderStatus.PROCESSING, mode="add")
 
         callback = callback or self.callback
         if callback is None:
@@ -270,6 +281,8 @@ class Exposer:
                 self.command,
                 filenames,
             )
+
+        task.add_done_callback(unset_processing)
 
         if self._blocking:
             await task

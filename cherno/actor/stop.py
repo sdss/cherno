@@ -26,6 +26,6 @@ async def stop(command: ChernoCommandType):
         command.warning("The guider is idle.")
         return command.finish()
 
-    command.actor.state.set_status(GuiderStatus.STOPPING)
+    command.actor.state.set_status(GuiderStatus.STOPPING, mode="add")
 
     return command.finish("The guide loop is stopping.")

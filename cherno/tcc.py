@@ -22,19 +22,6 @@ if TYPE_CHECKING:
 __all__ = ["apply_correction"]
 
 
-def _set_correcting(command: ChernoCommandType, mode: bool):
-    """Sets/unsets the CORRECTING flag."""
-
-    current = command.actor.state.status
-
-    if mode is True:
-        new = current | GuiderStatus.CORRECTING
-    else:
-        new = current & ~GuiderStatus.CORRECTING
-
-    command.actor.state.set_status(new)
-
-
 async def apply_correction(
     command: ChernoCommandType,
     radec: tuple[float, float] | numpy.ndarray | None = None,
@@ -46,8 +33,10 @@ async def apply_correction(
 
     assert command.actor
 
-    guide_loop = command.actor.state.guide_loop
-    enabled_axes = command.actor.state.enabled_axes
+    state = command.actor.state
+
+    guide_loop = state.guide_loop
+    enabled_axes = state.enabled_axes
 
     # Correction applied in ra, dec, rot, scale, in arcsec.
     correction_applied = [0.0, 0.0, 0.0, 0.0]
@@ -71,14 +60,14 @@ async def apply_correction(
         else:
             corr_radec *= k_radec
 
-            _set_correcting(command, True)
+            state.set_status(GuiderStatus.CORRECTING, mode="add")
 
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset arc {corr_radec[0]}, {corr_radec[1]} /computed",
             )
 
-            _set_correcting(command, False)
+            state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying RA/Dec correction.")
@@ -106,14 +95,14 @@ async def apply_correction(
         else:
             corr_rot *= k_rot
 
-            _set_correcting(command, True)
+            state.set_status(GuiderStatus.CORRECTING, mode="add")
 
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset guide 0.0, 0.0, {corr_rot} /computed",
             )
 
-            _set_correcting(command, False)
+            state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying rotator correction.")

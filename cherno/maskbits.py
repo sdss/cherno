@@ -24,6 +24,8 @@ class GuiderStatus(Flag):
     STOPPING = 2 << 3
     FAILED = 2 << 4
 
+    NON_IDLE = EXPOSING | PROCESSING | CORRECTING | STOPPING
+
     def get_names(self):
         """Returns a list of active bit names."""
 
