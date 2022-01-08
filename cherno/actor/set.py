@@ -71,10 +71,12 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         command.actor.state.acquisition[param] = value
 
     elif options[0] == "axes":
-        if len(options) < 2:
-            return command.fail("Invalid number of parameters")
 
-        axes = options[1:]
+        if len(options) == 1:
+            axes = []
+        else:
+            axes = options[1:]
+
         command.actor.state.enabled_axes = list(axes)
 
     elif options[0] == "cameras":
