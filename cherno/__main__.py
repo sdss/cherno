@@ -75,18 +75,20 @@ async def actor(ctx):
 
 
 @cherno.command()
-@click.argument("IMAGE", type=click.Path(exists=True, dir_okay=False))
+@click.argument("IMAGES", type=click.Path(exists=True, dir_okay=False), nargs=-1)
 @click.argument("OUTDIR", type=click.Path(dir_okay=True, file_okay=False))
 @click.option("--cpulimit", default=15, type=float, help="astrometry.net time limit.")
 @click.option("--npix", default=50, type=int, help="Minimum number of pixels.")
 @click.option("--sigma", default=10.0, type=float, help="Minimum SNR.")
+@click.option("--plot", is_flag=True, help="Output plots")
 @cli_coro
 async def reprocess(
-    image: str,
+    images: tuple[str],
     outdir: str,
     cpulimit: float = 30.0,
     npix: int = 50,
     sigma: float = 10.0,
+    plot: bool = False,
 ):
     """Reprocess an image."""
 
@@ -98,13 +100,13 @@ async def reprocess(
         path.mkdir(parents=True)
 
     data = await extract_and_run(
-        [image],
+        list(images),
         proc_image_outdir=outdir,
         sigma=sigma,
         min_npix=npix,
         cpulimit=cpulimit,
         overwrite=True,
-        plot=False,
+        plot=plot,
     )
 
     print(data)
