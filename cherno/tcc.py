@@ -12,12 +12,27 @@ from typing import TYPE_CHECKING
 
 import numpy
 
+from cherno.maskbits import GuiderStatus
+
 
 if TYPE_CHECKING:
     from cherno.actor import ChernoCommandType
 
 
 __all__ = ["apply_correction"]
+
+
+def _set_correcting(command: ChernoCommandType, mode: bool):
+    """Sets/unsets the CORRECTING flag."""
+
+    current = command.actor.state.status
+
+    if mode is True:
+        new = current | GuiderStatus.CORRECTING
+    else:
+        new = current & ~GuiderStatus.CORRECTING
+
+    command.actor.state.set_status(new)
 
 
 async def apply_correction(
@@ -55,10 +70,14 @@ async def apply_correction(
         else:
             corr_radec *= k_radec
 
+            _set_correcting(command, True)
+
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset arc {corr_radec[0]}, {corr_radec[1]} /computed",
             )
+
+            _set_correcting(command, False)
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying RA/Dec correction.")
@@ -86,10 +105,14 @@ async def apply_correction(
         else:
             corr_rot *= k_rot
 
+            _set_correcting(command, True)
+
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset guide 0.0, 0.0, {corr_rot} /computed",
             )
+
+            _set_correcting(command, False)
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying rotator correction.")

@@ -244,6 +244,8 @@ class Exposer:
     ):
         """Invokes the callback with a list of filenames."""
 
+        self.actor_state.set_status(GuiderStatus.PROCESSING)
+
         callback = callback or self.callback
         if callback is None:
             self.command.warning("Exposer: no callback defined.")
