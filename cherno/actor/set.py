@@ -72,7 +72,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
     elif options[0] == "axes":
 
-        if len(options) == 1 or (len(options) == 2 and options[1] == 'none'):
+        if len(options) == 1 or (len(options) == 2 and options[1] == "off"):
             axes = []
         else:
             axes = options[1:]
