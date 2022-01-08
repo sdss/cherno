@@ -742,7 +742,7 @@ async def process_and_correct(
 
     if len(solved) == 0:
         command.error(acquisition_valid=False, did_correct=False)
-        update_proc_headers(data, False, command.actor.state.guide_loop)
+        update_proc_headers(data, command.actor.state)
         return False
 
     fwhm = numpy.average(
@@ -761,7 +761,7 @@ async def process_and_correct(
     if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
         command.error(acquisition_valid=False, did_correct=False)
         command.error("Field not defined. Cannot run astrometric fit.")
-        update_proc_headers(data, False, command.actor.state.guide_loop)
+        update_proc_headers(data, command.actor.state)
         return False
 
     if (offset := command.actor.state.offset) == (0.0, 0.0, 0.0):
@@ -845,8 +845,7 @@ async def process_and_correct(
 
     update_proc_headers(
         data,
-        will_apply,
-        command.actor.state.guide_loop,
+        command.actor.state,
         rms=rms,
         delta_ra=delta_ra,
         delta_dec=delta_dec,
@@ -860,8 +859,7 @@ async def process_and_correct(
 
 def update_proc_headers(
     data: list[ExtractionData],
-    applied: bool,
-    guide_loop: dict,
+    guider_state: ChernoState,
     rms: float = -999.0,
     delta_ra: float = -999.0,
     delta_dec: float = -999.0,
@@ -869,6 +867,12 @@ def update_proc_headers(
     delta_scale: float = -999.0,
     correction_applied: list[float] = [0.0, 0.0, 0.0, 0.0],
 ):
+
+    guide_loop = guider_state.guide_loop
+
+    enabled_axes = guider_state.enabled_axes
+    enabled_radec = "radec" in enabled_axes
+    enabled_rot = "rot" in enabled_axes
 
     cra, cdec, crot, cscl = correction_applied
 
@@ -907,7 +911,11 @@ def update_proc_headers(
             hdus[1].header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
 
             hdus[1].header["RMS"] = (rms, "Guide RMS [arcsec]")
-            hdus[1].header["CAPPLIED"] = (applied, "Guide correction applied?")
+
+            hdus[1].header["E_RADEC"] = (enabled_radec, "RA/Dec corrections enabled?")
+            hdus[1].header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
+            hdus[1].header["E_FOCUS"] = (False, "Focus corrections enabled?")
+            hdus[1].header["E_SCL"] = (False, "Scale corrections enabled?")
 
             hdus[1].header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
             hdus[1].header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
