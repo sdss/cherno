@@ -86,6 +86,11 @@ class Exposer:
 
         return await self.loop(exposure_time, count=1, **kwargs)
 
+    def is_stopping(self):
+        """Is the guider loop stopping?"""
+
+        return (self.actor_state.status & GuiderStatus.STOPPING).value > 0
+
     async def loop(
         self,
         exposure_time: float | None = None,
@@ -131,6 +136,7 @@ class Exposer:
         n_exp = 0
         while True:
 
+            if self.is_stopping() or (count is not None and n_exp >= count):
             self._check_ffs()
 
             stopping = (self.actor_state.status & GuiderStatus.STOPPING).value > 0
@@ -178,6 +184,10 @@ class Exposer:
 
             if expose_command.status.did_fail:
                 self.fail("Expose command failed.")
+
+            if self.is_stopping():
+                # Continue, the first check in the new iteration will stop the loop.
+                continue
 
             filenames = self._get_filename_bundle(expose_command)
             if filenames is None:
