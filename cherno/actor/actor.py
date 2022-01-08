@@ -87,11 +87,31 @@ class ChernoState:
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = ["radec", "rot", "focus"]
 
-    def set_status(self, status: GuiderStatus, mode="override"):
+    def set_status(self, new_status: GuiderStatus, mode="override", report=True):
         """Sets the status and broadcasts it."""
 
-        self.status = status
-        self.actor.write("i", message={"guider_status": hex(self.status.value)})
+        old_status = self.status
+
+        if mode == "override":
+            self.status = new_status
+        elif mode == "add":
+            self.status |= new_status
+        elif mode == "remove":
+            self.status &= ~new_status
+        else:
+            self.actor.write("e", message={"error": f"Invalid mode {mode}."})
+            return
+
+        # Some statuses are incompatible with IDLE.
+        if (self.status & GuiderStatus.IDLE) and (self.status & GuiderStatus.NON_IDLE):
+            self.status &= ~GuiderStatus.IDLE
+
+        # If no status, the guider must be idle.
+        if self.status.value == 0:
+            self.status = GuiderStatus.IDLE
+
+        if self.status.value != old_status.value and report:
+            self.actor.write("i", message={"guider_status": hex(self.status.value)})
 
 
 @dataclass
