@@ -415,7 +415,7 @@ async def extract_and_run(
     extraction_data.ellipticity = ell
     extraction_data.nkeep = nkeep
 
-    gfa_xyls = Table.from_pandas(regions.loc[:, ["x", "y"]])
+    gfa_xyls = Table.from_pandas(regions.loc[regions.valid == 1, ["x", "y", "flux"]])
     gfa_xyls_file = outfile_root + ".xyls"
     gfa_xyls.write(gfa_xyls_file, format="fits", overwrite=True)
 
