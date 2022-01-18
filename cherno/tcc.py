@@ -90,7 +90,7 @@ async def apply_correction(
             command.debug("Ignoring small rotator correction.")
 
         elif numpy.any(numpy.abs(corr_rot) > (max_corr_arcsec / 3600)):
-            command.warning("Rotator correction too large. Not applying correction.")
+            command.error("Rotator correction too large. Not applying correction.")
 
         else:
             corr_rot *= k_rot
