@@ -836,7 +836,7 @@ async def process_and_correct(
 
         command.info(
             acquisition_valid=True,
-            did_correct=True,
+            did_correct=any(correction_applied),
             correction_applied=correction_applied,
         )
 
