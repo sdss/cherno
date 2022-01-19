@@ -24,6 +24,9 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
     Valid parameters are:
         exposure-time [EXPTIME]
         pid radec|rot k [VALUE]
+        acquisition PARAM VALUE
+        axes [radec rot off]
+        cameras CAMERAS
 
     """
 
@@ -72,12 +75,13 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
     elif options[0] == "axes":
 
-        if len(options) == 1 or (len(options) == 2 and options[1] == "off"):
+        if len(options) == 1 or (len(options) == 2 and options[1] in ["off", "none"]):
             axes = []
         else:
             axes = options[1:]
 
         command.actor.state.enabled_axes = list(axes)
+        command.info(enabled_axes=command.actor.state.enabled_axes)
 
     elif options[0] == "cameras":
         if len(options) < 2:

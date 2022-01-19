@@ -22,4 +22,5 @@ from .guide import *
 from .offset import *
 from .set import *
 from .show import *
+from .status import *
 from .stop import *

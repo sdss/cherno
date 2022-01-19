@@ -87,7 +87,8 @@
         { "title": "dec_offset", "type": "number" },
         { "title": "pa_offset", "type": "number" }
       ]
-    }
+    },
+    "enabled_axes": { "type": "array" }
   },
   "additionalProperties": false
 }
