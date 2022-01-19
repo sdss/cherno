@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy
 
+from cherno.exceptions import ChernoError
 from cherno.maskbits import GuiderStatus
 
 
@@ -55,7 +56,7 @@ async def apply_correction(
             command.debug("Ignoring small ra/dec correction.")
 
         elif numpy.any(numpy.abs(corr_radec) > (max_corr_arcsec / 3600)):
-            command.warning("RA/Dec correction too large. Not applying correction.")
+            raise ChernoError("RA/Dec correction too large. Not applying correction.")
 
         else:
             corr_radec *= k_radec
@@ -90,7 +91,7 @@ async def apply_correction(
             command.debug("Ignoring small rotator correction.")
 
         elif numpy.any(numpy.abs(corr_rot) > (max_corr_arcsec / 3600)):
-            command.error("Rotator correction too large. Not applying correction.")
+            raise ChernoError("Rotator correction too large. Not applying correction.")
 
         else:
             corr_rot *= k_rot

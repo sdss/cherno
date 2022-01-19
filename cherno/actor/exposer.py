@@ -200,10 +200,13 @@ class Exposer:
             elif len(filenames) == 0:
                 self.fail("The keyword filename_bundle is empty.")
             else:
-                await self.invoke_callback(
-                    filenames,
-                    callback=callback or self.callback,
-                )
+                try:
+                    await self.invoke_callback(
+                        filenames,
+                        callback=callback or self.callback,
+                    )
+                except Exception as err:
+                    self.fail(str(err))
 
             if delay:
                 await asyncio.sleep(delay)
