@@ -56,6 +56,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         if value <= 0 or value > 1:
             return command.fail("Invalid value. Must be between 0 and 1.")
 
+        command.info(message={f"pid_{axis}": [value]})
         command.actor.state.guide_loop[axis]["pid"][component] = value
 
     elif options[0] == "acquisition":

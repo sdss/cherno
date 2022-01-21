@@ -21,4 +21,9 @@ async def status(command: ChernoCommandType):
     command.info(guider_status=hex(command.actor.state.status.value))
     command.info(enabled_axes=command.actor.state.enabled_axes)
 
+    for axis in ["radec", "rot"]:
+        command.info(
+            message={f"pid_{axis}": [command.actor.state.guide_loop[axis]["pid"]["k"]]}
+        )
+
     return command.finish()

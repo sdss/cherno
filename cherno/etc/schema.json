@@ -88,7 +88,15 @@
         { "title": "pa_offset", "type": "number" }
       ]
     },
-    "enabled_axes": { "type": "array" }
+    "enabled_axes": { "type": "array" },
+    "pid_radec": {
+      "type": "array",
+      "items": [{ "title": "radec_kp", "type": "number" }]
+    },
+    "pid_rot": {
+      "type": "array",
+      "items": [{ "title": "rot_kp", "type": "number" }]
+    }
   },
   "additionalProperties": false
 }
