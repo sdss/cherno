@@ -20,6 +20,7 @@ async def status(command: ChernoCommandType):
 
     command.info(guider_status=hex(command.actor.state.status.value))
     command.info(enabled_axes=command.actor.state.enabled_axes)
+    command.info(offset=command.actor.state.offset)
 
     for axis in ["radec", "rot"]:
         command.info(
