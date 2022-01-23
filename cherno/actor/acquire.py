@@ -54,11 +54,6 @@ __all__ = ["acquire"]
     help="Whether to apply the correction.",
 )
 @click.option(
-    "--plot",
-    is_flag=True,
-    help="Whether to plot results of astrometry.net.",
-)
-@click.option(
     "-f",
     "--full",
     is_flag=True,
@@ -69,7 +64,6 @@ async def acquire(
     exposure_time: float | None = None,
     continuous: bool = False,
     apply: bool = True,
-    plot: bool = False,
     full: bool = False,
     cameras: str | None = None,
 ):
