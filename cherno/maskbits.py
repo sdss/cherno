@@ -17,12 +17,12 @@ __all__ = ["GuiderStatus", "CameraStatus"]
 class GuiderStatus(Flag):
     """Maskbits with the guider status."""
 
-    IDLE = 1
-    EXPOSING = 2 << 0
-    PROCESSING = 2 << 1
-    CORRECTING = 2 << 2
-    STOPPING = 2 << 3
-    FAILED = 2 << 4
+    IDLE = 1 << 0
+    EXPOSING = 1 << 1
+    PROCESSING = 1 << 2
+    CORRECTING = 1 << 3
+    STOPPING = 1 << 4
+    FAILED = 1 << 5
 
     NON_IDLE = EXPOSING | PROCESSING | CORRECTING | STOPPING
 
