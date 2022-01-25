@@ -147,6 +147,9 @@ class Exposer:
 
             self._check_ffs()
 
+            # Clear the FAILED flag if it's set
+            self.actor_state.set_status(GuiderStatus.FAILED, mode="remove")
+
             # Set the status of the guider as EXPOSING. This removes IDLE.
             self.actor_state.set_status(GuiderStatus.EXPOSING, mode="add")
 
