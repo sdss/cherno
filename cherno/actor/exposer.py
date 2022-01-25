@@ -127,7 +127,7 @@ class Exposer:
         if self.actor.tron is None:
             raise ExposerError("Tron is not connected. Cannot expose.")
 
-        if (self.actor_state.status & GuiderStatus.EXPOSING).value > 0:
+        if (self.actor_state.status & GuiderStatus.NON_IDLE).value > 0:
             raise ExposerError("The guider is already exposing.")
 
         if exposure_time is not None:
