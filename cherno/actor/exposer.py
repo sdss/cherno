@@ -137,11 +137,7 @@ class Exposer:
         while True:
 
             if self.is_stopping() or (count is not None and n_exp >= count):
-                self.actor_state.set_status(
-                    GuiderStatus.STOPPING,
-                    mode="remove",
-                    report=False,
-                )
+                self.actor_state.set_status(GuiderStatus.STOPPING, mode="remove")
                 self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
                 return
 
