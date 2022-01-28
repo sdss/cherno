@@ -96,7 +96,8 @@
     "pid_rot": {
       "type": "array",
       "items": [{ "title": "rot_kp", "type": "number" }]
-    }
+    },
+    "scale_median": { "type": "number" }
   },
   "additionalProperties": false
 }
