@@ -804,6 +804,12 @@ async def process_and_correct(
         ]
     )
 
+    if delta_scale > 0:
+        # If we measured the scale, add it to the actor state. This is later
+        # used to compute the average scale over a period. We also add the time
+        # because we'll want to reject measurements that are too old.
+        command.actor.state.scale_history.append((time.time(), delta_scale))
+
     actor_state = command.actor.state
     guider_status = actor_state.status
 

@@ -80,6 +80,7 @@ class ChernoState:
     acquisition: dict = field(default_factory=dict)
     enabled_cameras: list = field(default_factory=list)
     enabled_axes: list = field(default_factory=list)
+    scale_history: list = field(default_factory=list)
 
     def __post_init__(self):
         self.guide_loop = config["guide_loop"].copy()
