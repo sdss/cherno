@@ -603,7 +603,7 @@ def calculate_fwhm_camera(
     fwhm,a,b,ell,nkeep
         The FWHM measured as the average of the circle that envelops the minor
         and major axis after outlier rejection, the averaged semi-major and
-        smi-minor axes, the ellipticity, and the number of data points kept.
+        semi-minor axes, the ellipticity, and the number of data points kept.
 
     """
 
