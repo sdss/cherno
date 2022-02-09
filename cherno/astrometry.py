@@ -186,7 +186,7 @@ class AstrometryNet:
 
         t0 = time.time()
 
-        args = self._build_command(files, options=options)
+        args = self._build_command(list(map(str, files)), options=options)
 
         if shell:
             cmd = await asyncio.create_subprocess_shell(
