@@ -15,7 +15,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy
@@ -248,7 +248,7 @@ class Extraction:
         if plot is None:
             plot = self.params.get("plot", False)
 
-        psf_fwhm = self.params["daophot"]["psf_fwhm"]
+        psf_fwhm = self.params["daophot"]["initial_psf_fwhm"]
         psf_sigma = psf_fwhm / gaussian_sigma_to_fwhm
 
         background_sigma = self.params["background_sigma"]
@@ -327,7 +327,7 @@ class Extraction:
         if method == "sigclip":
             sigma = self.params.get("reject_sigma", 3.0)
             sigma_clip = SigmaClip(sigma, cenfunc="median")
-            masked = sigma_clip(fwhm, masked=True)
+            masked: Any = sigma_clip(fwhm, masked=True)
             regions.loc[masked.mask, "valid"] = 0
 
         elif method == "nreject":
