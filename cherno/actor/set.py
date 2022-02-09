@@ -24,7 +24,6 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
     Valid parameters are:
         exposure-time [EXPTIME]
         pid radec|rot k [VALUE]
-        acquisition PARAM VALUE
         axes [radec rot off]
         cameras CAMERAS
 
@@ -58,21 +57,6 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
         command.info(message={f"pid_{axis}": [value]})
         command.actor.state.guide_loop[axis]["pid"][component] = value
-
-    elif options[0] == "acquisition":
-        if len(options) < 3:
-            return command.fail("Invalid number of parameters")
-
-        param = options[1]
-        value = float(options[2])
-
-        if param not in command.actor.state.acquisition:
-            return command.fail(
-                "Invalid parameter. Valid parameters are "
-                f"{list(command.actor.state.acquisition.keys())}."
-            )
-
-        command.actor.state.acquisition[param] = value
 
     elif options[0] == "axes":
 
