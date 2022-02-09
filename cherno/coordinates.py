@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import numpy
 import pandas
 from coordio import ICRS, Field, FocalPlane, Observed, Site, Wok
 from coordio.conv import guideToTangent, tangentToWok
