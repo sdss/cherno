@@ -63,13 +63,14 @@ class AcquisitionData:
 
     def __post_init__(self):
 
-        self.path: pathlib.Path = self.extraction_data.path
-        self.camera: str = self.extraction_data.camera
-        self.exposure_no: int = self.extraction_data.exposure_no
-        self.observatory: str = self.extraction_data.observatory
-        self.field_ra: float = self.extraction_data.field_ra
-        self.field_dec: float = self.extraction_data.field_dec
-        self.field_pa: float = self.extraction_data.field_pa
+        self.path = self.extraction_data.path
+        self.camera = self.extraction_data.camera
+        self.exposure_no = self.extraction_data.exposure_no
+        self.obstime = self.extraction_data.obstime
+        self.observatory = self.extraction_data.observatory
+        self.field_ra = self.extraction_data.field_ra
+        self.field_dec = self.extraction_data.field_dec
+        self.field_pa = self.extraction_data.field_pa
 
     @property
     def e_data(self):
@@ -101,11 +102,12 @@ class Acquisition:
         self,
         extractor: Extraction | None = None,
         astrometry: AstrometryNet | None = None,
-        star_finder: str | None = None,
         command: ChernoCommandType | None = None,
+        astrometry_params: dict = {},
+        extraction_params: dict = {},
     ):
 
-        self.extractor = extractor or Extraction(star_finder=star_finder)
+        self.extractor = extractor or Extraction(**extraction_params)
 
         if astrometry is not None:
             self.astrometry = astrometry
@@ -123,6 +125,7 @@ class Acquisition:
                 sort_column="flux",
                 radius=0.5,
                 cpulimit=config["acquisition"]["cpulimit"],
+                **astrometry_params,
             )
 
         self.command = command or FakeCommand(log)
@@ -136,9 +139,11 @@ class Acquisition:
         self,
         command: ChernoCommandType | None,
         images: PathLike | list[PathLike],
+        write_proc: bool = True,
         overwrite: bool = False,
         correct: bool = True,
         full_correction: bool = False,
+        offset: list[float] | None = None,
     ):
         """Performs extraction and astrometry."""
 
@@ -157,14 +162,24 @@ class Acquisition:
             if d.nvalid < 5:
                 self.command.warning(f"Camera {d.camera}: not enough sources.")
             else:
-                self.command.debug(fwhm_camera=[d.camera, d.exposure_no, d.fwhm_median])
+                self.command.info(
+                    fwhm_camera=[
+                        d.camera,
+                        d.exposure_no,
+                        d.fwhm_median,
+                        d.nregions,
+                        d.nvalid,
+                    ]
+                )
 
         acq_data = await asyncio.gather(*[self._astrometry_one(d) for d in ext_data])
-        await asyncio.gather(
-            *[self.write_proc_image(d, overwrite=overwrite) for d in acq_data]
-        )
 
-        ast_solution = await self.fit(list(acq_data))
+        if write_proc:
+            await asyncio.gather(
+                *[self.write_proc_image(d, overwrite=overwrite) for d in acq_data]
+            )
+
+        ast_solution = await self.fit(list(acq_data), offset=offset)
 
         if correct and ast_solution.valid_solution is True:
             await self.correct(ast_solution, full=full_correction)
@@ -174,7 +189,7 @@ class Acquisition:
 
         return ast_solution
 
-    async def fit(self, data: list[AcquisitionData]):
+    async def fit(self, data: list[AcquisitionData], offset: list[float] | None = None):
         """Calculate the astrometric solution."""
 
         ast_solution = AstrometricSolution(
@@ -183,7 +198,7 @@ class Acquisition:
             correction_applied=[0.0, 0.0, 0.0],
         )
 
-        solved = [d for d in data if d.solved is True]
+        solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
         weights = [s.extraction_data.nvalid for s in solved]
 
         if len(solved) == 0:
@@ -201,10 +216,16 @@ class Acquisition:
             self.command.error("Field not defined. Cannot run astrometric fit.")
             return ast_solution
 
-        if (offset := self.command.actor.state.offset) == (0.0, 0.0, 0.0):
-            self.command.debug(offset=list(offset))
+        if offset is None:
+            if self.command.actor:
+                offset = list(self.command.actor.state.offset)
+            else:
+                offset = list(config.get("offset", [0.0, 0.0, 0.0]))
+
+        if any(offset):
+            self.command.warning(offset=offset)
         else:
-            self.command.warning(offset=list(offset))
+            self.command.debug(offset=offset)
 
         fit = astrometry_fit(solved, offset=offset, obstime=solved[0].obstime.jd)
 
@@ -240,7 +261,7 @@ class Acquisition:
             ]
         )
 
-        if delta_scale > 0:
+        if delta_scale > 0 and self.command.actor:
             # If we measured the scale, add it to the actor state. This is later
             # used to compute the average scale over a period. We also add the time
             # because we'll want to reject measurements that are too old.
@@ -254,11 +275,7 @@ class Acquisition:
 
         return ast_solution
 
-    async def correct(
-        self,
-        data: AstrometricSolution,
-        full: bool = False,
-    ):
+    async def correct(self, data: AstrometricSolution, full: bool = False):
         """Runs the astrometric fit"""
 
         if not self.command.actor or self.command.status.is_done:
@@ -313,16 +330,22 @@ class Acquisition:
 
         regions = ext_data.regions
 
-        astrometry_dir = pathlib.Path(config["acquisition"]["astrometry_dir"])
-        if astrometry_dir.is_absolute():
-            pass
+        if self.astrometry._options.get("dir", None) is None:
+            astrometry_dir = pathlib.Path(config["acquisition"]["astrometry_dir"])
+            if astrometry_dir.is_absolute():
+                pass
+            else:
+                astrometry_dir = ext_data.path.parent / astrometry_dir
+
+            astrometry_dir.mkdir(exist_ok=True, parents=True)
         else:
-            astrometry_dir = ext_data.path.parent / astrometry_dir
+            astrometry_dir = pathlib.Path(self.astrometry._options["dir"])
 
         outfile_root = astrometry_dir / ext_data.path.stem
 
         if "x_0" in regions:
-            xyls_df = regions.loc[regions.valid == 1, ["x_0", "y_0", "flux_0"]]
+            xyls_df = regions.loc[regions.valid == 1, ["x_0", "y_0", "flux_0"]].copy()
+            xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
         else:
             xyls_df = regions.loc[regions.valid == 1, ["x", "y", "flux"]]
 
