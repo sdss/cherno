@@ -283,9 +283,9 @@ class Acquisition:
             focus_fit=[
                 exp_no,
                 ast_solution.fwhm_fit,
-                f"{ast_solution.focus_coeff[0]:.3e}",
-                f"{ast_solution.focus_coeff[1]:.3e}",
-                f"{ast_solution.focus_coeff[2]:.3e}",
+                float(f"{ast_solution.focus_coeff[0]:.3e}"),
+                float(f"{ast_solution.focus_coeff[1]:.3e}"),
+                float(f"{ast_solution.focus_coeff[2]:.3e}"),
                 ast_solution.focus_r2,
                 ast_solution.delta_focus,
             ]

@@ -75,9 +75,9 @@
       "items": [
         { "title": "exposure_no", "type": "integer" },
         { "title": "fwhm_fit", "type": "number" },
-        { "title": "a", "type": "string" },
-        { "title": "b", "type": "string" },
-        { "title": "c", "type": "string" },
+        { "title": "a", "type": "number" },
+        { "title": "b", "type": "number" },
+        { "title": "c", "type": "number" },
         { "title": "r2", "type": "number" },
         { "title": "delta_focus", "type": "number" }
       ]
