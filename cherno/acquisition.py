@@ -134,12 +134,16 @@ class Acquisition:
 
     async def process(
         self,
+        command: ChernoCommandType | None,
         images: PathLike | list[PathLike],
         overwrite: bool = False,
         correct: bool = True,
         full_correction: bool = False,
     ):
         """Performs extraction and astrometry."""
+
+        if command is not None:
+            self.set_command(command)
 
         if not isinstance(images, (list, tuple)):
             images = [images]
