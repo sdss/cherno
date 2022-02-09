@@ -528,8 +528,9 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     enabled_axes = guider_state.enabled_axes
     enabled_radec = "radec" in enabled_axes
     enabled_rot = "rot" in enabled_axes
+    enabled_focus = "focus" in enabled_axes
 
-    cra, cdec, crot, cscl = data.correction_applied
+    cra, cdec, crot, cscl, cfoc = data.correction_applied
 
     radec_pid_k = guide_loop["radec"]["pid"]["k"]
     radec_pid_td = guide_loop["radec"]["pid"].get("Td", 0.0)
@@ -538,6 +539,10 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     rot_pid_k = guide_loop["rot"]["pid"]["k"]
     rot_pid_td = guide_loop["rot"]["pid"].get("Td", 0.0)
     rot_pid_ti = guide_loop["rot"]["pid"].get("Ti", 0.0)
+
+    focus_pid_k = guide_loop["focus"]["pid"]["k"]
+    focus_pid_td = guide_loop["focus"]["pid"].get("Td", 0.0)
+    focus_pid_ti = guide_loop["focus"]["pid"].get("Ti", 0.0)
 
     if "scale" in guide_loop:
         scale_pid_k = guide_loop["scale"]["pid"]["k"]
@@ -553,6 +558,7 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     delta_dec = data.delta_dec
     delta_rot = data.delta_rot
     delta_scale = data.delta_scale
+    delta_focus = data.delta_focus
 
     # Update headers of proc images with deltas.
     for a_data in data.acquisition_data:
@@ -571,21 +577,27 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
             hdus[1].header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
             hdus[1].header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
 
+            hdus[1].header["FOCUSK"] = (focus_pid_k, "PID K term for Focus")
+            hdus[1].header["FOCUSTD"] = (focus_pid_td, "PID Td term for Focus")
+            hdus[1].header["FOCUSTI"] = (focus_pid_ti, "PID Ti term for Focus")
+
             hdus[1].header["RMS"] = (rms, "Guide RMS [arcsec]")
 
             hdus[1].header["E_RADEC"] = (enabled_radec, "RA/Dec corrections enabled?")
             hdus[1].header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
-            hdus[1].header["E_FOCUS"] = (False, "Focus corrections enabled?")
+            hdus[1].header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
             hdus[1].header["E_SCL"] = (False, "Scale corrections enabled?")
 
             hdus[1].header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
             hdus[1].header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
             hdus[1].header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
             hdus[1].header["DELTASCL"] = (delta_scale, "Scale measured factor")
+            hdus[1].header["DELTAFOC"] = (delta_focus, "Focus delta [microns]")
 
             hdus[1].header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
             hdus[1].header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
             hdus[1].header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
             hdus[1].header["CORR_SCL"] = (cscl, "Scale applied correction")
+            hdus[1].header["CORR_FOC"] = (cfoc, "Focus applied correction [microns]")
 
             hdus.close()
