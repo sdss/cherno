@@ -47,7 +47,7 @@ extraction:
   star_finder: daophot
   background_sigma: 10.0
   min_npix: 20
-  plot: true
+  plot: false
   rejection_method: sigclip
   reject_sigma: 2.0
   nreject: [2, 3]
