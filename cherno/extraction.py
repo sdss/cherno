@@ -140,7 +140,7 @@ class Extraction:
             regions=regions,
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
-            fwhm_median=regions.loc[regions.valid == 1].fwhm.median(),
+            fwhm_median=numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3),
         )
 
         output_file = self._get_output_path(path).with_suffix(".hdf")
