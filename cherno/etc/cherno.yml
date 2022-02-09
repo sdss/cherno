@@ -49,13 +49,13 @@ extraction:
   min_npix: 20
   plot: true
   rejection_method: sigclip
-  reject_sigma: 3.0
+  reject_sigma: 2.0
   nreject: [2, 3]
   daophot:
     fixed_sigma: false
     initial_psf_fwhm: 7.0
     use_sep_finder: false
-    max_stars: null
+    max_stars: 30
 
 offset: [0, 0, -432]
 
