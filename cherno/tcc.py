@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 import numpy
 
 from cherno.exceptions import ChernoError
-from cherno.maskbits import GuiderStatus
 
 
 if TYPE_CHECKING:
