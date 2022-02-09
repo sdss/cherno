@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy
 from coordio.defaults import PLATE_SCALE
+from coordio.exceptions import CoordIOUserWarning
 from coordio.utils import radec2wokxy
 
 from cherno.coordinates import gfa_to_wok
@@ -24,6 +25,9 @@ from cherno.coordinates import gfa_to_wok
 
 if TYPE_CHECKING:
     from cherno.acquisition import AcquisitionData
+
+
+warnings.simplefilter("ignore", category=CoordIOUserWarning)
 
 
 async def run_in_executor(fn, *args, catch_warnings=False, executor="thread", **kwargs):
@@ -137,7 +141,8 @@ def umeyama(X, Y):
 def astrometry_fit(
     data: list[AcquisitionData],
     grid=(10, 10),
-    offset: tuple = (0.0, 0.0, 0.0),
+    offset: tuple | list = (0.0, 0.0, 0.0),
+    obstime: float | None = None,
 ):
     """Fits translation, rotation, and scale from a WCS solution."""
 
@@ -163,21 +168,16 @@ def astrometry_fit(
             xwok_gfa.append(cast(float, xw))
             ywok_gfa.append(cast(float, yw))
 
-        offset_ra_corr = offset_ra * numpy.cos(numpy.deg2rad(d.field_dec)) / 3600.0
-
         _xwok_astro, _ywok_astro, *_ = radec2wokxy(
             ra,
             dec,
             None,
             "GFA",
-            d.field_ra - offset_ra_corr,
+            d.field_ra - offset_ra * numpy.cos(numpy.deg2rad(d.field_dec)) / 3600.0,
             d.field_dec - offset_dec / 3600.0,
             d.field_pa - offset_pa / 3600.0,
-            "APO",
-            None,
-            pmra=None,
-            pmdec=None,
-            parallax=None,
+            d.observatory.upper(),
+            obstime,
         )
 
         xwok_astro += _xwok_astro.tolist()

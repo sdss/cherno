@@ -26,6 +26,7 @@ from astropy.io import fits
 from astropy.modeling.fitting import LevMarLSQFitter
 from astropy.stats import SigmaClip, gaussian_sigma_to_fwhm
 from astropy.table import Table
+from astropy.time import Time, TimeDelta
 from matplotlib.patches import Ellipse
 from photutils.background import MedianBackground, StdBackgroundRMS
 from photutils.detection import DAOStarFinder
@@ -49,6 +50,7 @@ class ExtractionData:
     path: pathlib.Path
     camera: str
     exposure_no: int
+    obstime: Time
     observatory: str
     field_ra: float
     field_dec: float
@@ -96,6 +98,9 @@ class Extraction:
         camera = header["CAMNAME"][0:-1]  # Remove the n/s at the end of the camera name
         observatory = header["OBSERVAT"]
 
+        obstime = Time(header["DATE-OBS"], format="iso", scale="tai")
+        obstime += TimeDelta(header["EXPTIMEN"] / 2.0, format="sec")
+
         path = pathlib.Path(image)
         path = path.absolute()
 
@@ -127,6 +132,7 @@ class Extraction:
             path,
             camera,
             exp_no,
+            obstime,
             observatory,
             field_ra=header["RAFIELD"],
             field_dec=header["DECFIELD"],

@@ -206,7 +206,7 @@ class Acquisition:
         else:
             self.command.warning(offset=list(offset))
 
-        fit = astrometry_fit(solved, offset=self.command.actor.state.offset)
+        fit = astrometry_fit(solved, offset=offset, obstime=solved[0].obstime.jd)
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
