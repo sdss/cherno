@@ -32,11 +32,7 @@
       "items": [
         { "title": "camera", "type": "string" },
         { "title": "exposure_no", "type": "integer" },
-        { "title": "fwhm", "type": "number" },
-        { "title": "a", "type": "number" },
-        { "title": "b", "type": "number" },
-        { "title": "ellipticity", "type": "number" },
-        { "title": "nkeep", "type": "integer" }
+        { "title": "fwhm", "type": "number" }
       ]
     },
     "astrometry_fit": {

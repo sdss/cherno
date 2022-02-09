@@ -39,9 +39,23 @@ guide_loop:
     min_isolated_correction: 30
 
 acquisition:
-  cpulimit: 15.0
-  sigma: 10.0
-  min_npix: 50
+  cpulimit: 15
+  astrometry_dir: ./astrometry
+
+extraction:
+  output_dir: ./extraction
+  star_finder: daophot
+  background_sigma: 10.0
+  min_npix: 20
+  plot: true
+  rejection_method: sigclip
+  reject_sigma: 3.0
+  nreject: [2, 3]
+  daophot:
+    fixed_sigma: false
+    initial_psf_fwhm: 7.0
+    use_sep_finder: false
+    max_stars: null
 
 offset: [0, 0, -432]
 
