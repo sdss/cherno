@@ -50,6 +50,7 @@ class ExtractionData:
     path: pathlib.Path
     camera: str
     exposure_no: int
+    mjd: int
     obstime: Time
     observatory: str
     field_ra: float
@@ -59,6 +60,7 @@ class ExtractionData:
     nregions: int = 0
     nvalid: int = 0
     fwhm_median: float = -999.0
+    focus_offset: float = 0.0
 
 
 class Extraction:
@@ -68,13 +70,14 @@ class Extraction:
 
     def __init__(
         self,
+        observatory: str,
         star_finder: str | None = None,
         pixel_scale: float | None = None,
         daophot_params={},
         **params,
     ):
 
-        self.pixel_scale = pixel_scale or config["cameras"]["pixel_scale"]
+        self.pixel_scale = pixel_scale or config["pixel_scale"][observatory.upper()]
 
         self.params = deepcopy(config["extraction"])
         self.params.update(params)
@@ -132,6 +135,7 @@ class Extraction:
             path,
             camera,
             exp_no,
+            int(obstime.mjd),
             obstime,
             observatory,
             field_ra=header["RAFIELD"],
@@ -141,6 +145,7 @@ class Extraction:
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
             fwhm_median=numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3),
+            focus_offset=config["cameras"]["focus"][camera],
         )
 
         output_file = self._get_output_path(path).with_suffix(".hdf")

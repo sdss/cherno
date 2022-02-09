@@ -16,7 +16,13 @@ actor:
 cameras:
   names: [gfa2, gfa3, gfa4, gfa5, gfa6]
   path: /data/gcam/
-  pixel_scale: 0.216
+  focus:
+    gfa1: 0
+    gfa2: -1000
+    gfa3: 0
+    gfa4: 0
+    gfa5: 1000
+    gfa6: 0
   rotation:
     gfa1: 300
     gfa2: 0
@@ -24,6 +30,21 @@ cameras:
     gfa4: 120
     gfa5: 180
     gfa6: 240
+  focus_weight:
+    gfa1: 1
+    gfa2: 1
+    gfa3: 0.2
+    gfa4: 0.75
+    gfa5: 1
+    gfa6: 1
+
+pixel_scale:
+  APO: 0.216
+  LCO: 0.216
+
+focal_ratio:
+  APO: 5
+  LCO: 7.45
 
 guide_loop:
   radec:
@@ -37,10 +58,16 @@ guide_loop:
     min_correction: 3
     max_correction: 7200
     min_isolated_correction: 30
+  focus:
+    pid:
+      k: 0.6
+    min_correction: 30
+    max_correction: 500
 
 acquisition:
   cpulimit: 15
   astrometry_dir: ./astrometry
+  focus_r2_threshold: 0.5
 
 extraction:
   output_dir: ./extraction

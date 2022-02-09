@@ -15,7 +15,7 @@ import warnings
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy
 from astropy.io import fits
@@ -30,8 +30,8 @@ from cherno.coordinates import gfa_to_radec
 from cherno.exceptions import ChernoError
 from cherno.extraction import Extraction, ExtractionData, PathLike
 from cherno.maskbits import GuiderStatus
-from cherno.tcc import apply_correction
-from cherno.utils import astrometry_fit, run_in_executor
+from cherno.tcc import apply_axes_correction, apply_focus_correction
+from cherno.utils import astrometry_fit, focus_fit, run_in_executor
 
 
 if TYPE_CHECKING:
@@ -89,10 +89,14 @@ class AstrometricSolution:
     delta_dec: float = -999.0
     delta_rot: float = -999.0
     delta_scale: float = -999.0
+    delta_focus: float = -999.0
     rms: float = -999.0
-    fwhm: float = -999.0
+    fwhm_median: float = -999.0
+    fwhm_fit: float = -999.0
+    focus_coeff: list[float] = field(default_factory=lambda: [-999.0] * 3)
+    focus_r2: float = -999.0
     camera_rotation: float = -999.0
-    correction_applied: list[float] = field(default_factory=list)
+    correction_applied: list[float] = field(default_factory=lambda: [0.0] * 5)
 
 
 class Acquisition:
@@ -100,6 +104,7 @@ class Acquisition:
 
     def __init__(
         self,
+        observatory: str,
         extractor: Extraction | None = None,
         astrometry: AstrometryNet | None = None,
         command: ChernoCommandType | None = None,
@@ -107,12 +112,12 @@ class Acquisition:
         extraction_params: dict = {},
     ):
 
-        self.extractor = extractor or Extraction(**extraction_params)
+        self.extractor = extractor or Extraction(observatory, **extraction_params)
 
         if astrometry is not None:
             self.astrometry = astrometry
         else:
-            pixel_scale = config["cameras"]["pixel_scale"]
+            pixel_scale = config["pixel_scale"][observatory.upper()]
             backend_config = pathlib.Path(__file__).parent / "etc/astrometrynet.cfg"
             self.astrometry = AstrometryNet(
                 backend_config=str(backend_config),
@@ -192,11 +197,7 @@ class Acquisition:
     async def fit(self, data: list[AcquisitionData], offset: list[float] | None = None):
         """Calculate the astrometric solution."""
 
-        ast_solution = AstrometricSolution(
-            False,
-            data,
-            correction_applied=[0.0, 0.0, 0.0],
-        )
+        ast_solution = AstrometricSolution(False, data)
 
         solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
         weights = [s.extraction_data.nvalid for s in solved]
@@ -208,8 +209,8 @@ class Acquisition:
         fwhm = numpy.average([d.e_data.fwhm_median for d in solved], weights=weights)
         camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
 
-        ast_solution.fwhm = float(fwhm)
-        ast_solution.camera_rotation = float(camera_rotation)
+        ast_solution.fwhm_median = numpy.round(float(fwhm), 3)
+        ast_solution.camera_rotation = numpy.round(float(camera_rotation), 2)
 
         if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
             self.command.error(acquisition_valid=False, did_correct=False)
@@ -227,23 +228,40 @@ class Acquisition:
         else:
             self.command.debug(offset=offset)
 
-        fit = astrometry_fit(solved, offset=offset, obstime=solved[0].obstime.jd)
+        ast_fit = astrometry_fit(solved, offset=offset, obstime=solved[0].obstime.jd)
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if fit is False:
+        if ast_fit is False:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
         else:
-            delta_ra = fit[0]
-            delta_dec = fit[1]
-            delta_rot = fit[2]
-            delta_scale = fit[3]
+            delta_ra = ast_fit[0]
+            delta_dec = ast_fit[1]
+            delta_rot = ast_fit[2]
+            delta_scale = ast_fit[3]
 
-            xrms = fit[4]
-            yrms = fit[5]
-            rms = fit[6]
+            xrms = ast_fit[4]
+            yrms = ast_fit[5]
+            rms = ast_fit[6]
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
+
+        ast_solution.delta_ra = delta_ra
+        ast_solution.delta_dec = delta_dec
+        ast_solution.delta_rot = delta_rot
+        ast_solution.delta_scale = delta_scale
+        ast_solution.rms = rms
+
+        try:
+            fwhm_fit, x_min, a, b, c, r2 = focus_fit([d.e_data for d in data])
+
+            ast_solution.fwhm_fit = round(fwhm_fit, 3)
+            ast_solution.delta_focus = round(x_min, 1)
+            ast_solution.focus_coeff = [a, b, c]
+            ast_solution.focus_r2 = round(r2, 3)
+
+        except ChernoError:
+            self.command.warning("Failed fitting focus curve.")
 
         self.command.info(
             astrometry_fit=[
@@ -261,17 +279,23 @@ class Acquisition:
             ]
         )
 
-        if delta_scale > 0 and self.command.actor:
+        self.command.info(
+            focus_fit=[
+                exp_no,
+                ast_solution.fwhm_fit,
+                f"{ast_solution.focus_coeff[0]:.3e}",
+                f"{ast_solution.focus_coeff[1]:.3e}",
+                f"{ast_solution.focus_coeff[2]:.3e}",
+                ast_solution.focus_r2,
+                ast_solution.delta_focus,
+            ]
+        )
+
+        if delta_scale > 0 and self.command.actor and fwhm < 2.5:
             # If we measured the scale, add it to the actor state. This is later
             # used to compute the average scale over a period. We also add the time
             # because we'll want to reject measurements that are too old.
             self.command.actor.state.scale_history.append((time.time(), delta_scale))
-
-        ast_solution.delta_ra = delta_ra
-        ast_solution.delta_dec = delta_dec
-        ast_solution.delta_rot = delta_rot
-        ast_solution.delta_scale = delta_scale
-        ast_solution.rms = rms
 
         return ast_solution
 
@@ -287,44 +311,68 @@ class Acquisition:
         stopping = (
             guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)
         ).value > 0
-        will_apply = stopping is False
 
-        correction_applied: list[float] = [0.0, 0.0, 0.0, 0.0]
+        if stopping:
+            data.correction_applied = [0.0, 0.0, 0.0, 0.0, 0.0]
+            self.command.info(acquisition_valid=True, did_correct=False)
+            return True
 
-        if will_apply is True:
-            self.command.info("Applying corrections.")
+        self.command.info("Applying corrections.")
 
-            min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
-            if abs(data.delta_rot) >= min_isolated:
-                self.command.debug("Applying only large rotator correction.")
-                correction_applied = await apply_correction(
+        correct_tasks = []
+
+        min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
+        if abs(data.delta_rot) >= min_isolated:
+            self.command.debug("Applying only large rotator correction.")
+            correct_tasks.append(
+                apply_axes_correction(
                     self.command,
                     rot=-data.delta_rot,
                     k_rot=None if full is False else 1.0,
                 )
+            )
 
-            else:
-
-                correction_applied = await apply_correction(
+        else:
+            correct_tasks.append(
+                apply_axes_correction(
                     self.command,
                     rot=-data.delta_rot,
                     radec=(-data.delta_ra, -data.delta_dec),
                     k_radec=None if full is False else 1.0,
                     k_rot=None if full is False else 1.0,
                 )
-
-            self.command.info(
-                acquisition_valid=True,
-                did_correct=any(correction_applied),
-                correction_applied=correction_applied,
             )
 
+        do_focus: bool = False
+        if data.focus_r2 > config["acquisition"]["focus_r2_threshold"]:
+            do_focus = True
+            correct_tasks.append(
+                apply_focus_correction(
+                    self.command,
+                    -data.delta_focus,
+                    k_focus=None if full else 1.0,
+                )
+            )
         else:
-            self.command.info(acquisition_valid=True, did_correct=False)
+            self.command.warning("Focus fit poorly constrained. Not correcting focus.")
 
-        data.correction_applied = correction_applied
+        self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
 
-        return True
+        applied_corrections: Any = await asyncio.gather(*correct_tasks)
+
+        self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
+
+        data.correction_applied[:3] = applied_corrections[0]
+        if do_focus:
+            data.correction_applied[4] = applied_corrections[3] or 0.0
+        else:
+            data.correction_applied[4] = 0.0
+
+        self.command.info(
+            acquisition_valid=True,
+            did_correct=any(data.correction_applied),
+            correction_applied=data.correction_applied,
+        )
 
     async def _astrometry_one(self, ext_data: ExtractionData):
 
@@ -401,7 +449,7 @@ class Acquisition:
             # Calculate field rotation.
             camera_rot = config["cameras"]["rotation"][acq_data.camera]
             rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
-            rotation[rotation > 180.0] -= 360.0  # type: ignore
+            rotation[rotation > 180.0] -= 360.0
             rotation = numpy.mean(rotation)
             acq_data.rotation = numpy.round(rotation, 3)
 
