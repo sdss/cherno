@@ -10,21 +10,27 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import pathlib
 import warnings
 from functools import partial
 
 from typing import TYPE_CHECKING, Any, cast
 
+import matplotlib.pyplot as plt
 import numpy
-from coordio.defaults import PLATE_SCALE
+import seaborn
+from coordio.defaults import GFA_PIXEL_SIZE, PLATE_SCALE
 from coordio.exceptions import CoordIOUserWarning
 from coordio.utils import radec2wokxy
 
+from cherno import config
 from cherno.coordinates import gfa_to_wok
+from cherno.exceptions import ChernoError
 
 
 if TYPE_CHECKING:
     from cherno.acquisition import AcquisitionData
+    from cherno.extraction import ExtractionData
 
 
 warnings.simplefilter("ignore", category=CoordIOUserWarning)
@@ -216,3 +222,135 @@ def astrometry_fit(
     rms = numpy.round(numpy.sqrt(numpy.sum(delta_x + delta_y) / len(delta_x)), 3)
 
     return (delta_ra, delta_dec, delta_rot, delta_scale, xrms, yrms, rms)
+
+
+def focus_fit(
+    e_data: list[ExtractionData],
+    plot: pathlib.Path | str | None = None,
+) -> tuple[float, float, float, float, float, float]:
+    """Determines the optimal focus.
+
+    Performs a least-squares polynomial fit to the focus data using
+    a quadratic polynomial. Also calculates the r2 coefficient.
+
+    Parameters
+    ----------
+    e_data
+        Extraction data. Must include the observatory, FWHM, focus offset for each
+        camera, and camera name.
+    plot
+        The path where to save the generated plot. If `None`, does not generate
+        a plot.
+
+    Returns
+    -------
+    results
+        A tuple with the fitted FWHM, offset to the optimal focus in microns,
+        coefficients of the fitted quadratic polynomial, and r2 coefficient.
+
+    """
+
+    cam = []
+    x = []
+    y = []
+    weights = []
+
+    observatory = e_data[0].observatory
+    fwhm_to_microns = config["pixel_scale"][observatory] * GFA_PIXEL_SIZE
+
+    for e_d in e_data:
+        valid = e_d.regions.loc[e_d.regions.valid == 1]
+        if len(valid) == 0:
+            continue
+
+        cam += [int(e_d.camera[-1])] * len(valid)
+        x += [e_d.focus_offset] * len(valid)
+
+        # Convert FWHM to microns so that they are the same units as the focus offset.
+        fwhm_microns = valid.fwhm * fwhm_to_microns
+        y += fwhm_microns.values.tolist()
+
+        # Calculate the weights as the inverse variance of the FWHM measurement.
+        # Also add a subjective estimation of how reliable each camera is.
+        ivar = 1 / (fwhm_microns.mean() - fwhm_microns) ** 2
+        ivar_camera = config["cameras"]["focus_weight"][e_d.camera] * ivar
+        weights += ivar_camera.values.tolist()
+
+    cam = numpy.array(cam)
+    x = numpy.array(x)
+    y = numpy.array(y)
+    weights = numpy.array(weights)
+    weights = weights / weights.max()
+
+    if len(numpy.unique(x)) < 3:
+        raise ChernoError("Not enough data points to fit focus.")
+
+    # Perform polynomial fit.
+    a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
+
+    # Calculate the focus of the parabola and the associated FWHM.
+    x_min = -b / 2 / a
+    fwhm_fit = (a * x_min**2 + x_min * b + c) / fwhm_to_microns
+
+    # Determine the r2 coefficient. See https://bit.ly/3LmH76j
+    f_i = a * x**2 + b * x + c
+    ybar = numpy.sum(y) / len(y)
+    ss_res = numpy.sum((y - f_i) ** 2)
+    ss_tot = numpy.sum((y - ybar) ** 2)
+    r2 = 1 - ss_res / ss_tot
+
+    if plot is not None:
+        plot = pathlib.Path(plot)
+        plot.parent.mkdir(exist_ok=True, parents=True)
+
+        seaborn.set_theme(style="darkgrid", palette="dark")
+
+        with plt.ioff():  # type: ignore
+            fig, ax = plt.subplots()
+
+            for icam in sorted(numpy.unique(cam)):
+                x_cam = x[cam == icam]
+                y_cam = y[cam == icam]
+                ax.scatter(
+                    x_cam,
+                    y_cam / fwhm_to_microns,
+                    marker="o",  # type: ignore
+                    edgecolor="None",
+                    s=5,
+                    label=f"GFA{icam}",
+                )
+
+            x0 = numpy.min(x)
+            x1 = numpy.max(x)
+            xs = numpy.linspace(x0 - 0.1 * (x1 - x0), x1 + 0.1 * (x1 - x0))
+            ys = (a * xs**2 + b * xs + c) / fwhm_to_microns
+            ax.plot(
+                xs,
+                ys,
+                "r-",
+                lw=2.0,
+                label="Fitted polynomial",
+            )
+
+            ax.axvline(
+                x=x_min,
+                ls="--",
+                c="b",
+                lw=0.5,
+                label="Focus offset (" + str(numpy.round(x_min, 1)) + r"$\rm \,\mu m$)",
+            )
+
+            ax.legend()
+
+            ax.set_xlabel("Focus offset [microns]")
+            ax.set_ylabel("FWHM [arcsec]")
+            ax.set_title(
+                f"MJD: {e_data[0].mjd} - Exp No: {e_data[0].exposure_no} - "
+                f"FWHM: {numpy.round(fwhm_fit, 3)}  arcsec"
+            )
+
+            fig.savefig(str(plot))
+
+        seaborn.reset_orig()
+
+    return fwhm_fit, x_min, a, b, c, r2
