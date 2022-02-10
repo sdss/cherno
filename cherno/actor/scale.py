@@ -66,6 +66,9 @@ async def get_scale(
         command.warning("Not enough points to calculate median scale.")
         return command.finish(scale_median=-999.0)
 
+    if len(valid[valid[:, 1] < 900]) > 10:
+        valid = data[data[:, 0] < 900]
+
     scales = valid[:, 1]
 
     median0 = numpy.median(scales)
