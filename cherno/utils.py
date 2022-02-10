@@ -263,8 +263,6 @@ def focus_fit(
     fwhm_to_microns = config["pixel_scale"][observatory] * GFA_PIXEL_SIZE
 
     for e_d in e_data:
-        if e_d.camera == "gfa3":
-            continue
 
         valid = e_d.regions.loc[e_d.regions.valid == 1]
         if len(valid) == 0:
