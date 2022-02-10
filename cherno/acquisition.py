@@ -15,7 +15,7 @@ import warnings
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Coroutine
 
 import numpy
 from astropy.io import fits
@@ -322,47 +322,36 @@ class Acquisition:
 
         self.command.info("Applying corrections.")
 
-        correct_tasks = []
-
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
         if abs(data.delta_rot) >= min_isolated:
             self.command.debug("Applying only large rotator correction.")
-            correct_tasks.append(
-                apply_axes_correction(
-                    self.command,
-                    rot=-data.delta_rot,
-                    k_rot=None if full is False else 1.0,
-                )
+            coro = apply_axes_correction(
+                self.command,
+                rot=-data.delta_rot,
+                k_rot=None if full is False else 1.0,
             )
 
         else:
-            correct_tasks.append(
-                apply_axes_correction(
-                    self.command,
-                    rot=-data.delta_rot,
-                    radec=(-data.delta_ra, -data.delta_dec),
-                    k_radec=None if full is False else 1.0,
-                    k_rot=None if full is False else 1.0,
-                )
+            coro = apply_axes_correction(
+                self.command,
+                rot=-data.delta_rot,
+                radec=(-data.delta_ra, -data.delta_dec),
+                k_radec=None if full is False else 1.0,
+                k_rot=None if full is False else 1.0,
             )
+
+        correct_tasks: list[Coroutine[Any, Any, Any]] = [coro]
 
         do_focus: bool = False
         if data.focus_r2 > config["acquisition"]["focus_r2_threshold"]:
             do_focus = True
-            correct_tasks.append(
-                apply_focus_correction(
-                    self.command,
-                    -data.delta_focus,
-                    k_focus=None if full else 1.0,
-                )
-            )
+            coro = apply_focus_correction(self.command, -data.delta_focus, k_focus=None)
+            correct_tasks.append(coro)
         else:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
-
         applied_corrections: Any = await asyncio.gather(*correct_tasks)
-
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
         data.correction_applied[:3] = applied_corrections[0]
