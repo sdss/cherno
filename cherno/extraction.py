@@ -177,9 +177,9 @@ class Extraction:
         basename = path_no_suffix.parts[-1]
 
         if self.output_dir.is_absolute():
-            output_dir = dirname / self.output_dir
-        else:
             output_dir = self.output_dir
+        else:
+            output_dir = dirname / self.output_dir
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
