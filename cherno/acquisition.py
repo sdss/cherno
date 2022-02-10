@@ -158,7 +158,11 @@ class Acquisition:
         if not isinstance(images, (list, tuple)):
             images = [images]
 
-        ext_data: list[ExtractionData] = await run_in_executor(
+        self.command.info("Extracting sources.")
+
+        loop = asyncio.get_running_loop()
+        ext_data: list[ExtractionData] = await loop.run_in_executor(
+            None,
             self.extractor.multiprocess,
             images,
         )

@@ -251,7 +251,7 @@ class Exposer:
                 key_name = reply_key.name.lower()
                 if key_name != "filename_bundle":
                     continue
-                filenames = [value for value in reply_key.values]
+                filenames = [value.native for value in reply_key.values]
                 return filenames
 
         return None
@@ -274,7 +274,9 @@ class Exposer:
             self.command.warning("Exposer: no callback defined.")
             return
 
-        if asyncio.iscoroutinefunction(callback):
+        if asyncio.iscoroutinefunction(callback) or (
+            hasattr(callback, "func") and asyncio.iscoroutinefunction(callback.func)
+        ):
             task = asyncio.create_task(callback(self.command, filenames))
         else:
             task = asyncio.get_running_loop().run_in_executor(
