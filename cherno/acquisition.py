@@ -31,7 +31,7 @@ from cherno.exceptions import ChernoError
 from cherno.extraction import Extraction, ExtractionData, PathLike
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
-from cherno.utils import astrometry_fit, focus_fit, run_in_executor
+from cherno.utils import astrometry_fit, focus_fit
 
 
 if TYPE_CHECKING:
@@ -181,8 +181,10 @@ class Acquisition:
                     ]
                 )
 
+        self.command.info("Running astrometry.net.")
         acq_data = await asyncio.gather(*[self._astrometry_one(d) for d in ext_data])
 
+        self.command.debug("Saving proc- file.")
         if write_proc:
             await asyncio.gather(
                 *[self.write_proc_image(d, overwrite=overwrite) for d in acq_data]
@@ -250,6 +252,7 @@ class Acquisition:
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
+        ast_solution.valid_solution = True
         ast_solution.delta_ra = delta_ra
         ast_solution.delta_dec = delta_dec
         ast_solution.delta_rot = delta_rot
@@ -263,7 +266,7 @@ class Acquisition:
             )
 
             ast_solution.fwhm_fit = round(fwhm_fit, 3)
-            ast_solution.delta_focus = round(x_min, 1)
+            ast_solution.delta_focus = round(-x_min, 1)
             ast_solution.focus_coeff = [a, b, c]
             ast_solution.focus_r2 = round(r2, 3)
 
@@ -358,9 +361,9 @@ class Acquisition:
         applied_corrections: Any = await asyncio.gather(*correct_tasks)
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
-        data.correction_applied[:3] = applied_corrections[0]
+        data.correction_applied[:4] = applied_corrections[0]
         if do_focus:
-            data.correction_applied[4] = applied_corrections[3] or 0.0
+            data.correction_applied[4] = applied_corrections[1] or 0.0
         else:
             data.correction_applied[4] = 0.0
 
