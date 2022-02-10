@@ -227,7 +227,7 @@ def astrometry_fit(
 
 def focus_fit(
     e_data: list[ExtractionData],
-    plot: pathlib.Path | str | None = None,
+    plot: pathlib.Path | str | bool | None = None,
 ) -> tuple[float, float, float, float, float, float]:
     """Determines the optimal focus.
 
@@ -312,8 +312,16 @@ def focus_fit(
     r2 = 1 - ss_res / ss_tot
 
     if plot is not None:
-        plot = pathlib.Path(plot)
-        plot.parent.mkdir(exist_ok=True, parents=True)
+
+        if isinstance(plot, (str, pathlib.Path)):
+            outpath = pathlib.Path(plot)
+        else:
+            path = e_data[0].path.parent
+            mjd = e_data[0].mjd
+            seq = e_data[0].exposure_no
+            outpath = path / "focus" / f"focus-{mjd}-{seq}.pdf"
+
+        outpath.parent.mkdir(exist_ok=True, parents=True)
 
         seaborn.set_theme(style="darkgrid", palette="dark")
 
@@ -361,7 +369,7 @@ def focus_fit(
                 f"FWHM: {numpy.round(fwhm_fit, 3)}  arcsec"
             )
 
-            fig.savefig(str(plot))
+            fig.savefig(str(outpath))
 
         seaborn.reset_orig()
 

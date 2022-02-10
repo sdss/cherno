@@ -68,6 +68,7 @@ acquisition:
   cpulimit: 15
   astrometry_dir: ./astrometry
   focus_r2_threshold: 0.5
+  plot_focus: true
 
 extraction:
   output_dir: ./extraction

@@ -253,7 +253,10 @@ class Acquisition:
         ast_solution.rms = rms
 
         try:
-            fwhm_fit, x_min, a, b, c, r2 = focus_fit([d.e_data for d in data])
+            fwhm_fit, x_min, a, b, c, r2 = focus_fit(
+                [d.e_data for d in data],
+                plot=config["acquisition"]["plot_focus"],
+            )
 
             ast_solution.fwhm_fit = round(fwhm_fit, 3)
             ast_solution.delta_focus = round(x_min, 1)
