@@ -19,7 +19,7 @@ from clu.tools import cli_coro
 from sdsstools.daemonizer import DaemonGroup
 
 from cherno.actor.actor import ChernoActor
-from cherno.astrometry import extract_and_run
+# from cherno.astrometry import extract_and_run
 
 
 async def shutdown(signal, loop, actor):
