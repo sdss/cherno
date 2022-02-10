@@ -147,4 +147,4 @@ async def apply_focus_correction(
         command.error("Failed applying focus correction.")
         return
 
-    return focus_corr
+    return numpy.round(focus_corr, 1)
