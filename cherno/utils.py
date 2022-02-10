@@ -22,6 +22,7 @@ import seaborn
 from coordio.defaults import GFA_PIXEL_SIZE, PLATE_SCALE
 from coordio.exceptions import CoordIOUserWarning
 from coordio.utils import radec2wokxy
+from scipy.optimize import curve_fit
 
 from cherno import config
 from cherno.coordinates import gfa_to_wok
@@ -250,6 +251,9 @@ def focus_fit(
 
     """
 
+    def f(x, a, b, c):
+        return a * x**2 + b * x + c
+
     cam = []
     x = []
     y = []
@@ -259,6 +263,9 @@ def focus_fit(
     fwhm_to_microns = config["pixel_scale"][observatory] * GFA_PIXEL_SIZE
 
     for e_d in e_data:
+        if e_d.camera == "gfa3":
+            continue
+
         valid = e_d.regions.loc[e_d.regions.valid == 1]
         if len(valid) == 0:
             continue
@@ -286,7 +293,12 @@ def focus_fit(
         raise ChernoError("Not enough data points to fit focus.")
 
     # Perform polynomial fit.
-    a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
+    # a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
+
+    inf = numpy.inf
+    p, *_ = curve_fit(f, x, y, [0, 0, 0], bounds=[(0, -inf, -inf), inf])
+
+    a, b, c = p
 
     # Calculate the focus of the parabola and the associated FWHM.
     x_min = -b / 2 / a
