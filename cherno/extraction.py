@@ -279,7 +279,7 @@ class Extraction:
                 brightest=max_stars,
             )
 
-        daogroup = DAOGroup(2.0 * psf_fwhm)
+        daogroup = DAOGroup(3.0 * psf_fwhm)
 
         mmm_bkg = MedianBackground()
 
@@ -294,7 +294,7 @@ class Extraction:
             bkg_estimator=mmm_bkg,
             psf_model=psf_model,
             fitter=fitter,
-            fitshape=(11, 11),
+            fitshape=(15, 15),
         )
 
         with warnings.catch_warnings():
