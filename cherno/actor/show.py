@@ -23,7 +23,7 @@ async def show(command: ChernoCommandType):
     assert command.actor
 
     for field in command.actor.state.__dataclass_fields__:
-        if field in ["actor", "camera_state"]:
+        if field in ["actor", "camera_state", "scale_history"]:
             continue
         lines = pformat(getattr(command.actor.state, field), width=60).splitlines()
         for nline, line in enumerate(lines):
