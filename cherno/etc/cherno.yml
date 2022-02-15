@@ -72,7 +72,7 @@ acquisition:
 
 extraction:
   output_dir: ./extraction
-  star_finder: daophot
+  star_finder: marginal
   background_sigma: 10.0
   min_npix: 20
   plot: false
@@ -84,6 +84,13 @@ extraction:
     initial_psf_fwhm: 7.0
     use_sep_finder: false
     max_stars: 30
+  marginal:
+    fwhm_estimate: 7.0
+    sigma_clip: 3.0
+    box_size: [50, 50]
+    filter_size: [3, 3]
+    peakmax: 50000
+    fit_box: [91, 91]
 
 offset: [0, 0, -432]
 

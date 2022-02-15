@@ -24,6 +24,7 @@ import seaborn
 import sep
 from astropy.io import fits
 from astropy.modeling.fitting import LevMarLSQFitter
+from astropy.modeling.models import Gaussian1D, Trapezoid1D
 from astropy.stats import SigmaClip, gaussian_sigma_to_fwhm
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
@@ -56,6 +57,7 @@ class ExtractionData:
     field_ra: float
     field_dec: float
     field_pa: float
+    algorithm: str
     regions: pandas.DataFrame = field(default_factory=pandas.DataFrame)
     nregions: int = 0
     nvalid: int = 0
@@ -66,7 +68,7 @@ class ExtractionData:
 class Extraction:
     """Extract centroids and PSF information from an image."""
 
-    __VALID_STAR_FINDER = ["dao", "daophot", "sep", "sextractor"]
+    __VALID_STAR_FINDER = ["daophot", "sextractor", "marginal"]
 
     def __init__(
         self,
@@ -74,6 +76,7 @@ class Extraction:
         star_finder: str | None = None,
         pixel_scale: float | None = None,
         daophot_params={},
+        marginal_params={},
         **params,
     ):
 
@@ -82,6 +85,7 @@ class Extraction:
         self.params = deepcopy(config["extraction"])
         self.params.update(params)
         self.params["daophot"].update(daophot_params)
+        self.params["marginal"].update(marginal_params)
 
         self.output_dir = pathlib.Path(self.params["output_dir"])
 
@@ -116,10 +120,12 @@ class Extraction:
             cam_no = 0
             exp_no = 0
 
-        if self.star_finder in ["sep", "sextractor"]:
-            regions = self._process_sextractor(data, path)
-        elif self.star_finder in ["daophot", "dao"]:
+        if self.star_finder == "sextractor":
+            regions = self._process_sextractor(data, path)[0]
+        elif self.star_finder == "daophot":
             regions = self._process_daophot(data, path)
+        elif self.star_finder == "marginal":
+            regions = self._process_marginal(data, path)
         else:
             regions = pandas.DataFrame()
 
@@ -141,6 +147,7 @@ class Extraction:
             field_ra=header["RAFIELD"],
             field_dec=header["DECFIELD"],
             field_pa=header["FIELDPA"],
+            algorithm=self.star_finder,
             regions=regions,
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
@@ -148,10 +155,10 @@ class Extraction:
             focus_offset=config["cameras"]["focus"][camera],
         )
 
-        output_file = self._get_output_path(path).with_suffix(".hdf")
+        output_file = self._get_output_path(path).with_suffix(".csv")
         output_file.unlink(missing_ok=True)
 
-        regions.to_hdf(str(output_file), "data")
+        regions.to_csv(str(output_file))
 
         return extraction_data
 
@@ -186,10 +193,7 @@ class Extraction:
         return output_dir / basename
 
     def _process_sextractor(
-        self,
-        data: numpy.ndarray,
-        path: pathlib.Path,
-        plot: bool | None = None,
+        self, data: numpy.ndarray, path: pathlib.Path, plot: bool | None = None
     ):
         """Process image data using SExtractor."""
 
@@ -215,6 +219,7 @@ class Extraction:
         )
 
         regions = pandas.DataFrame(regions)
+        regions.index.set_names("regions_id", inplace=True)
         regions.loc[:, "valid"] = 0
 
         min_npix = self.params["min_npix"]
@@ -240,7 +245,7 @@ class Extraction:
                 title=path.parts[-1] + " (SExtractor)",
             )
 
-        return regions
+        return regions, back
 
     def _process_daophot(
         self,
@@ -265,7 +270,7 @@ class Extraction:
         std = bkgrms(data)
 
         if self.params["daophot"].get("use_sep_finder", False):
-            sep_regions = self._process_sextractor(data, path, plot=False)
+            sep_regions = self._process_sextractor(data, path, plot=False)[0]
             initial_guesses = Table(
                 names=["x_0", "y_0"],
                 data=[sep_regions.x.iloc[0:max_stars], sep_regions.y.iloc[0:max_stars]],
@@ -322,14 +327,204 @@ class Extraction:
 
         return regions
 
+    def _process_marginal(
+        self,
+        data: numpy.ndarray,
+        path: pathlib.Path,
+        plot: bool | None = None,
+    ):
+        """Extracts regions using the marginal distribution."""
+
+        marginal_params = self.params["marginal"]
+
+        # sigma_clip = SigmaClip(sigma=marginal_params["sigma_clip"])
+        # bkg_estimator = MMMBackground()
+
+        # bkg = Background2D(
+        #     data,
+        #     box_size=marginal_params["box_size"],
+        #     filter_size=marginal_params["filter_size"],
+        #     sigma_clip=sigma_clip,
+        #     bkg_estimator=bkg_estimator,
+        # )
+
+        # dao_star_finder = DAOStarFinder(
+        #     self.params["background_sigma"] * bkg.background_rms_median,
+        #     fwhm=marginal_params["fwhm_estimate"],
+        #     peakmax=marginal_params["peakmax"],
+        # )
+        # regions = dao_star_finder(data - bkg.background_median)
+        # regions: pandas.DataFrame = regions.to_pandas()
+        # regions.set_index("id", inplace=True)
+
+        regions, back = self._process_sextractor(data, path, plot=False)
+        regions = regions.loc[regions.valid == 1]
+        regions = regions.rename(columns={"fwhm": "fwhm_sextractor"})
+
+        regions["valid"] = 1 * (regions.npix > self.params["min_npix"])
+        # print(regions)
+        # print(bkg.background_rms_median, regions)
+
+        regions["gaussian_fit"] = 1
+        regions["x_gaussian"] = numpy.nan
+        regions["y_gaussian"] = numpy.nan
+        regions["fwhm_gaussian"] = numpy.nan
+        regions["residual_gaussian"] = numpy.nan
+
+        regions["trapezoid_fit"] = 1
+        regions["x_trapezoid"] = numpy.nan
+        regions["y_trapezoid"] = numpy.nan
+        regions["fwhm_trapezoid"] = numpy.nan
+        regions["residual_trapezoid"] = numpy.nan
+
+        regions["model_fit"] = ""
+        regions["x_fit"] = numpy.nan
+        regions["y_fit"] = numpy.nan
+        regions["fwhm"] = numpy.nan
+        regions["residual_fit"] = numpy.nan
+
+        fitter = LevMarLSQFitter(calc_uncertainties=True)
+        fit_box = marginal_params["fit_box"]
+
+        p_scale = self.pixel_scale
+
+        data_back = data - back.back()
+
+        for index, row in regions.iterrows():
+
+            if row.valid == 0:
+                continue
+
+            cen = numpy.round([row.y, row.x]).astype(int)
+
+            gauss_residual = []
+            gauss_centroids = []
+            gauss_fwhm = []
+            gauss_valid = True
+
+            trap_residual = []
+            trap_centroids = []
+            trap_fwhm = []
+            trap_valid = True
+
+            data_region = data_back[
+                cen[0] - fit_box[0] // 2 : cen[0] + fit_box[0] // 2 + 1,
+                cen[1] - fit_box[1] // 2 : cen[1] + fit_box[1] // 2 + 1,
+            ].astype("f4")
+
+            # Deal with regions near the edges
+            if (
+                data_region.shape[0] != data_region.shape[1]
+                or data_region.shape[0] < fit_box[0]
+                or data_region.shape[1] < fit_box[1]
+            ):
+                continue
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+
+                for axis in [0, 1]:
+                    mid = fit_box[axis] // 2
+                    x_mesh = numpy.arange(fit_box[axis])
+
+                    data_marginal = data_region.sum(axis)
+                    data_marginal /= data_marginal.max()
+
+                    gauss_init = Gaussian1D(
+                        amplitude=data_marginal.max(),
+                        stddev=marginal_params["fwhm_estimate"],
+                        mean=mid,
+                    )
+                    g = fitter(gauss_init, x_mesh, data_marginal)
+                    if gauss_valid is True:
+                        gauss_valid = fitter.fit_info["ierr"] <= 4  # type: ignore
+                    if numpy.abs(g.mean - mid) > 10:
+                        gauss_valid = False
+                    gauss_centroids.append(cen[axis] + (g.mean - mid) + 0.5)
+                    gauss_fwhm.append(g.stddev * gaussian_sigma_to_fwhm * p_scale)
+                    gauss_residual.append(numpy.sum((data_marginal - g(x_mesh)) ** 2))
+
+                    trap_init = Trapezoid1D(
+                        amplitude=data_marginal.max(),
+                        x_0=mid,
+                        width=row.fwhm_sextractor,
+                        slope=0.1,
+                    )
+                    t = fitter(trap_init, x_mesh, data_marginal)
+                    if trap_valid is True:
+                        trap_valid = fitter.fit_info["ierr"] <= 4  # type: ignore
+                    if numpy.abs(t.x_0 - mid):
+                        trap_valid = False
+                    trap_centroids.append(cen[axis] + (t.x_0 - mid) + 0.5)
+                    trap_fwhm.append((t.amplitude / t.slope + t.width) * p_scale)
+                    trap_residual.append(numpy.sum((data_marginal - t(x_mesh)) ** 2))
+
+            #         with plt.ioff():
+            #             fig, ax = plt.subplots()
+            #             ax.plot(data_marginal, c="k", ls="dotted")
+            #             ax.plot(g(x_mesh), "b-")
+            #             ax.plot(t(x_mesh), "g-")
+            #             ax.axhline(y=0.0, ls="--", c="r")
+            #             fig.savefig(
+            #                 path.parent
+            #                 / "extraction"
+            #                 / (path.stem + f"-{index}-{axis}.pdf")
+            #             )
+
+            # plt.close("all")
+
+            regions.loc[index, "gaussian_fit"] = int(gauss_valid)
+            regions.loc[index, ["x_gaussian", "y_gaussian"]] = gauss_centroids[::-1]
+            regions.loc[index, "fwhm_gaussian"] = numpy.mean(gauss_fwhm)
+            gauss_residual_mean = (numpy.array(gauss_residual) ** 2).sum() ** 0.5
+            regions.loc[index, "residual_gaussian"] = gauss_residual_mean
+
+            regions.loc[index, "trapezoid_fit"] = int(trap_valid)
+            regions.loc[index, ["x_trapezoid", "y_trapezoid"]] = trap_centroids[::-1]
+            regions.loc[index, "fwhm_trapezoid"] = numpy.mean(trap_fwhm)
+            trap_residual_mean = (numpy.array(trap_residual) ** 2).sum() ** 0.5
+            regions.loc[index, "residual_trapezoid"] = trap_residual_mean
+
+            if not gauss_valid and not trap_valid:
+                continue
+            elif gauss_valid and gauss_residual_mean <= trap_residual_mean:
+                regions.loc[index, ["x_fit", "y_fit"]] = gauss_centroids[::-1]
+                regions.loc[index, ["fwhm"]] = numpy.mean(gauss_fwhm)
+                regions.loc[index, ["residual_fit"]] = gauss_residual_mean
+                regions.loc[index, "model_fit"] = "g"
+            else:
+                regions.loc[index, ["x_fit", "y_fit"]] = trap_centroids[::-1]
+                regions.loc[index, ["fwhm"]] = numpy.mean(trap_fwhm)
+                regions.loc[index, ["residual_fit"]] = trap_residual_mean
+                regions.loc[index, "model_fit"] = "t"
+
+        regions.loc[regions.model_fit == "", "valid"] = 0
+
+        if plot:
+            self.plot_regions(
+                regions.loc[regions.model_fit != ""],
+                data,
+                path=path,
+                vmin=data.mean() - 5 * back.globalrms,
+                vmax=data.mean() + 5 * back.globalrms,
+                factor=1.0,
+                xcen_col="x_fit",
+                ycen_col="y_fit",
+                a_col="fwhm",
+                b_col="fwhm",
+                theta_col=None,
+                title=path.parts[-1] + " (marginal)",
+            )
+
+        return regions
+
     def reject(self, regions: pandas.DataFrame):
         """Rejects invalid FHWM measurements."""
-
-        fwhm = regions.fwhm
 
         method = self.params.get("rejection_method", "sigclip")
 
         if method == "sigclip":
+            fwhm = numpy.ma.array(regions.fwhm.values, mask=(regions.valid == 0))
             sigma = self.params.get("reject_sigma", 3.0)
             sigma_clip = SigmaClip(sigma, cenfunc="median")
             masked: Any = sigma_clip(fwhm, masked=True)

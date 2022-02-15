@@ -180,7 +180,7 @@ class Acquisition:
                         d.nvalid,
                     ]
                 )
-
+        return
         self.command.info("Running astrometry.net.")
         acq_data = await asyncio.gather(*[self._astrometry_one(d) for d in ext_data])
 
@@ -390,7 +390,10 @@ class Acquisition:
 
         outfile_root = astrometry_dir / ext_data.path.stem
 
-        if "x_0" in regions:
+        if ext_data.algorithm == "marginal":
+            xyls_df = regions.loc[regions.valid == 1, ["x_fit", "y_fit", "flux"]].copy()
+            xyls_df = xyls_df.rename(columns={"x_fit": "x", "y_fit": "y"})
+        elif ext_data.algorithm == "daophot":
             xyls_df = regions.loc[regions.valid == 1, ["x_0", "y_0", "flux_0"]].copy()
             xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
         else:
@@ -564,6 +567,7 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
             hdus = fits.open(str(a_data.proc_image), mode="update")
             header = hdus[1].header
 
+            header["EXTMETH"] = (a_data.e_data.algorithm, "Algorithm for star finding")
             header["RADECK"] = (radec_pid_k, "PID K term for RA/Dec")
             header["RADECTD"] = (radec_pid_td, "PID Td term for RA/Dec")
             header["RADECTI"] = (radec_pid_ti, "PID Ti term for RA/Dec")

@@ -270,23 +270,24 @@ def focus_fit(
         if len(valid) == 0 or e_d.fwhm_median < 0:
             continue
 
-        # cam += [int(e_d.camera[-1])] * len(valid)
-        # x += [e_d.focus_offset] * len(valid)
-        cam.append(int(e_d.camera[-1]))
-        x.append(e_d.focus_offset)
+        cam += [int(e_d.camera[-1])] * len(valid)
+        x += [e_d.focus_offset] * len(valid)
+        # cam.append(int(e_d.camera[-1]))
+        # x.append(e_d.focus_offset)
 
         # Convert FWHM to microns so that they are the same units as the focus offset.
-        # fwhm_microns = valid.fwhm * fwhm_to_microns
-        # y += fwhm_microns.values.tolist()
-        fwhm_microns = e_d.fwhm_median * fwhm_to_microns
-        y.append(fwhm_microns)
+        fwhm_microns = valid.fwhm * fwhm_to_microns
+        y += fwhm_microns.values.tolist()
+        # fwhm_microns = e_d.fwhm_median * fwhm_to_microns
+        # y.append(fwhm_microns)
 
         # Calculate the weights as the inverse variance of the FWHM measurement.
         # Also add a subjective estimation of how reliable each camera is.
         # ivar = 1 / (fwhm_microns.mean() - fwhm_microns) ** 2
-        # ivar_camera = config["cameras"]["focus_weight"][e_d.camera] * ivar
-        # weights += ivar_camera.values.tolist()
-        weights.append(config["cameras"]["focus_weight"][e_d.camera])
+        ivar = 1 / (e_d.regions.loc[e_d.regions.valid == 1, "residual_fit"] ** 2)
+        ivar_camera = config["cameras"]["focus_weight"][e_d.camera] * ivar
+        weights += ivar_camera.values.tolist()
+        # weights.append(config["cameras"]["focus_weight"][e_d.camera])
 
     cam = numpy.array(cam)
     x = numpy.array(x)
@@ -301,7 +302,7 @@ def focus_fit(
     # a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
 
     inf = numpy.inf
-    p, *_ = curve_fit(f, x, y, [0, 0, 0], bounds=[0, inf])
+    p, *_ = curve_fit(f, x, y)
 
     a, b, c = p
 
