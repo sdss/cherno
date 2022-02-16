@@ -210,7 +210,6 @@ class Acquisition:
 
         if len(solved) == 0:
             self.command.error(acquisition_valid=False, did_correct=False)
-            return ast_solution
 
         fwhm = numpy.average([d.e_data.fwhm_median for d in solved], weights=weights)
         camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
@@ -392,14 +391,15 @@ class Acquisition:
 
         outfile_root = astrometry_dir / ext_data.path.stem
 
+        # We use all detections, even invalid ones here.
         if ext_data.algorithm == "marginal":
-            xyls_df = regions.loc[regions.valid == 1, ["x_fit", "y_fit", "flux"]].copy()
+            xyls_df = regions.loc[:, ["x", "y", "flux"]].copy()
             xyls_df = xyls_df.rename(columns={"x_fit": "x", "y_fit": "y"})
         elif ext_data.algorithm == "daophot":
-            xyls_df = regions.loc[regions.valid == 1, ["x_0", "y_0", "flux_0"]].copy()
+            xyls_df = regions.loc[:, ["x_0", "y_0", "flux_0"]].copy()
             xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
         else:
-            xyls_df = regions.loc[regions.valid == 1, ["x", "y", "flux"]]
+            xyls_df = regions.loc[:, ["x", "y", "flux"]]
 
         gfa_xyls = Table.from_pandas(xyls_df)
         gfa_xyls_path = outfile_root.with_suffix(".xyls")

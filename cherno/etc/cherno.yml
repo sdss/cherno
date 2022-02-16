@@ -67,13 +67,13 @@ guide_loop:
 acquisition:
   cpulimit: 15
   astrometry_dir: ./astrometry
-  focus_r2_threshold: 0.5
+  focus_r2_threshold: 0.2
   plot_focus: true
 
 extraction:
   output_dir: ./extraction
   star_finder: marginal
-  background_sigma: 10.0
+  background_sigma: 3.0
   min_npix: 20
   plot: false
   rejection_method: sigclip
@@ -85,12 +85,8 @@ extraction:
     use_sep_finder: false
     max_stars: 30
   marginal:
-    fwhm_estimate: 7.0
-    sigma_clip: 3.0
-    box_size: [50, 50]
-    filter_size: [3, 3]
-    peakmax: 50000
-    fit_box: [91, 91]
+    fwhm_estimate: 10.0
+    fit_box: [51, 51]
 
 offset: [0, 0, -432]
 

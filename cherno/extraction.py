@@ -136,6 +136,11 @@ class Extraction:
         if len(regions) > 0 and self.params["rejection_method"] is not None:
             self.reject(regions)
 
+        # Prevent NaNs here since this is output to the headers.
+        fwhm_median = numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3)
+        if numpy.isnan(fwhm_median):
+            fwhm_median = -999.0
+
         extraction_data = ExtractionData(
             str(image),
             path,
@@ -151,7 +156,7 @@ class Extraction:
             regions=regions,
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
-            fwhm_median=numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3),
+            fwhm_median=fwhm_median,
             focus_offset=config["cameras"]["focus_offset"][camera],
         )
 
@@ -333,65 +338,56 @@ class Extraction:
         path: pathlib.Path,
         plot: bool | None = None,
     ):
-        """Extracts regions using the marginal distribution."""
+        """Extracts regions using the marginal distribution.
+
+        Determines the initial centroids using the SExtractor routine.
+        Then a box around each detection is selected and background-subtracted.
+        The marginal distributions of the detection (the collapsed sum on each axis)
+        are fitted using both a 1D Gaussian and 1D trapezoid, and the FWHM for each
+        are calculated. Then the best match for each detection is selected based on
+        the option that minimises the residuals.
+
+        """
 
         marginal_params = self.params["marginal"]
-
-        # sigma_clip = SigmaClip(sigma=marginal_params["sigma_clip"])
-        # bkg_estimator = MMMBackground()
-
-        # bkg = Background2D(
-        #     data,
-        #     box_size=marginal_params["box_size"],
-        #     filter_size=marginal_params["filter_size"],
-        #     sigma_clip=sigma_clip,
-        #     bkg_estimator=bkg_estimator,
-        # )
-
-        # dao_star_finder = DAOStarFinder(
-        #     self.params["background_sigma"] * bkg.background_rms_median,
-        #     fwhm=marginal_params["fwhm_estimate"],
-        #     peakmax=marginal_params["peakmax"],
-        # )
-        # regions = dao_star_finder(data - bkg.background_median)
-        # regions: pandas.DataFrame = regions.to_pandas()
-        # regions.set_index("id", inplace=True)
 
         regions, back = self._process_sextractor(data, path, plot=False)
         regions = regions.loc[regions.valid == 1]
         regions = regions.rename(columns={"fwhm": "fwhm_sextractor"})
 
         regions["valid"] = 1 * (regions.npix > self.params["min_npix"])
-        # print(regions)
-        # print(bkg.background_rms_median, regions)
 
+        # Parameters of the Gaussian fit.
         regions["gaussian_fit"] = 1
         regions["x_gaussian"] = numpy.nan
         regions["y_gaussian"] = numpy.nan
         regions["fwhm_gaussian"] = numpy.nan
         regions["residual_gaussian"] = numpy.nan
 
+        # Parameters of the trapezoid fit.
         regions["trapezoid_fit"] = 1
         regions["x_trapezoid"] = numpy.nan
         regions["y_trapezoid"] = numpy.nan
         regions["fwhm_trapezoid"] = numpy.nan
         regions["residual_trapezoid"] = numpy.nan
 
+        # Parameters of the best fit. model_fit=g if the best fit was the Gaussian,
+        # t if the trapezoid, and empty if invalid.
         regions["model_fit"] = ""
         regions["x_fit"] = numpy.nan
         regions["y_fit"] = numpy.nan
         regions["fwhm"] = numpy.nan
         regions["residual_fit"] = numpy.nan
 
-        fitter = LevMarLSQFitter(calc_uncertainties=True)
+        fitter = LevMarLSQFitter()
         fit_box = marginal_params["fit_box"]
 
         p_scale = self.pixel_scale
-
         data_back = data - back.back()
 
         for index, row in regions.iterrows():
 
+            # Ignore detections that we have already marked as invalid in SExtractor.
             if row.valid == 0:
                 continue
 
@@ -432,11 +428,12 @@ class Extraction:
 
                     gauss_init = Gaussian1D(
                         amplitude=data_marginal.max(),
-                        stddev=marginal_params["fwhm_estimate"],
+                        stddev=row.fwhm_sextractor / p_scale,
                         mean=mid,
                     )
                     g = fitter(gauss_init, x_mesh, data_marginal)
                     if gauss_valid is True:
+                        # Reject if the fitting routine doesn't say this is a good fit.
                         gauss_valid = fitter.fit_info["ierr"] <= 4  # type: ignore
                     if numpy.abs(g.mean - mid) > 10:
                         gauss_valid = False
@@ -447,7 +444,7 @@ class Extraction:
                     trap_init = Trapezoid1D(
                         amplitude=data_marginal.max(),
                         x_0=mid,
-                        width=row.fwhm_sextractor,
+                        width=row.fwhm_sextractor / p_scale,
                         slope=0.1,
                     )
                     t = fitter(trap_init, x_mesh, data_marginal)
