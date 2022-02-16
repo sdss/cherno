@@ -31,7 +31,7 @@ from cherno.exceptions import ChernoError
 from cherno.extraction import Extraction, ExtractionData, PathLike
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
-from cherno.utils import astrometry_fit, focus_fit
+from cherno.utils import astrometry_fit, focus_fit, run_in_executor
 
 
 if TYPE_CHECKING:
@@ -160,11 +160,11 @@ class Acquisition:
 
         self.command.info("Extracting sources.")
 
-        loop = asyncio.get_running_loop()
-        ext_data: list[ExtractionData] = await loop.run_in_executor(
-            None,
-            self.extractor.multiprocess,
-            images,
+        ext_data = await asyncio.gather(
+            *[
+                run_in_executor(self.extractor.process, im, executor="process")
+                for im in images
+            ]
         )
 
         for d in ext_data:
@@ -180,7 +180,7 @@ class Acquisition:
                         d.nvalid,
                     ]
                 )
-        return
+
         self.command.info("Running astrometry.net.")
         acq_data = await asyncio.gather(*[self._astrometry_one(d) for d in ext_data])
 
