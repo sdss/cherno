@@ -271,8 +271,8 @@ class Acquisition:
             ast_solution.focus_coeff = [a, b, c]
             ast_solution.focus_r2 = round(r2, 3)
 
-        except ChernoError:
-            self.command.warning("Failed fitting focus curve.")
+        except Exception as err:
+            self.command.warning(f"Failed fitting focus curve: {err}.")
 
         self.command.info(
             astrometry_fit=[
