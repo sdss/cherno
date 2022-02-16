@@ -22,7 +22,6 @@ import seaborn
 from coordio.defaults import GFA_PIXEL_SIZE, PLATE_SCALE
 from coordio.exceptions import CoordIOUserWarning
 from coordio.utils import radec2wokxy
-from scipy.optimize import curve_fit
 
 from cherno import config
 from cherno.coordinates import gfa_to_wok
@@ -263,31 +262,22 @@ def focus_fit(
     fwhm_to_microns = config["pixel_scale"][observatory] * GFA_PIXEL_SIZE
 
     for e_d in e_data:
-        # if e_d.camera == "gfa3":
-        #     continue
-
         valid = e_d.regions.loc[e_d.regions.valid == 1]
         if len(valid) == 0 or e_d.fwhm_median < 0:
             continue
 
         cam += [int(e_d.camera[-1])] * len(valid)
         x += [e_d.focus_offset] * len(valid)
-        # cam.append(int(e_d.camera[-1]))
-        # x.append(e_d.focus_offset)
 
         # Convert FWHM to microns so that they are the same units as the focus offset.
         fwhm_microns = valid.fwhm * fwhm_to_microns
         y += fwhm_microns.values.tolist()
-        # fwhm_microns = e_d.fwhm_median * fwhm_to_microns
-        # y.append(fwhm_microns)
 
         # Calculate the weights as the inverse variance of the FWHM measurement.
         # Also add a subjective estimation of how reliable each camera is.
-        # ivar = 1 / (fwhm_microns.mean() - fwhm_microns) ** 2
         ivar = 1 / (e_d.regions.loc[e_d.regions.valid == 1, "residual_fit"] ** 2)
         ivar_camera = config["cameras"]["focus_weight"][e_d.camera] * ivar
         weights += ivar_camera.values.tolist()
-        # weights.append(config["cameras"]["focus_weight"][e_d.camera])
 
     cam = numpy.array(cam)
     x = numpy.array(x)
@@ -299,12 +289,7 @@ def focus_fit(
         raise ChernoError("Not enough data points to fit focus.")
 
     # Perform polynomial fit.
-    # a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
-
-    inf = numpy.inf
-    p, *_ = curve_fit(f, x, y)
-
-    a, b, c = p
+    a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
 
     # Calculate the focus of the parabola and the associated FWHM.
     x_min = -b / 2 / a
@@ -378,5 +363,6 @@ def focus_fit(
             fig.savefig(str(outpath))
 
         seaborn.reset_orig()
+        plt.close("all")
 
     return fwhm_fit, x_min, a, b, c, r2
