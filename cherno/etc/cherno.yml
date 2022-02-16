@@ -18,10 +18,10 @@ cameras:
   path: /data/gcam/
   focus:
     gfa1: 0
-    gfa2: -1000
-    gfa3: 0
+    gfa2: -375
+    gfa3: -200
     gfa4: 0
-    gfa5: 1000
+    gfa5: 375
     gfa6: 0
   rotation:
     gfa1: 300
@@ -33,8 +33,8 @@ cameras:
   focus_weight:
     gfa1: 1
     gfa2: 1
-    gfa3: 0.2
-    gfa4: 0.75
+    gfa3: 0.75
+    gfa4: 1
     gfa5: 1
     gfa6: 1
 

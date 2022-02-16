@@ -152,7 +152,7 @@ class Extraction:
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
             fwhm_median=numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3),
-            focus_offset=config["cameras"]["focus"][camera],
+            focus_offset=config["cameras"]["focus_offset"][camera],
         )
 
         output_file = self._get_output_path(path).with_suffix(".csv")
