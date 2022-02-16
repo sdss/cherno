@@ -16,7 +16,7 @@ actor:
 cameras:
   names: [gfa2, gfa3, gfa4, gfa5, gfa6]
   path: /data/gcam/
-  focus:
+  focus_offset:
     gfa1: 0
     gfa2: -375
     gfa3: -200

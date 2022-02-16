@@ -132,7 +132,7 @@ class Acquisition:
                 cpulimit=config["acquisition"]["cpulimit"],
                 **astrometry_params,
             )
-
+        self.observatory = observatory.upper()
         self.command = command or FakeCommand(log)
 
     def set_command(self, command: ChernoCommandType):
@@ -265,8 +265,10 @@ class Acquisition:
                 plot=config["acquisition"]["plot_focus"],
             )
 
+            focal_ratio = config["focal_ratio"][self.observatory]
+
             ast_solution.fwhm_fit = round(fwhm_fit, 3)
-            ast_solution.delta_focus = round(-x_min, 1)
+            ast_solution.delta_focus = round(-x_min / focal_ratio, 1)
             ast_solution.focus_coeff = [a, b, c]
             ast_solution.focus_r2 = round(r2, 3)
 
