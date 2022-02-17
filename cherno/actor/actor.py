@@ -77,14 +77,12 @@ class ChernoState:
     offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     exposure_time: float = 15.0
     guide_loop: dict = field(default_factory=dict)
-    acquisition: dict = field(default_factory=dict)
     enabled_cameras: list = field(default_factory=list)
     enabled_axes: list = field(default_factory=list)
     scale_history: list = field(default_factory=list)
 
     def __post_init__(self):
         self.guide_loop = config["guide_loop"].copy()
-        self.acquisition = config["acquisition"].copy()
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = ["radec", "rot", "focus"]
 

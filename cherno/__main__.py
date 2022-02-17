@@ -8,7 +8,6 @@
 
 import asyncio
 import os
-import pathlib
 import signal
 from contextlib import suppress
 
@@ -19,7 +18,6 @@ from clu.tools import cli_coro
 from sdsstools.daemonizer import DaemonGroup
 
 from cherno.actor.actor import ChernoActor
-from cherno.astrometry import extract_and_run
 
 
 async def shutdown(signal, loop, actor):
@@ -72,44 +70,6 @@ async def actor(ctx):
     finally:
         await cherno_actor.stop()
         loop.stop()
-
-
-@cherno.command()
-@click.argument("IMAGES", type=click.Path(exists=True, dir_okay=False), nargs=-1)
-@click.argument("OUTDIR", type=click.Path(dir_okay=True, file_okay=False))
-@click.option("--cpulimit", default=15, type=float, help="astrometry.net time limit.")
-@click.option("--npix", default=50, type=int, help="Minimum number of pixels.")
-@click.option("--sigma", default=10.0, type=float, help="Minimum SNR.")
-@click.option("--plot", is_flag=True, help="Output plots")
-@cli_coro
-async def reprocess(
-    images: tuple[str],
-    outdir: str,
-    cpulimit: float = 30.0,
-    npix: int = 50,
-    sigma: float = 10.0,
-    plot: bool = False,
-):
-    """Reprocess an image."""
-
-    path = pathlib.Path(str(outdir))
-    if path.is_relative_to("/data/gcam"):
-        raise ValueError("Output directory cannot be in /data/gcam.")
-
-    if not path.exists():
-        path.mkdir(parents=True)
-
-    data = await extract_and_run(
-        list(images),
-        proc_image_outdir=outdir,
-        sigma=sigma,
-        min_npix=npix,
-        cpulimit=cpulimit,
-        overwrite=True,
-        plot=plot,
-    )
-
-    print(data)
 
 
 if __name__ == "__main__":

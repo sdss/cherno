@@ -13,17 +13,16 @@ from typing import TYPE_CHECKING
 import numpy
 
 from cherno.exceptions import ChernoError
-from cherno.maskbits import GuiderStatus
 
 
 if TYPE_CHECKING:
     from cherno.actor import ChernoCommandType
 
 
-__all__ = ["apply_correction"]
+__all__ = ["apply_axes_correction"]
 
 
-async def apply_correction(
+async def apply_axes_correction(
     command: ChernoCommandType,
     radec: tuple[float, float] | numpy.ndarray | None = None,
     rot: float | None = None,
@@ -61,14 +60,10 @@ async def apply_correction(
         else:
             corr_radec *= k_radec
 
-            state.set_status(GuiderStatus.CORRECTING, mode="add")
-
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset arc {corr_radec[0]}, {corr_radec[1]} /computed",
             )
-
-            state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying RA/Dec correction.")
@@ -96,14 +91,10 @@ async def apply_correction(
         else:
             corr_rot *= k_rot
 
-            state.set_status(GuiderStatus.CORRECTING, mode="add")
-
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset guide 0.0, 0.0, {corr_rot} /computed",
             )
-
-            state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
             if tcc_offset_cmd.status.did_fail:
                 command.error("Failed applying rotator correction.")
@@ -112,3 +103,48 @@ async def apply_correction(
             correction_applied[2] = numpy.round(corr_rot * 3600.0, 3)
 
     return correction_applied
+
+
+async def apply_focus_correction(
+    command: ChernoCommandType,
+    focus_corr: float,
+    k_focus: float | None = None,
+):
+    """Send focus corrections to the TCC. Corrections are in microns."""
+
+    assert command.actor
+
+    state = command.actor.state
+
+    guide_loop = state.guide_loop
+    enabled_axes = state.enabled_axes
+
+    min_corr = guide_loop["focus"]["min_correction"]
+    max_corr = guide_loop["focus"]["max_correction"]
+
+    if "focus" not in enabled_axes:
+        return
+
+    if numpy.abs(focus_corr) < min_corr:
+        command.debug("Ignoring small focus correction.")
+        return
+
+    if numpy.abs(focus_corr) > max_corr:
+        command.warning("Ignoring large focus correction.")
+        return
+
+    default_k_focus: float = guide_loop["focus"]["pid"]["k"]
+    k_focus = k_focus or default_k_focus
+
+    focus_corr = focus_corr * k_focus
+
+    tcc_offset_cmd = await command.send_command(
+        "tcc",
+        f"set focus={focus_corr} /incremental",
+    )
+
+    if tcc_offset_cmd.status.did_fail:
+        command.error("Failed applying focus correction.")
+        return
+
+    return numpy.round(focus_corr, 1)

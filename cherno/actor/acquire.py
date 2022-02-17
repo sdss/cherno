@@ -14,8 +14,9 @@ from typing import TYPE_CHECKING
 
 import click
 
+from cherno import config
+from cherno.acquisition import Acquisition
 from cherno.actor.exposer import Exposer
-from cherno.astrometry import process_and_correct
 from cherno.exceptions import ExposerError
 
 from . import cherno_parser
@@ -82,7 +83,9 @@ async def acquire(
         else:
             command.actor.state.exposure_time = exposure_time
 
-    callback = partial(process_and_correct, apply=apply, full=full)
+    acquisition = Acquisition(config["observatory"])
+
+    callback = partial(acquisition.process, correct=apply, full_correction=full)
     exposer = Exposer(command, callback=callback)
 
     try:

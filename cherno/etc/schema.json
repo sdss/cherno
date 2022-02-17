@@ -23,7 +23,8 @@
         { "title": "ra_correction", "type": "number" },
         { "title": "dec_correction", "type": "number" },
         { "title": "rot_correction", "type": "number" },
-        { "title": "scale_correction", "type": "number" }
+        { "title": "scale_correction", "type": "number" },
+        { "title": "focus_correction", "type": "number" }
       ]
     },
     "guider_status": { "type": "string" },
@@ -33,10 +34,8 @@
         { "title": "camera", "type": "string" },
         { "title": "exposure_no", "type": "integer" },
         { "title": "fwhm", "type": "number" },
-        { "title": "a", "type": "number" },
-        { "title": "b", "type": "number" },
-        { "title": "ellipticity", "type": "number" },
-        { "title": "nkeep", "type": "integer" }
+        { "title": "n_regions", "type": "integer" },
+        { "title": "n_valid", "type": "integer" }
       ]
     },
     "astrometry_fit": {
@@ -69,6 +68,18 @@
           "type": "number",
           "$comment": "Scale measured delta factor"
         }
+      ]
+    },
+    "focus_fit": {
+      "type": "array",
+      "items": [
+        { "title": "exposure_no", "type": "integer" },
+        { "title": "fwhm_fit", "type": "number" },
+        { "title": "a", "type": "number" },
+        { "title": "b", "type": "number" },
+        { "title": "c", "type": "number" },
+        { "title": "r2", "type": "number" },
+        { "title": "delta_focus", "type": "number" }
       ]
     },
     "guide_rms": {
