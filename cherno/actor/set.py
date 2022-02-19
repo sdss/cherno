@@ -49,7 +49,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         component = options[2]
         value = float(options[3])
 
-        if axis not in ["radec", "rot"]:
+        if axis not in ["radec", "rot", "focus"]:
             return command.fail(f"Invalid axis {axis}.")
 
         if value <= 0 or value > 1:
