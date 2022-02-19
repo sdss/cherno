@@ -60,7 +60,7 @@ guide_loop:
     min_isolated_correction: 30
   focus:
     pid:
-      k: 0.1
+      k: 0.3
     min_correction: 10
     max_correction: 200
 
