@@ -79,11 +79,11 @@ extraction:
   rejection_method: sigclip
   reject_sigma: 2.0
   nreject: [2, 3]
+  max_stars: 50
   daophot:
     fixed_sigma: false
     initial_psf_fwhm: 7.0
     use_sep_finder: false
-    max_stars: 30
   marginal:
     fwhm_estimate: 10.0
     fit_box: [51, 51]
