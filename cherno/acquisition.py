@@ -351,7 +351,13 @@ class Acquisition:
         correct_tasks: list[Coroutine[Any, Any, Any]] = [coro]
 
         do_focus: bool = False
-        if data.focus_r2 > config["acquisition"]["focus_r2_threshold"]:
+
+        # Ignore focus correction when the r2 correlation is bad or when we got
+        # an inverted parabola.
+        if (
+            data.focus_r2 > config["acquisition"]["focus_r2_threshold"]
+            and data.focus_coeff[0] > 0
+        ):
             do_focus = True
             coro = apply_focus_correction(self.command, -data.delta_focus, k_focus=None)
             correct_tasks.append(coro)
