@@ -149,6 +149,7 @@ class Acquisition:
         correct: bool = True,
         full_correction: bool = False,
         offset: list[float] | None = None,
+        scale_rms: bool = False,
     ):
         """Performs extraction and astrometry."""
 
@@ -190,7 +191,11 @@ class Acquisition:
                 *[self.write_proc_image(d, overwrite=overwrite) for d in acq_data]
             )
 
-        ast_solution = await self.fit(list(acq_data), offset=offset)
+        ast_solution = await self.fit(
+            list(acq_data),
+            offset=offset,
+            scale_rms=scale_rms,
+        )
 
         if correct and ast_solution.valid_solution is True:
             await self.correct(ast_solution, full=full_correction)
@@ -200,7 +205,12 @@ class Acquisition:
 
         return ast_solution
 
-    async def fit(self, data: list[AcquisitionData], offset: list[float] | None = None):
+    async def fit(
+        self,
+        data: list[AcquisitionData],
+        offset: list[float] | None = None,
+        scale_rms: bool = False,
+    ):
         """Calculate the astrometric solution."""
 
         ast_solution = AstrometricSolution(False, data)
@@ -233,7 +243,12 @@ class Acquisition:
         else:
             self.command.debug(offset=offset)
 
-        ast_fit = astrometry_fit(solved, offset=offset, obstime=solved[0].obstime.jd)
+        ast_fit = astrometry_fit(
+            solved,
+            offset=offset,
+            obstime=solved[0].obstime.jd,
+            scale_rms=scale_rms,
+        )
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 

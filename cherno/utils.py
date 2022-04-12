@@ -149,6 +149,7 @@ def astrometry_fit(
     grid=(10, 10),
     offset: tuple | list = (0.0, 0.0, 0.0),
     obstime: float | None = None,
+    scale_rms: bool = False,
 ):
     """Fits translation, rotation, and scale from a WCS solution."""
 
@@ -213,6 +214,10 @@ def astrometry_fit(
 
     delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])) * 3600.0, 1)
     delta_scale = numpy.round(c, 6)
+
+    if scale_rms:
+        xwok_astro /= delta_scale
+        ywok_astro /= delta_scale
 
     delta_x = (numpy.array(xwok_gfa) - numpy.array(xwok_astro)) ** 2  # type: ignore
     delta_y = (numpy.array(ywok_gfa) - numpy.array(ywok_astro)) ** 2  # type: ignore
