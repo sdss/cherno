@@ -199,18 +199,15 @@ def astrometry_fit(
 
     plate_scale = PLATE_SCALE[data[0].observatory]
 
-    delta_x = numpy.round(t[0] / plate_scale * 3600.0, 3)
-    delta_y = numpy.round(t[1] / plate_scale * 3600.0, 3)
-
     # delta_x and delta_y only align with RA/Dec if PA=0. Otherwise we need to
     # project using the PA.
     pa_rad = numpy.deg2rad(data[0].field_pa)
-    delta_ra = delta_x * numpy.cos(pa_rad) + delta_y * numpy.sin(pa_rad)
-    delta_dec = -delta_x * numpy.sin(pa_rad) + delta_y * numpy.cos(pa_rad)
+    delta_ra = t[0] * numpy.cos(pa_rad) + t[1] * numpy.sin(pa_rad)
+    delta_dec = -t[0] * numpy.sin(pa_rad) + t[1] * numpy.cos(pa_rad)
 
-    # Round up.
-    delta_ra = numpy.round(delta_ra, 3)
-    delta_dec = numpy.round(delta_dec, 3)
+    # Convert to arcsec and round up
+    delta_ra = numpy.round(delta_ra / plate_scale * 3600.0, 3)
+    delta_dec = numpy.round(delta_dec / plate_scale * 3600.0, 3)
 
     delta_rot = numpy.round(-numpy.rad2deg(numpy.arctan2(R[1, 0], R[0, 0])) * 3600.0, 1)
     delta_scale = numpy.round(c, 6)
@@ -222,9 +219,14 @@ def astrometry_fit(
     delta_x = (numpy.array(xwok_gfa) - numpy.array(xwok_astro)) ** 2  # type: ignore
     delta_y = (numpy.array(ywok_gfa) - numpy.array(ywok_astro)) ** 2  # type: ignore
 
-    xrms = numpy.round(numpy.sqrt(numpy.sum(delta_x) / len(delta_x)), 3)
-    yrms = numpy.round(numpy.sqrt(numpy.sum(delta_y) / len(delta_y)), 3)
-    rms = numpy.round(numpy.sqrt(numpy.sum(delta_x + delta_y) / len(delta_x)), 3)
+    xrms = numpy.sqrt(numpy.sum(delta_x) / len(delta_x))
+    yrms = numpy.sqrt(numpy.sum(delta_y) / len(delta_y))
+    rms = numpy.sqrt(numpy.sum(delta_x + delta_y) / len(delta_x))
+
+    # Convert to arcsec and round up
+    xrms = numpy.round(xrms / plate_scale * 3600.0, 3)
+    yrms = numpy.round(yrms / plate_scale * 3600.0, 3)
+    rms = numpy.round(rms / plate_scale * 3600.0, 3)
 
     return (delta_ra, delta_dec, delta_rot, delta_scale, xrms, yrms, rms)
 
