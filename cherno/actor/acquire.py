@@ -85,7 +85,12 @@ async def acquire(
 
     acquisition = Acquisition(config["observatory"])
 
-    callback = partial(acquisition.process, correct=apply, full_correction=full)
+    callback = partial(
+        acquisition.process,
+        correct=apply,
+        full_correction=full,
+        scale_rms=True,
+    )
     exposer = Exposer(command, callback=callback)
 
     try:
