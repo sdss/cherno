@@ -180,7 +180,7 @@ def astrometry_fit(
             dec,
             None,
             "GFA",
-            d.field_ra - offset_ra * numpy.cos(numpy.deg2rad(d.field_dec)) / 3600.0,
+            d.field_ra - offset_ra / numpy.cos(numpy.deg2rad(d.field_dec)) / 3600.0,
             d.field_dec - offset_dec / 3600.0,
             d.field_pa - offset_pa / 3600.0,
             d.observatory.upper(),
