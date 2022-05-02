@@ -188,7 +188,7 @@ def astrometry_fit(
             "GFA",
             d.field_ra - offset_ra_deg - default_offset_ra_deg,
             d.field_dec - offset_dec / 3600.0 - default_offset[1] / 3600.0,
-            d.field_pa - offset_pa / 3600.0,
+            d.field_pa - offset_pa / 3600.0 - default_offset[2] / 3600.0,
             d.observatory.upper(),
             obstime,
         )
