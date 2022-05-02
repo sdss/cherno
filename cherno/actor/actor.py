@@ -42,9 +42,6 @@ class ChernoActor(clu.LegacyActor):
 
         self.state = ChernoState(self)
 
-        if (offset := config["offset"]) is not None:
-            self.state.offset = cast(tuple[float, float, float], tuple(offset))
-
         self.models["fliswarm"].register_callback(self._process_fliswarm_status)
 
     async def _process_fliswarm_status(self, model: dict, key: TronKey):

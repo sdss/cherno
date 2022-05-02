@@ -17,11 +17,26 @@ __all__ = ["offset"]
 
 
 @cherno_parser.command()
-@click.argument("RA", type=float)
-@click.argument("DEC", type=float)
+@click.argument("RA", type=float, required=False)
+@click.argument("DEC", type=float, required=False)
 @click.argument("PA", type=float, required=False, default=0.0)
-async def offset(command: ChernoCommandType, ra: float, dec: float, pa: float = 0.0):
+async def offset(
+    command: ChernoCommandType,
+    ra: float | None = None,
+    dec: float | None = None,
+    pa: float = 0.0,
+):
     """Offsets the field boresight by RA/DEC/PA arcsec."""
+
+    if ra is None and dec is None:
+        command.warning("Resetting offset.")
+        ra = 0.0
+        dec = 0.0
+        pa = 0.0
+    elif ra is not None and dec is None:
+        return command.fail(error="ra and dec are required.")
+
+    assert ra is not None and dec is not None and pa is not None
 
     assert command.actor
     command.actor.state.offset = (ra, dec, pa)

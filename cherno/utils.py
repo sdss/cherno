@@ -160,6 +160,8 @@ def astrometry_fit(
     xwok_astro: list[float] = []
     ywok_astro: list[float] = []
 
+    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+
     for d in data:
 
         camera_id = int(d.camera[-1])
@@ -175,13 +177,17 @@ def astrometry_fit(
             xwok_gfa.append(cast(float, xw))
             ywok_gfa.append(cast(float, yw))
 
+        cos_dec = numpy.cos(numpy.deg2rad(d.field_dec))
+        offset_ra_deg = offset_ra / cos_dec / 3600.0
+        default_offset_ra_deg = default_offset[0] / cos_dec / 3600.0
+
         _xwok_astro, _ywok_astro, *_ = radec2wokxy(
             ra,
             dec,
             None,
             "GFA",
-            d.field_ra - offset_ra / numpy.cos(numpy.deg2rad(d.field_dec)) / 3600.0,
-            d.field_dec - offset_dec / 3600.0,
+            d.field_ra - offset_ra_deg - default_offset_ra_deg,
+            d.field_dec - offset_dec / 3600.0 - default_offset[1] / 3600.0,
             d.field_pa - offset_pa / 3600.0,
             d.observatory.upper(),
             obstime,
