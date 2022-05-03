@@ -519,9 +519,19 @@ class Acquisition:
         else:
             offsets = [-999.0] * 3
 
-        proc_hdu[1].header["OFFRA"] = (offsets[0], "Offset in RA [arcsec]")
-        proc_hdu[1].header["OFFDEC"] = (offsets[1], "Offset in Dec [arcsec]")
-        proc_hdu[1].header["OFFPA"] = (offsets[2], "Offset in PA [arcsec]")
+        proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
+        proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
+        proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")
+
+        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+        aoffset = (
+            default_offset[0] + offsets[0],
+            default_offset[1] + offsets[1],
+            default_offset[2] + offsets[2],
+        )
+        proc_hdu[1].header["AOFFRA"] = (aoffset[0], "Absolute offset in RA [arcsec]")
+        proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
+        proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
 
         proc_hdu[1].header.update(acq_data.wcs.to_header())
 
