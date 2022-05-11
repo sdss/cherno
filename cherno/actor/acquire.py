@@ -50,6 +50,12 @@ __all__ = ["acquire"]
     help="Run acquisition in continuous mode.",
 )
 @click.option(
+    "-n",
+    "--count",
+    type=int,
+    help="Number of acquisition iterations. Incompatible with --continuous.",
+)
+@click.option(
     "--apply/--no-apply",
     default=True,
     help="Whether to apply the correction.",
@@ -64,6 +70,7 @@ async def acquire(
     command: ChernoCommandType,
     exposure_time: float | None = None,
     continuous: bool = False,
+    count: int | None = None,
     apply: bool = True,
     full: bool = False,
     cameras: str | None = None,
@@ -71,6 +78,11 @@ async def acquire(
     """Runs the acquisition procedure."""
 
     assert command.actor
+
+    if count is not None and continuous is True:
+        return command.fail("--count and --continuous are incompatible.")
+
+    count = count or 1
 
     if cameras is None:
         names = None
@@ -96,7 +108,7 @@ async def acquire(
     try:
         await exposer.loop(
             None,
-            count=1 if continuous is False else None,
+            count=count if continuous is False else None,
             timeout=25,
             names=names,
         )
