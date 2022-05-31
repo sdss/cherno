@@ -165,8 +165,12 @@ def astrometry_fit(
     for d in data:
 
         camera_id = int(d.camera[-1])
-        xidx = numpy.arange(2048)[:: 2048 // grid[0]]
-        yidx = numpy.arange(2048)[:: 2048 // grid[1]]
+        xidx, yidx = numpy.meshgrid(
+            numpy.linspace(0, 2048, grid[0]),
+            numpy.linspace(0, 2048, grid[1]),
+        )
+        xidx = xidx.flatten()
+        yidx = yidx.flatten()
 
         coords: Any = d.wcs.pixel_to_world(xidx, yidx)
         ra = coords.ra.value
