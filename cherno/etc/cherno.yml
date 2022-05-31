@@ -88,6 +88,6 @@ extraction:
     fwhm_estimate: 10.0
     fit_box: [51, 51]
 
-default_offset: [-0.3, -0.3, -432]
+default_offset: [0.0, -0.1, -432]
 
 observatory: ${OBSERVATORY}
