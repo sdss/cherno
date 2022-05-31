@@ -44,7 +44,7 @@ async def get_scale(
     min_points: int = 10,
     sigma: float = 3.0,
 ):
-    """Outputs the median, sigma-clipped scale from existing mesurements.
+    """Outputs the median, sigma-clipped scale from existing measurements.
 
     This command is mainly called by jaeger when determining what scale correction
     to apply to a new configuration.
