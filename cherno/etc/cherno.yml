@@ -42,9 +42,9 @@ pixel_scale:
   APO: 0.216
   LCO: 0.216
 
-focal_ratio:
-  APO: 5
-  LCO: 7.45
+focus_sensitivity:
+  APO: 5.94
+  LCO: 7.25
 
 guide_loop:
   radec:

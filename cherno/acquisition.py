@@ -279,10 +279,12 @@ class Acquisition:
                 plot=config["acquisition"]["plot_focus"],
             )
 
-            focal_ratio = config["focal_ratio"][self.observatory]
+            # Relationship between M2 move and focal plane. See
+            # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
+            focus_sensitivity = config["focus_sensitivity"][self.observatory]
 
             ast_solution.fwhm_fit = round(fwhm_fit, 3)
-            ast_solution.delta_focus = round(-x_min / focal_ratio, 1)
+            ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
             ast_solution.focus_coeff = [a, b, c]
             ast_solution.focus_r2 = round(r2, 3)
 
