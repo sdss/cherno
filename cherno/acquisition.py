@@ -308,7 +308,7 @@ class Acquisition:
         )
 
         # Output focus data in a single keyword, mostly for Boson's benefit.
-        focus_data = []
+        focus_data = [int(exp_no)]
         for d in ast_solution.acquisition_data:
             if d.extraction_data.fwhm_median > 0 and d.extraction_data.nvalid > 0:
                 focus_data += [
