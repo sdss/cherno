@@ -307,6 +307,18 @@ class Acquisition:
             ]
         )
 
+        # Output focus data in a single keyword, mostly for Boson's benefit.
+        focus_data = []
+        for d in ast_solution.acquisition_data:
+            if d.extraction_data.fwhm_median > 0 and d.extraction_data.nvalid > 0:
+                focus_data += [
+                    int(d.camera[-1]),
+                    d.extraction_data.fwhm_median,
+                    d.extraction_data.focus_offset,
+                ]
+
+        self.command.debug(focus_data=focus_data)
+
         self.command.info(
             focus_fit=[
                 exp_no,

@@ -112,7 +112,8 @@
       "type": "array",
       "items": [{ "title": "focus_kp", "type": "number" }]
     },
-    "scale_median": { "type": "number" }
+    "scale_median": { "type": "number" },
+    "focus_data": { "type": "array", "items": { "type": "number" } }
   },
   "additionalProperties": false
 }
