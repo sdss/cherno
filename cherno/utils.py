@@ -293,7 +293,7 @@ def focus_fit(
         # Calculate the weights as the inverse variance of the FWHM measurement.
         # Also add a subjective estimation of how reliable each camera is.
         ivar = 1 / (e_d.regions.loc[e_d.regions.valid == 1, "residual_fit"] ** 2)
-        ivar_camera = config["cameras"]["focus_weight"][e_d.camera] * ivar
+        ivar_camera = config["cameras"][observatory]["focus_weight"][e_d.camera] * ivar
         weights += ivar_camera.values.tolist()
 
     cam = numpy.array(cam)

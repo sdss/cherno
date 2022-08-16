@@ -11,8 +11,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from typing import cast
-
 import clu
 from clu.legacy import TronKey
 
@@ -25,6 +23,8 @@ class ChernoActor(clu.LegacyActor):
     """The Cherno SDSS-style actor."""
 
     def __init__(self, *args, **kwargs):
+
+        self.observatory: str = config["observatory"].upper()
 
         models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
 
@@ -79,8 +79,10 @@ class ChernoState:
     scale_history: list = field(default_factory=list)
 
     def __post_init__(self):
+
+        self.observatory = self.actor.observatory
         self.guide_loop = config["guide_loop"].copy()
-        self.enabled_cameras = config["cameras"]["names"].copy()
+        self.enabled_cameras = config["cameras"][self.observatory]["names"].copy()
         self.enabled_axes = ["radec", "rot", "focus"]
 
     def set_status(self, new_status: GuiderStatus, mode="override", report=True):

@@ -80,6 +80,7 @@ class Extraction:
         **params,
     ):
 
+        self.observatory = observatory.upper()
         self.pixel_scale = pixel_scale or config["pixel_scale"][observatory.upper()]
 
         self.params = deepcopy(config["extraction"])
@@ -157,7 +158,7 @@ class Extraction:
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
             fwhm_median=fwhm_median,
-            focus_offset=config["cameras"]["focus_offset"][camera],
+            focus_offset=config["cameras"][self.observatory]["focus_offset"][camera],
         )
 
         output_file = self._get_output_path(path).with_suffix(".csv")

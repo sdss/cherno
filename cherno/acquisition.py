@@ -486,7 +486,8 @@ class Acquisition:
             acq_data.yrot = numpy.round(yrot % 360.0, 3)
 
             # Calculate field rotation.
-            camera_rot = config["cameras"]["rotation"][acq_data.camera]
+            cameras = config["cameras"][self.observatory]
+            camera_rot = cameras["rotation"][acq_data.camera]
             rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
             rotation[rotation > 180.0] -= 360.0
             rotation = numpy.mean(rotation)
