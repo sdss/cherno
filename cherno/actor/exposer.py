@@ -217,6 +217,9 @@ class Exposer:
     def _check_ffs(self):
         """Checks that the FFS are open."""
 
+        if self.actor.observatory == "LCO":
+            return
+
         values = self.actor.models["mcp"]["ffsStatus"].value
         if len(values) == 0 or all([value is None for value in values]):
             self.command.warning("FFS status unknown.")
