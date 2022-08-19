@@ -29,6 +29,7 @@ from cherno.astrometry import AstrometryNet
 from cherno.coordinates import gfa_to_radec
 from cherno.exceptions import ChernoError
 from cherno.extraction import Extraction, ExtractionData, PathLike
+from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
 from cherno.utils import astrometry_fit, focus_fit, run_in_executor
@@ -365,6 +366,15 @@ class Acquisition:
 
         self.command.info("Applying corrections.")
 
+        if self.observatory == "APO":
+            await self._correct_apo(data, full=full)
+        else:
+            await self._correct_lco(data, full=full)
+
+    async def _correct_apo(self, data: AstrometricSolution, full: bool = False):
+
+        actor_state = self.command.actor.state
+
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
         if abs(data.delta_rot) >= min_isolated:
             self.command.debug("Applying only large rotator correction.")
@@ -408,6 +418,41 @@ class Acquisition:
             data.correction_applied[4] = applied_corrections[1] or 0.0
         else:
             data.correction_applied[4] = 0.0
+
+        self.command.info(
+            acquisition_valid=True,
+            did_correct=any(data.correction_applied),
+            correction_applied=data.correction_applied,
+        )
+
+    async def _correct_lco(self, data: AstrometricSolution, full: bool = False):
+
+        do_focus: bool = False
+
+        # Ignore focus correction when the r2 correlation is bad or when we got
+        # an inverted parabola.
+        if (
+            data.focus_r2 > config["acquisition"]["focus_r2_threshold"]
+            and data.focus_coeff[0] > 0
+        ):
+            do_focus = True
+        else:
+            self.command.warning("Focus fit poorly constrained. Not correcting focus.")
+
+        self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
+
+        applied_corrections: Any = await apply_correction_lco(
+            self.command,
+            radec=(-data.delta_ra, -data.delta_dec),
+            rot=-data.delta_rot,
+            focus=-data.delta_focus if do_focus else None,
+            k_radec=None if full is False else 1.0,
+            k_rot=None if full is False else 1.0,
+        )
+
+        self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
+
+        data.correction_applied = applied_corrections
 
         self.command.info(
             acquisition_valid=True,
