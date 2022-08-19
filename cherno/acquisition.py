@@ -199,6 +199,12 @@ class Acquisition:
 
         if correct and ast_solution.valid_solution is True:
             await self.correct(ast_solution, full=full_correction)
+        else:
+            self.command.info(
+                acquisition_valid=ast_solution.valid_solution,
+                did_correct=any(ast_solution.correction_applied),
+                correction_applied=ast_solution.correction_applied,
+            )
 
         if self.command.actor:
             update_proc_headers(ast_solution, self.command.actor.state)
