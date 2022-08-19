@@ -118,7 +118,7 @@ class Acquisition:
         if astrometry is not None:
             self.astrometry = astrometry
         else:
-            pixel_scale = config["pixel_scale"][observatory.upper()]
+            pixel_scale = config["pixel_scale"]
             backend_config = pathlib.Path(__file__).parent / "etc/astrometrynet.cfg"
             self.astrometry = AstrometryNet(
                 backend_config=str(backend_config),
@@ -288,7 +288,7 @@ class Acquisition:
 
             # Relationship between M2 move and focal plane. See
             # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
-            focus_sensitivity = config["focus_sensitivity"][self.observatory]
+            focus_sensitivity = config["focus_sensitivity"]
 
             ast_solution.fwhm_fit = round(fwhm_fit, 3)
             ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
@@ -537,7 +537,7 @@ class Acquisition:
             acq_data.yrot = numpy.round(yrot % 360.0, 3)
 
             # Calculate field rotation.
-            cameras = config["cameras"][self.observatory]
+            cameras = config["cameras"]
             camera_rot = cameras["rotation"][acq_data.camera]
             rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
             rotation[rotation > 180.0] -= 360.0

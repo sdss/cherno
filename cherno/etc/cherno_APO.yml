@@ -15,60 +15,32 @@ actor:
 
 cameras:
   path: /data/gcam/
-  APO:
-    names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
-    focus_offset:
-      gfa1: -35.5
-      gfa2: -305
-      gfa3: -640
-      gfa4: 0
-      gfa5: 185
-      gfa6: 300
-    rotation:
-      gfa1: 300
-      gfa2: 0
-      gfa3: 60
-      gfa4: 120
-      gfa5: 180
-      gfa6: 240
-    focus_weight:
-      gfa1: 1
-      gfa2: 1
-      gfa3: 1
-      gfa4: 1
-      gfa5: 1
-      gfa6: 1
-  LCO:
-    names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
-    focus_offset:
-      gfa1: 0
-      gfa2: -300
-      gfa3: 0
-      gfa4: 0
-      gfa5: 300
-      gfa6: 0
-    rotation:
-      gfa1: 300
-      gfa2: 0
-      gfa3: 60
-      gfa4: 120
-      gfa5: 180
-      gfa6: 240
-    focus_weight:
-      gfa1: 1
-      gfa2: 1
-      gfa3: 1
-      gfa4: 1
-      gfa5: 1
-      gfa6: 1
+  names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
+  focus_offset:
+    gfa1: -35.5
+    gfa2: -305
+    gfa3: -640
+    gfa4: 0
+    gfa5: 185
+    gfa6: 300
+  rotation:
+    gfa1: 300
+    gfa2: 0
+    gfa3: 60
+    gfa4: 120
+    gfa5: 180
+    gfa6: 240
+  focus_weight:
+    gfa1: 1
+    gfa2: 1
+    gfa3: 1
+    gfa4: 1
+    gfa5: 1
+    gfa6: 1
 
-pixel_scale:
-  APO: 0.216
-  LCO: 0.146
+pixel_scale: 0.216
 
-focus_sensitivity:
-  APO: 5.94
-  LCO: 7.25
+focus_sensitivity: 5.94
 
 guide_loop:
   radec:
@@ -112,6 +84,6 @@ extraction:
     fwhm_estimate: 10.0
     fit_box: [51, 51]
 
-default_offset: [0.0, 0.0, 0.0]
+default_offset: [0.0, -0.1, -432]
 
 observatory: ${OBSERVATORY}
