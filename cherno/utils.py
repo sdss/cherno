@@ -223,8 +223,8 @@ def astrometry_fit(
     delta_scale = numpy.round(c, 6)
 
     if scale_rms:
-        xwok_astro /= delta_scale
-        ywok_astro /= delta_scale
+        xwok_astro = list(numpy.array(xwok_astro) / delta_scale)
+        ywok_astro = list(numpy.array(ywok_astro) / delta_scale)
 
     delta_x = (numpy.array(xwok_gfa) - numpy.array(xwok_astro)) ** 2  # type: ignore
     delta_y = (numpy.array(ywok_gfa) - numpy.array(ywok_astro)) ** 2  # type: ignore
@@ -292,7 +292,8 @@ def focus_fit(
 
         # Calculate the weights as the inverse variance of the FWHM measurement.
         # Also add a subjective estimation of how reliable each camera is.
-        ivar = 1 / (e_d.regions.loc[e_d.regions.valid == 1, "residual_fit"] ** 2)
+        residual_fit = e_d.regions.loc[e_d.regions.valid == 1]["residual_fit"]
+        ivar = 1 / (residual_fit**2)
         ivar_camera = config["cameras"][observatory]["focus_weight"][e_d.camera] * ivar
         weights += ivar_camera.values.tolist()
 

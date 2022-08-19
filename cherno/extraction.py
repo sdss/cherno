@@ -15,7 +15,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import matplotlib.pyplot as plt
 import numpy
@@ -138,7 +138,8 @@ class Extraction:
             self.reject(regions)
 
         # Prevent NaNs here since this is output to the headers.
-        fwhm_median = numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3)
+        fwhm_median = regions.loc[regions.valid == 1].fwhm.median()
+        fwhm_median_round = float(numpy.round(fwhm_median, 3))
         if numpy.isnan(fwhm_median):
             fwhm_median = -999.0
 
@@ -157,7 +158,7 @@ class Extraction:
             regions=regions,
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
-            fwhm_median=fwhm_median,
+            fwhm_median=fwhm_median_round,
             focus_offset=config["cameras"]["focus_offset"][camera],
         )
 
@@ -392,6 +393,8 @@ class Extraction:
 
         for index, row in regions.iterrows():
 
+            index = cast(Any, index)
+
             # Ignore detections that we have already marked as invalid in SExtractor.
             if row.valid == 0:
                 continue
@@ -475,30 +478,32 @@ class Extraction:
 
             # plt.close("all")
 
-            regions.loc[index, "gaussian_fit"] = int(gauss_valid)
-            regions.loc[index, ["x_gaussian", "y_gaussian"]] = gauss_centroids[::-1]
-            regions.loc[index, "fwhm_gaussian"] = numpy.mean(gauss_fwhm)
-            gauss_residual_mean = (numpy.array(gauss_residual) ** 2).sum() ** 0.5
-            regions.loc[index, "residual_gaussian"] = gauss_residual_mean
+            loc = regions.loc[index]
 
-            regions.loc[index, "trapezoid_fit"] = int(trap_valid)
-            regions.loc[index, ["x_trapezoid", "y_trapezoid"]] = trap_centroids[::-1]
-            regions.loc[index, "fwhm_trapezoid"] = numpy.mean(trap_fwhm)
+            loc["gaussian_fit"] = int(gauss_valid)
+            loc[["x_gaussian", "y_gaussian"]] = gauss_centroids[::-1]
+            loc["fwhm_gaussian"] = numpy.mean(gauss_fwhm)
+            gauss_residual_mean = (numpy.array(gauss_residual) ** 2).sum() ** 0.5
+            loc["residual_gaussian"] = gauss_residual_mean
+
+            loc["trapezoid_fit"] = int(trap_valid)
+            loc[["x_trapezoid", "y_trapezoid"]] = trap_centroids[::-1]
+            loc["fwhm_trapezoid"] = numpy.mean(trap_fwhm)
             trap_residual_mean = (numpy.array(trap_residual) ** 2).sum() ** 0.5
-            regions.loc[index, "residual_trapezoid"] = trap_residual_mean
+            loc["residual_trapezoid"] = trap_residual_mean
 
             if not gauss_valid and not trap_valid:
                 continue
             elif gauss_valid and gauss_residual_mean <= trap_residual_mean:
-                regions.loc[index, ["x_fit", "y_fit"]] = gauss_centroids[::-1]
-                regions.loc[index, ["fwhm"]] = numpy.mean(gauss_fwhm)
-                regions.loc[index, ["residual_fit"]] = gauss_residual_mean
-                regions.loc[index, "model_fit"] = "g"
+                loc[["x_fit", "y_fit"]] = gauss_centroids[::-1]
+                loc[["fwhm"]] = numpy.mean(gauss_fwhm)
+                loc[["residual_fit"]] = gauss_residual_mean
+                loc["model_fit"] = "g"
             else:
-                regions.loc[index, ["x_fit", "y_fit"]] = trap_centroids[::-1]
-                regions.loc[index, ["fwhm"]] = numpy.mean(trap_fwhm)
-                regions.loc[index, ["residual_fit"]] = trap_residual_mean
-                regions.loc[index, "model_fit"] = "t"
+                loc[["x_fit", "y_fit"]] = trap_centroids[::-1]
+                loc[["fwhm"]] = numpy.mean(trap_fwhm)
+                loc[["residual_fit"]] = trap_residual_mean
+                loc["model_fit"] = "t"
 
         regions.loc[regions.model_fit == "", "valid"] = 0
 

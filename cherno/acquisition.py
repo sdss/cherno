@@ -274,11 +274,11 @@ class Acquisition:
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
         ast_solution.valid_solution = True
-        ast_solution.delta_ra = delta_ra
-        ast_solution.delta_dec = delta_dec
-        ast_solution.delta_rot = delta_rot
-        ast_solution.delta_scale = delta_scale
-        ast_solution.rms = rms
+        ast_solution.delta_ra = float(delta_ra)
+        ast_solution.delta_dec = float(delta_dec)
+        ast_solution.delta_rot = float(delta_rot)
+        ast_solution.delta_scale = float(delta_scale)
+        ast_solution.rms = float(rms)
 
         try:
             fwhm_fit, x_min, a, b, c, r2 = focus_fit(
@@ -521,8 +521,8 @@ class Acquisition:
             acq_data.wcs = wcs
 
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
-            acq_data.camera_racen = numpy.round(racen, 6)
-            acq_data.camera_deccen = numpy.round(deccen, 6)
+            acq_data.camera_racen = float(numpy.round(racen, 6))
+            acq_data.camera_deccen = float(numpy.round(deccen, 6))
 
             # TODO: consider parallactic angle here.
             cd: numpy.ndarray = wcs.wcs.cd
@@ -533,8 +533,8 @@ class Acquisition:
 
             # Rotation is from N to E to the x and y axes of the GFA.
             yrot, xrot = numpy.rad2deg(rot_rad)
-            acq_data.xrot = numpy.round(xrot % 360.0, 3)
-            acq_data.yrot = numpy.round(yrot % 360.0, 3)
+            acq_data.xrot = float(numpy.round(xrot % 360.0, 3))
+            acq_data.yrot = float(numpy.round(yrot % 360.0, 3))
 
             # Calculate field rotation.
             cameras = config["cameras"]
@@ -542,7 +542,7 @@ class Acquisition:
             rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
             rotation[rotation > 180.0] -= 360.0
             rotation = numpy.mean(rotation)
-            acq_data.rotation = numpy.round(rotation, 3)
+            acq_data.rotation = float(numpy.round(rotation, 3))
 
         self.command.info(
             camera_solution=[
