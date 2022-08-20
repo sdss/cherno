@@ -67,7 +67,7 @@ acquisition:
 
 extraction:
   output_dir: ./extraction
-  star_finder: sextractor
+  star_finder: marginal
   background_sigma: 3.0
   min_npix: 20
   plot: false
