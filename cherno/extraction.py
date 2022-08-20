@@ -480,32 +480,30 @@ class Extraction:
 
             # plt.close("all")
 
-            loc = regions.loc[index]
-
-            loc["gaussian_fit"] = int(gauss_valid)
-            loc[["x_gaussian", "y_gaussian"]] = gauss_centroids[::-1]
-            loc["fwhm_gaussian"] = numpy.mean(gauss_fwhm)
+            regions.loc[index, "gaussian_fit"] = int(gauss_valid)
+            regions.loc[index, ["x_gaussian", "y_gaussian"]] = gauss_centroids[::-1]
+            regions.loc[index, "fwhm_gaussian"] = numpy.mean(gauss_fwhm)
             gauss_residual_mean = (numpy.array(gauss_residual) ** 2).sum() ** 0.5
-            loc["residual_gaussian"] = gauss_residual_mean
+            regions.loc[index, "residual_gaussian"] = gauss_residual_mean
 
-            loc["trapezoid_fit"] = int(trap_valid)
-            loc[["x_trapezoid", "y_trapezoid"]] = trap_centroids[::-1]
-            loc["fwhm_trapezoid"] = numpy.mean(trap_fwhm)
+            regions.loc[index, "trapezoid_fit"] = int(trap_valid)
+            regions.loc[index, ["x_trapezoid", "y_trapezoid"]] = trap_centroids[::-1]
+            regions.loc[index, "fwhm_trapezoid"] = numpy.mean(trap_fwhm)
             trap_residual_mean = (numpy.array(trap_residual) ** 2).sum() ** 0.5
-            loc["residual_trapezoid"] = trap_residual_mean
+            regions.loc[index, "residual_trapezoid"] = trap_residual_mean
 
             if not gauss_valid and not trap_valid:
                 continue
             elif gauss_valid and gauss_residual_mean <= trap_residual_mean:
-                loc[["x_fit", "y_fit"]] = gauss_centroids[::-1]
-                loc[["fwhm"]] = numpy.mean(gauss_fwhm)
-                loc[["residual_fit"]] = gauss_residual_mean
-                loc["model_fit"] = "g"
+                regions.loc[index, ["x_fit", "y_fit"]] = gauss_centroids[::-1]
+                regions.loc[index, ["fwhm"]] = numpy.mean(gauss_fwhm)
+                regions.loc[index, ["residual_fit"]] = gauss_residual_mean
+                regions.loc[index, "model_fit"] = "g"
             else:
-                loc[["x_fit", "y_fit"]] = trap_centroids[::-1]
-                loc[["fwhm"]] = numpy.mean(trap_fwhm)
-                loc[["residual_fit"]] = trap_residual_mean
-                loc["model_fit"] = "t"
+                regions.loc[index, ["x_fit", "y_fit"]] = trap_centroids[::-1]
+                regions.loc[index, ["fwhm"]] = numpy.mean(trap_fwhm)
+                regions.loc[index, ["residual_fit"]] = trap_residual_mean
+                regions.loc[index, "model_fit"] = "t"
 
         regions.loc[regions.model_fit == "", "valid"] = 0
 
