@@ -255,6 +255,7 @@ class Acquisition:
             offset=offset,
             obstime=solved[0].obstime.jd,
             scale_rms=scale_rms,
+            grid=None,
         )
 
         exp_no = solved[0].exposure_no  # Should be the same for all.

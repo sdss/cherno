@@ -146,7 +146,7 @@ def umeyama(X, Y):
 
 def astrometry_fit(
     data: list[AcquisitionData],
-    grid=(10, 10),
+    grid: tuple[int, int] | None = (10, 10),
     offset: tuple | list = (0.0, 0.0, 0.0),
     obstime: float | None = None,
     scale_rms: bool = False,
@@ -165,12 +165,18 @@ def astrometry_fit(
     for d in data:
 
         camera_id = int(d.camera[-1])
-        xidx, yidx = numpy.meshgrid(
-            numpy.linspace(0, 2048, grid[0]),
-            numpy.linspace(0, 2048, grid[1]),
-        )
-        xidx = xidx.flatten()
-        yidx = yidx.flatten()
+
+        if grid is not None:
+            xidx, yidx = numpy.meshgrid(
+                numpy.linspace(0, 2048, grid[0]),
+                numpy.linspace(0, 2048, grid[1]),
+            )
+            xidx = xidx.flatten()
+            yidx = yidx.flatten()
+        else:
+            # Use a single point in the middle of the camera.
+            xidx = numpy.array([1024])
+            yidx = numpy.array([1024])
 
         coords: Any = d.wcs.pixel_to_world(xidx, yidx)
         ra = coords.ra.value
