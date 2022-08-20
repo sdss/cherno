@@ -217,6 +217,7 @@ class Acquisition:
         data: list[AcquisitionData],
         offset: list[float] | None = None,
         scale_rms: bool = False,
+        do_focus: bool = True,
     ):
         """Calculate the astrometric solution."""
 
@@ -281,23 +282,24 @@ class Acquisition:
         ast_solution.delta_scale = float(delta_scale)
         ast_solution.rms = float(rms)
 
-        try:
-            fwhm_fit, x_min, a, b, c, r2 = focus_fit(
-                [d.e_data for d in data],
-                plot=config["acquisition"]["plot_focus"],
-            )
+        if do_focus:
+            try:
+                fwhm_fit, x_min, a, b, c, r2 = focus_fit(
+                    [d.e_data for d in data],
+                    plot=config["acquisition"]["plot_focus"],
+                )
 
-            # Relationship between M2 move and focal plane. See
-            # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
-            focus_sensitivity = config["focus_sensitivity"]
+                # Relationship between M2 move and focal plane. See
+                # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
+                focus_sensitivity = config["focus_sensitivity"]
 
-            ast_solution.fwhm_fit = round(fwhm_fit, 3)
-            ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
-            ast_solution.focus_coeff = [a, b, c]
-            ast_solution.focus_r2 = round(r2, 3)
+                ast_solution.fwhm_fit = round(fwhm_fit, 3)
+                ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
+                ast_solution.focus_coeff = [a, b, c]
+                ast_solution.focus_r2 = round(r2, 3)
 
-        except Exception as err:
-            self.command.warning(f"Failed fitting focus curve: {err}.")
+            except Exception as err:
+                self.command.warning(f"Failed fitting focus curve: {err}.")
 
         self.command.info(
             astrometry_fit=[
