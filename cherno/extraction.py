@@ -138,7 +138,9 @@ class Extraction:
             self.reject(regions)
 
         # Prevent NaNs here since this is output to the headers.
-        fwhm_median = regions.loc[regions.valid == 1].fwhm.median()
+        valid = regions.loc[regions.valid == 1]
+        perc_50 = numpy.percentile(valid.fwhm, 50)
+        fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
         fwhm_median_round = float(numpy.round(fwhm_median, 3))
         if numpy.isnan(fwhm_median):
             fwhm_median = -999.0
