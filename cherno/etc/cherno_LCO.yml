@@ -17,7 +17,7 @@ cameras:
   names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   focus_offset:
     gfa1: 151.1
-    gfa2: -488.68
+    gfa2: -250
     gfa3: 0
     gfa4: -50.05
     gfa5: 145.84
