@@ -41,7 +41,7 @@ async def apply_correction_lco(
     enabled_axes = state.enabled_axes
 
     # Correction applied in ra, dec, rot, scale, and focus.
-    correction_applied = [0.0, 0.0, 0.0, 0.0, 0.0]
+    no_correction = correction_applied = [0.0, 0.0, 0.0, 0.0, 0.0]
 
     corr_radec = numpy.array([0.0, 0.0])
     corr_rot: float = 0.0
@@ -111,7 +111,11 @@ async def apply_correction_lco(
 
         correction_applied[4] = numpy.round(focus_corr, 1)
 
-    if numpy.any(corr_radec > 0) or corr_rot > 0 or corr_focus > 0:
+    if (
+        numpy.any(numpy.abs(corr_radec) > 0)
+        or numpy.abs(corr_rot) > 0
+        or numpy.abs(corr_focus) > 0
+    ):
         tcc_offset_cmd = await command.send_command(
             "lcotcc",
             f"guideoffset {corr_radec[0]},{corr_radec[1]},{corr_rot},{corr_focus}",
@@ -119,6 +123,6 @@ async def apply_correction_lco(
 
         if tcc_offset_cmd.status.did_fail:
             command.error("Failed applying RA/Dec correction.")
-            return correction_applied
+            return no_correction
 
-    return correction_applied
+    return no_correction
