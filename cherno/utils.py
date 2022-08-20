@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, cast
 import matplotlib.pyplot as plt
 import numpy
 import seaborn
-from coordio.defaults import GFA_PIXEL_SIZE, PLATE_SCALE
+from coordio.defaults import PLATE_SCALE
 from coordio.exceptions import CoordIOUserWarning
 from coordio.utils import radec2wokxy
 
@@ -281,8 +281,6 @@ def focus_fit(
     y = []
     weights = []
 
-    fwhm_to_microns = config["pixel_scale"] * GFA_PIXEL_SIZE
-
     for e_d in e_data:
         valid = e_d.regions.loc[e_d.regions.valid == 1]
         if len(valid) == 0 or e_d.fwhm_median < 0:
@@ -291,9 +289,7 @@ def focus_fit(
         cam += [int(e_d.camera[-1])] * len(valid)
         x += [e_d.focus_offset] * len(valid)
 
-        # Convert FWHM to microns so that they are the same units as the focus offset.
-        fwhm_microns = valid.fwhm * fwhm_to_microns
-        y += fwhm_microns.values.tolist()
+        y += valid.fwhm.values.tolist()
 
         # Calculate the weights as the inverse variance of the FWHM measurement.
         # Also add a subjective estimation of how reliable each camera is.
@@ -314,16 +310,16 @@ def focus_fit(
     # Perform polynomial fit.
     a, b, c = numpy.polyfit(x, y, 2, w=weights, full=False)
 
-    # Calculate the focus of the parabola and the associated FWHM.
-    x_min = -b / 2 / a
-    fwhm_fit = (a * x_min**2 + x_min * b + c) / fwhm_to_microns
-
     # Determine the r2 coefficient. See https://bit.ly/3LmH76j
     f_i = a * x**2 + b * x + c
     ybar = numpy.sum(y) / len(y)
     ss_res = numpy.sum((y - f_i) ** 2)
     ss_tot = numpy.sum((y - ybar) ** 2)
     r2 = 1 - ss_res / ss_tot
+
+    # Calculate the focus of the parabola and the associated FWHM.
+    x_min = -b / 2 / a
+    fwhm_fit = a * x_min**2 + x_min * b + c
 
     if plot is not None:
 
@@ -347,7 +343,7 @@ def focus_fit(
                 y_cam = y[cam == icam]
                 ax.scatter(
                     x_cam,
-                    y_cam / fwhm_to_microns,
+                    y_cam,
                     marker="o",  # type: ignore
                     edgecolor="None",
                     s=5,
@@ -357,7 +353,7 @@ def focus_fit(
             x0 = numpy.min(x)
             x1 = numpy.max(x)
             xs = numpy.linspace(x0 - 0.1 * (x1 - x0), x1 + 0.1 * (x1 - x0))
-            ys = (a * xs**2 + b * xs + c) / fwhm_to_microns
+            ys = a * xs**2 + b * xs + c
             ax.plot(
                 xs,
                 ys,
