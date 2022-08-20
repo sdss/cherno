@@ -281,8 +281,7 @@ def focus_fit(
     y = []
     weights = []
 
-    observatory = e_data[0].observatory
-    fwhm_to_microns = config["pixel_scale"][observatory] * GFA_PIXEL_SIZE
+    fwhm_to_microns = config["pixel_scale"] * GFA_PIXEL_SIZE
 
     for e_d in e_data:
         valid = e_d.regions.loc[e_d.regions.valid == 1]
