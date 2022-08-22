@@ -43,7 +43,12 @@ pixel_scale: 0.216
 focus_sensitivity: 5.94
 
 guide_loop:
-  radec:
+  ra:
+    pid:
+      k: 0.7
+    min_correction: 0.05
+    max_correction: 600
+  dec:
     pid:
       k: 0.7
     min_correction: 0.05
@@ -60,7 +65,7 @@ guide_loop:
     min_correction: 10
     max_correction: 200
 
-enabled_axes: ['radec', 'rot', 'focus']
+enabled_axes: ['ra', 'dec', 'rot', 'focus']
 
 acquisition:
   cpulimit: 15

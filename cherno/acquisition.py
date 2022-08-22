@@ -407,7 +407,8 @@ class Acquisition:
                 self.command,
                 rot=-data.delta_rot,
                 radec=(-data.delta_ra, -data.delta_dec),
-                k_radec=None if full is False else 1.0,
+                k_ra=None if full is False else 1.0,
+                k_dec=None if full is False else 1.0,
                 k_rot=None if full is False else 1.0,
             )
 
@@ -447,11 +448,14 @@ class Acquisition:
 
         do_focus: bool = False
 
+        enabled_axes = self.command.actor.state.enabled_axes
+
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
             data.focus_r2 > config["acquisition"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
+            and "focus" in enabled_axes
         ):
             do_focus = True
         else:
@@ -464,7 +468,8 @@ class Acquisition:
             radec=(-data.delta_ra, -data.delta_dec),
             rot=-data.delta_rot,
             focus=-data.delta_focus if do_focus else None,
-            k_radec=None if full is False else 1.0,
+            k_ra=None if full is False else 1.0,
+            k_dec=None if full is False else 1.0,
             k_rot=None if full is False else 1.0,
         )
 

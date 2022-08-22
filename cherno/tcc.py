@@ -26,7 +26,8 @@ async def apply_axes_correction(
     command: ChernoCommandType,
     radec: tuple[float, float] | numpy.ndarray | None = None,
     rot: float | None = None,
-    k_radec: float | None = None,
+    k_ra: float | None = None,
+    k_dec: float | None = None,
     k_rot: float | None = None,
 ):
     """Send corrections to the TCC. Corrections here are in arcsec."""
@@ -41,25 +42,39 @@ async def apply_axes_correction(
     # Correction applied in ra, dec, rot, scale, in arcsec.
     correction_applied = [0.0, 0.0, 0.0, 0.0]
 
-    if radec is not None and "radec" in enabled_axes:
-        corr_radec = numpy.array(radec) / 3600.0  # In degrees!
+    if radec is not None:
 
-        default_k_radec: float = guide_loop["radec"]["pid"]["k"]
-        k_radec = k_radec or default_k_radec
+        corr_radec = [0.0, 0.0]
 
-        min_corr_arcsec = guide_loop["radec"]["min_correction"]
-        max_corr_arcsec = guide_loop["radec"]["max_correction"]
+        for ax_idx, ax in enumerate(["ra", "dec"]):
+            if ax in enabled_axes:
+                corr_ax = float(numpy.array(radec[ax_idx]) / 3600.0)  # In degrees!
 
-        if numpy.all(numpy.abs(corr_radec) < (min_corr_arcsec / 3600.0)):
-            # Small correction. Do not apply.
-            command.debug("Ignoring small ra/dec correction.")
+                default_k_ax: float = guide_loop[ax]["pid"]["k"]
 
-        elif numpy.any(numpy.abs(corr_radec) > (max_corr_arcsec / 3600)):
-            raise ChernoError("RA/Dec correction too large. Not applying correction.")
+                if ax == "ra":
+                    k_ax = k_ra or default_k_ax
+                else:
+                    k_ax = k_dec or default_k_ax
 
-        else:
-            corr_radec *= k_radec
+                min_corr_arcsec = guide_loop[ax]["min_correction"]
+                max_corr_arcsec = guide_loop[ax]["max_correction"]
 
+                if numpy.all(numpy.abs(corr_ax) < (min_corr_arcsec / 3600.0)):
+                    # Small correction. Do not apply.
+                    command.debug(f"Ignoring small {ax.upper()} correction.")
+
+                elif numpy.any(numpy.abs(corr_ax) > (max_corr_arcsec / 3600)):
+                    raise ChernoError(
+                        f"{ax.upper()} correction too large. "
+                        "Not applying correction."
+                    )
+
+                else:
+                    corr_ax *= k_ax
+                    corr_radec[ax_idx] = corr_ax
+
+        if numpy.any(numpy.abs(corr_radec) > 0):
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset arc {corr_radec[0]}, {corr_radec[1]} /computed",

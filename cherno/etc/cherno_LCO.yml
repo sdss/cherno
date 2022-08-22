@@ -41,10 +41,15 @@ pixel_scale: 0.146
 
 focus_sensitivity: 7.25
 
-enabled_axes: ['radec', 'rot']
+enabled_axes: ['ra', 'dec', 'rot']
 
 guide_loop:
-  radec:
+  ra:
+    pid:
+      k: 0.7
+    min_correction: 0.05
+    max_correction: 600
+  dec:
     pid:
       k: 0.7
     min_correction: 0.05
