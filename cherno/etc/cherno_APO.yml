@@ -60,6 +60,8 @@ guide_loop:
     min_correction: 10
     max_correction: 200
 
+enabled_axes: ['radec', 'rot', 'focus']
+
 acquisition:
   cpulimit: 15
   astrometry_dir: ./astrometry

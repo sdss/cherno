@@ -41,6 +41,8 @@ pixel_scale: 0.146
 
 focus_sensitivity: 7.25
 
+enabled_axes: ['radec', 'rot']
+
 guide_loop:
   radec:
     pid:
