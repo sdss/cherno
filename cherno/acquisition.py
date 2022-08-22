@@ -358,9 +358,7 @@ class Acquisition:
         actor_state = self.command.actor.state
         guider_status = actor_state.status
 
-        stopping = (
-            guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)
-        ).value > 0
+        stopping = guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)
 
         if stopping:
             data.correction_applied = [0.0, 0.0, 0.0, 0.0, 0.0]
