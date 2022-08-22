@@ -16,12 +16,12 @@ cameras:
   path: /data/gcam/
   names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   focus_offset:
-    gfa1: 151.1
-    gfa2: -250
-    gfa3: 0
-    gfa4: -50.05
-    gfa5: 145.84
-    gfa6: -71.5
+    gfa1: 0
+    gfa2: -594.5
+    gfa3: -174.
+    gfa4: -268.25
+    gfa5: 94.25
+    gfa6: 166.75
   rotation:
     gfa1: 300
     gfa2: 0
