@@ -66,11 +66,11 @@ async def apply_correction_lco(
         else:
             corr_radec *= k_radec
 
-            correction_applied[0] = numpy.round(corr_radec[0] * 3600.0, 3)
-            correction_applied[1] = numpy.round(corr_radec[1] * 3600.0, 3)
+            correction_applied[0] = float(numpy.round(corr_radec[0] * 3600.0, 3))
+            correction_applied[1] = float(numpy.round(corr_radec[1] * 3600.0, 3))
 
     if rot is not None and "rot" in enabled_axes:
-        corr_rot = numpy.array(rot) / 3600.0  # In degrees!
+        corr_rot = float(numpy.array(rot) / 3600.0)  # In degrees!
 
         default_k_rot: float = guide_loop["rot"]["pid"]["k"]
         k_rot = k_rot or default_k_rot

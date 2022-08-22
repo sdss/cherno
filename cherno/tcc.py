@@ -69,8 +69,8 @@ async def apply_axes_correction(
                 command.error("Failed applying RA/Dec correction.")
                 return correction_applied
 
-            correction_applied[0] = numpy.round(corr_radec[0] * 3600.0, 3)
-            correction_applied[1] = numpy.round(corr_radec[1] * 3600.0, 3)
+            correction_applied[0] = float(numpy.round(corr_radec[0] * 3600.0, 3))
+            correction_applied[1] = float(numpy.round(corr_radec[1] * 3600.0, 3))
 
     if rot is not None and "rot" in enabled_axes:
         corr_rot = numpy.array(rot) / 3600.0  # In degrees!
@@ -100,7 +100,7 @@ async def apply_axes_correction(
                 command.error("Failed applying rotator correction.")
                 return correction_applied
 
-            correction_applied[2] = numpy.round(corr_rot * 3600.0, 3)
+            correction_applied[2] = float(numpy.round(corr_rot * 3600.0, 3))
 
     return correction_applied
 

@@ -23,16 +23,16 @@ from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
 
 from clu.command import FakeCommand
+from coordio.astrometry import AstrometryNet
+from coordio.guide import GuiderFitter, gfa_to_radec
 
 from cherno import config, log
-from cherno.astrometry import AstrometryNet
-from cherno.coordinates import gfa_to_radec
 from cherno.exceptions import ChernoError
 from cherno.extraction import Extraction, ExtractionData, PathLike
 from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
-from cherno.utils import astrometry_fit, focus_fit, run_in_executor
+from cherno.utils import focus_fit, run_in_executor
 
 
 if TYPE_CHECKING:
@@ -51,6 +51,7 @@ __all__ = ["Acquisition"]
 class AcquisitionData:
     """Data from the acquisition process."""
 
+    camera: str
     extraction_data: ExtractionData
     solved: bool = False
     solve_time: float = -999.0
@@ -133,7 +134,11 @@ class Acquisition:
                 cpulimit=config["acquisition"]["cpulimit"],
                 **astrometry_params,
             )
+
         self.observatory = observatory.upper()
+
+        self.fitter = GuiderFitter(self.observatory)
+
         self.command = command or FakeCommand(log)
 
     def set_command(self, command: ChernoCommandType):
@@ -228,6 +233,7 @@ class Acquisition:
 
         if len(solved) == 0:
             self.command.error(acquisition_valid=False, did_correct=False)
+            return ast_solution
 
         fwhm = numpy.average([d.e_data.fwhm_median for d in solved], weights=weights)
         camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
@@ -251,27 +257,38 @@ class Acquisition:
         else:
             self.command.debug(offset=offset)
 
-        ast_fit = astrometry_fit(
-            solved,
-            offset=offset,
-            obstime=solved[0].obstime.jd,
+        self.fitter.reset()
+        for d in solved:
+            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd)
+
+        field_ra = solved[0].field_ra
+        field_dec = solved[0].field_dec
+        field_pa = solved[0].field_pa
+
+        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+        full_offset = numpy.array(offset) + numpy.array(default_offset)
+
+        guide_fit = self.fitter.fit(
+            field_ra,
+            field_dec,
+            field_pa,
+            offset=full_offset,
             scale_rms=scale_rms,
-            grid=None,
         )
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if ast_fit is False:
+        if guide_fit is False:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
         else:
-            delta_ra = ast_fit[0]
-            delta_dec = ast_fit[1]
-            delta_rot = ast_fit[2]
-            delta_scale = ast_fit[3]
+            delta_ra = guide_fit.delta_ra
+            delta_dec = guide_fit.delta_dec
+            delta_rot = guide_fit.delta_rot
+            delta_scale = guide_fit.delta_scale
 
-            xrms = ast_fit[4]
-            yrms = ast_fit[5]
-            rms = ast_fit[6]
+            xrms = guide_fit.xrms
+            yrms = guide_fit.yrms
+            rms = guide_fit.rms
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
@@ -497,16 +514,16 @@ class Acquisition:
 
         camera_id = int(ext_data.camera[-1])
         radec_centre = gfa_to_radec(
+            ext_data.observatory,
             1024,
             1024,
             camera_id,
             ext_data.field_ra,
             ext_data.field_dec,
             position_angle=ext_data.field_pa,
-            site_name=ext_data.observatory,
         )
 
-        proc = await self.astrometry.run(
+        proc = await self.astrometry.run_async(
             [gfa_xyls_path],
             stdout=outfile_root.with_suffix(".stdout"),
             stderr=outfile_root.with_suffix(".stderr"),
@@ -514,7 +531,7 @@ class Acquisition:
             dec=radec_centre[1],
         )
 
-        acq_data = AcquisitionData(ext_data, solve_time=proc.elapsed)
+        acq_data = AcquisitionData(ext_data.camera, ext_data, solve_time=proc.elapsed)
 
         if wcs_output.exists():
             acq_data.solved = True
