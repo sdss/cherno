@@ -53,7 +53,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
             return command.fail(f"Invalid axis {axis}.")
 
         if value <= 0 or value > 1:
-            return command.fail("Invalid value. Must be between 0 and 1.")
+            command.warning("Value outside [0, 1] range.")
 
         command.info(message={f"pid_{axis}": [value]})
         command.actor.state.guide_loop[axis]["pid"][component] = value
