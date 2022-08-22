@@ -101,7 +101,6 @@ async def acquire(
         acquisition.process,
         correct=apply,
         full_correction=full,
-        scale_rms=True,
     )
     exposer = Exposer(command, callback=callback)
 
