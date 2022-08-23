@@ -122,7 +122,11 @@ class AxesPID:
         else:
             pid_coeffs = self.actor.state.guide_loop[axis]["pid"]
 
-        return PID(Kp=pid_coeffs["k"], Ki=pid_coeffs.get("Ti"), Kd=pid_coeffs.get("Td"))
+        return PID(
+            Kp=pid_coeffs["k"],
+            Ki=pid_coeffs.get("ti", 0),
+            Kd=pid_coeffs.get("td", 0),
+        )
 
 
 class Acquisition:
@@ -691,28 +695,33 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     guide_loop = guider_state.guide_loop
 
     enabled_axes = guider_state.enabled_axes
-    enabled_radec = "radec" in enabled_axes
+    enabled_ra = "ra" in enabled_axes
+    enabled_dec = "dec" in enabled_axes
     enabled_rot = "rot" in enabled_axes
     enabled_focus = "focus" in enabled_axes
 
     cra, cdec, crot, cscl, cfoc = data.correction_applied
 
-    radec_pid_k = guide_loop["radec"]["pid"]["k"]
-    radec_pid_td = guide_loop["radec"]["pid"].get("Td", 0.0)
-    radec_pid_ti = guide_loop["radec"]["pid"].get("Ti", 0.0)
+    ra_pid_k = guide_loop["ra"]["pid"]["k"]
+    ra_pid_td = guide_loop["ra"]["pid"].get("td", 0.0)
+    ra_pid_ti = guide_loop["ra"]["pid"].get("ti", 0.0)
+
+    dec_pid_k = guide_loop["dec"]["pid"]["k"]
+    dec_pid_td = guide_loop["dec"]["pid"].get("td", 0.0)
+    dec_pid_ti = guide_loop["dec"]["pid"].get("ti", 0.0)
 
     rot_pid_k = guide_loop["rot"]["pid"]["k"]
-    rot_pid_td = guide_loop["rot"]["pid"].get("Td", 0.0)
-    rot_pid_ti = guide_loop["rot"]["pid"].get("Ti", 0.0)
+    rot_pid_td = guide_loop["rot"]["pid"].get("td", 0.0)
+    rot_pid_ti = guide_loop["rot"]["pid"].get("ti", 0.0)
 
     focus_pid_k = guide_loop["focus"]["pid"]["k"]
-    focus_pid_td = guide_loop["focus"]["pid"].get("Td", 0.0)
-    focus_pid_ti = guide_loop["focus"]["pid"].get("Ti", 0.0)
+    focus_pid_td = guide_loop["focus"]["pid"].get("td", 0.0)
+    focus_pid_ti = guide_loop["focus"]["pid"].get("ti", 0.0)
 
     if "scale" in guide_loop:
         scale_pid_k = guide_loop["scale"]["pid"]["k"]
-        scale_pid_td = guide_loop["scale"]["pid"].get("Td", 0.0)
-        scale_pid_ti = guide_loop["scale"]["pid"].get("Ti", 0.0)
+        scale_pid_td = guide_loop["scale"]["pid"].get("td", 0.0)
+        scale_pid_ti = guide_loop["scale"]["pid"].get("ti", 0.0)
     else:
         scale_pid_k = 0.0
         scale_pid_td = 0.0
@@ -732,9 +741,14 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
             header = hdus[1].header
 
             header["EXTMETH"] = (a_data.e_data.algorithm, "Algorithm for star finding")
-            header["RADECK"] = (radec_pid_k, "PID K term for RA/Dec")
-            header["RADECTD"] = (radec_pid_td, "PID Td term for RA/Dec")
-            header["RADECTI"] = (radec_pid_ti, "PID Ti term for RA/Dec")
+
+            header["RAK"] = (ra_pid_k, "PID K term for RA")
+            header["RATD"] = (ra_pid_td, "PID Td term for RA")
+            header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
+
+            header["DECK"] = (dec_pid_k, "PID K term for Dec")
+            header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
+            header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
 
             header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
             header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
@@ -753,7 +767,8 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
 
             header["RMS"] = (rms, "Guide RMS [arcsec]")
 
-            header["E_RADEC"] = (enabled_radec, "RA/Dec corrections enabled?")
+            header["E_RA"] = (enabled_ra, "RA corrections enabled?")
+            header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
             header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
             header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
             header["E_SCL"] = (False, "Scale corrections enabled?")

@@ -55,8 +55,16 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         if term not in ["k", "ti", "td"]:
             return command.fail(f"Invalid term {term}.")
 
-        command.info(message={f"pid_{axis}": [value]})
         command.actor.state.guide_loop[axis]["pid"][term] = value
+
+        command.info(
+            message={
+                f"pid_{axis}": [
+                    command.actor.state.guide_loop[axis]["pid"][t]
+                    for t in ["k", "ti", "td"]
+                ]
+            }
+        )
 
         if command.actor.state._acquisition_obj:
             # This is what actually changes the PID loop during an exposure.
@@ -67,6 +75,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
                 pid_attr.Ki = value
             elif term == "td":
                 pid_attr.Kd = value
+            pid_attr.reset()
 
     elif options[0] == "axes":
 

@@ -24,7 +24,11 @@ async def status(command: ChernoCommandType):
 
     for axis in ["ra", "dec", "rot", "focus"]:
         command.info(
-            message={f"pid_{axis}": [command.actor.state.guide_loop[axis]["pid"]["k"]]}
+            message={
+                f"pid_{axis}": list(
+                    command.actor.state.guide_loop[axis]["pid"].values()
+                )
+            }
         )
 
     return command.finish()

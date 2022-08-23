@@ -89,9 +89,14 @@ class ChernoState:
     def __post_init__(self):
 
         self.observatory = self.actor.observatory
-        self.guide_loop = config["guide_loop"].copy()
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = config["enabled_axes"].copy()
+
+        self.guide_loop = config["guide_loop"].copy()
+        for axis in ["ra", "dec", "rot", "focus"]:
+            for term in ["td", "ti"]:
+                if term not in self.guide_loop[axis]["pid"]:
+                    self.guide_loop[axis]["pid"][term] = 0.0
 
     def set_status(self, new_status: GuiderStatus, mode="override", report=True):
         """Sets the status and broadcasts it."""
