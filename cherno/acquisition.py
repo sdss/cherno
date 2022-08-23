@@ -488,11 +488,11 @@ class Acquisition:
 
         applied_corrections: Any = await apply_correction_lco(
             self.command,
-            radec=(data.delta_ra, data.delta_dec),
-            rot=data.delta_rot,
-            focus=data.delta_focus if do_focus else None,
+            self.pids,
+            delta_radec=(data.delta_ra, data.delta_dec),
+            delta_rot=data.delta_rot,
+            delta_focus=data.delta_focus if do_focus else None,
             full=full,
-            pids=self.pids,
         )
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
