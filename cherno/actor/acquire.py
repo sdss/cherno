@@ -96,6 +96,7 @@ async def acquire(
             command.actor.state.exposure_time = exposure_time
 
     acquisition = Acquisition(config["observatory"])
+    command.actor.state._acquisition_obj = acquisition  # To update PID coeffs.
 
     callback = partial(
         acquisition.process,

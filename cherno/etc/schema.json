@@ -100,17 +100,37 @@
       ]
     },
     "enabled_axes": { "type": "array" },
-    "pid_radec": {
+    "pid_ra": {
       "type": "array",
-      "items": [{ "title": "radec_kp", "type": "number" }]
+      "items": [
+        { "title": "ra_kp", "type": "number" },
+        { "title": "ra_ki", "type": "number" },
+        { "title": "ra_kd", "type": "number" }
+      ]
+    },
+    "pid_dec": {
+      "type": "array",
+      "items": [
+        { "title": "dec_kp", "type": "number" },
+        { "title": "dec_ki", "type": "number" },
+        { "title": "dec_kd", "type": "number" }
+      ]
     },
     "pid_rot": {
       "type": "array",
-      "items": [{ "title": "rot_kp", "type": "number" }]
+      "items": [
+        { "title": "rot_kp", "type": "number" },
+        { "title": "rot_ki", "type": "number" },
+        { "title": "rot_kd", "type": "number" }
+      ]
     },
     "pid_focus": {
       "type": "array",
-      "items": [{ "title": "focus_kp", "type": "number" }]
+      "items": [
+        { "title": "focus_kp", "type": "number" },
+        { "title": "focus_ki", "type": "number" },
+        { "title": "focus_kd", "type": "number" }
+      ]
     },
     "scale_median": { "type": "number" },
     "focus_data": { "type": "array", "items": { "type": "number" } }

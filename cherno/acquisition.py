@@ -21,6 +21,7 @@ import numpy
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
+from simple_pid.PID import PID
 
 from clu.command import FakeCommand
 from coordio.astrometry import AstrometryNet
@@ -36,7 +37,7 @@ from cherno.utils import focus_fit, run_in_executor
 
 
 if TYPE_CHECKING:
-    from cherno.actor import ChernoCommandType
+    from cherno.actor import ChernoActor, ChernoCommandType
     from cherno.actor.actor import ChernoState
 
 
@@ -101,6 +102,29 @@ class AstrometricSolution:
     correction_applied: list[float] = field(default_factory=lambda: [0.0] * 5)
 
 
+class AxesPID:
+    """Store for the axis PID coefficient."""
+
+    def __init__(self, actor: ChernoActor | None = None):
+
+        self.actor = actor
+
+        self.ra = self.reset("ra")
+        self.dec = self.reset("dec")
+        self.rot = self.reset("rot")
+        self.focus = self.reset("focus")
+
+    def reset(self, axis: str):
+        """Restart the PID loop for an axis."""
+
+        if self.actor is None:
+            pid_coeffs = config["guide_loop"][axis]["pid"]
+        else:
+            pid_coeffs = self.actor.state.guide_loop[axis]["pid"]
+
+        return PID(Kp=pid_coeffs["k"], Ki=pid_coeffs.get("Ti"), Kd=pid_coeffs.get("Td"))
+
+
 class Acquisition:
     """Runs the steps for field acquisition."""
 
@@ -136,10 +160,9 @@ class Acquisition:
             )
 
         self.observatory = observatory.upper()
-
         self.fitter = GuiderFitter(self.observatory)
-
         self.command = command or FakeCommand(log)
+        self.pids = AxesPID(command.actor if command is not None else None)
 
     def set_command(self, command: ChernoCommandType):
         """Sets the command."""
@@ -465,12 +488,11 @@ class Acquisition:
 
         applied_corrections: Any = await apply_correction_lco(
             self.command,
-            radec=(-data.delta_ra, -data.delta_dec),
-            rot=-data.delta_rot,
-            focus=-data.delta_focus if do_focus else None,
-            k_ra=None if full is False else 1.0,
-            k_dec=None if full is False else 1.0,
-            k_rot=None if full is False else 1.0,
+            radec=(data.delta_ra, data.delta_dec),
+            rot=data.delta_rot,
+            focus=data.delta_focus if do_focus else None,
+            full=full,
+            pids=self.pids,
         )
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
