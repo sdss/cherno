@@ -421,18 +421,18 @@ class Acquisition:
             self.command.debug("Applying only large rotator correction.")
             coro = apply_axes_correction(
                 self.command,
-                rot=-data.delta_rot,
-                k_rot=None if full is False else 1.0,
+                self.pids,
+                delta_rot=data.delta_rot,
+                full=full,
             )
 
         else:
             coro = apply_axes_correction(
                 self.command,
-                rot=-data.delta_rot,
-                radec=(-data.delta_ra, -data.delta_dec),
-                k_ra=None if full is False else 1.0,
-                k_dec=None if full is False else 1.0,
-                k_rot=None if full is False else 1.0,
+                self.pids,
+                delta_radec=(data.delta_ra, data.delta_dec),
+                delta_rot=data.delta_rot,
+                full=full,
             )
 
         correct_tasks: list[Coroutine[Any, Any, Any]] = [coro]
@@ -446,7 +446,7 @@ class Acquisition:
             and data.focus_coeff[0] > 0
         ):
             do_focus = True
-            coro = apply_focus_correction(self.command, -data.delta_focus, k_focus=None)
+            coro = apply_focus_correction(self.command, self.pids, data.delta_focus)
             correct_tasks.append(coro)
         else:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
