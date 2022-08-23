@@ -30,6 +30,7 @@ async def apply_correction_lco(
     delta_rot: float | None = None,
     delta_focus: float | None = None,
     full: bool = False,
+    wait_for_correction: bool = True,
 ):
     """Send corrections to the LCOTCC. Corrections here are in arcsec."""
 
@@ -111,9 +112,11 @@ async def apply_correction_lco(
         or numpy.abs(corr_rot) > 0
         or numpy.abs(corr_focus) > 0
     ):
+        wait_flag = "" if wait_for_correction is True else "/waittime=0"
         tcc_offset_cmd = await command.send_command(
             "lcotcc",
-            f"guideoffset {corr_radec[0]},{corr_radec[1]},{corr_rot},{corr_focus}",
+            f"guideoffset {corr_radec[0]},{corr_radec[1]},{corr_rot},{corr_focus} "
+            f"{wait_flag}",
         )
 
         if tcc_offset_cmd.status.did_fail:

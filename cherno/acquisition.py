@@ -179,6 +179,7 @@ class Acquisition:
         full_correction: bool = False,
         offset: list[float] | None = None,
         scale_rms: bool = False,
+        wait_for_correction: bool = True,
     ):
         """Performs extraction and astrometry."""
 
@@ -227,7 +228,11 @@ class Acquisition:
         )
 
         if correct and ast_solution.valid_solution is True:
-            await self.correct(ast_solution, full=full_correction)
+            await self.correct(
+                ast_solution,
+                full=full_correction,
+                wait_for_correction=wait_for_correction,
+            )
         else:
             self.command.info(
                 acquisition_valid=ast_solution.valid_solution,
@@ -389,7 +394,12 @@ class Acquisition:
 
         return ast_solution
 
-    async def correct(self, data: AstrometricSolution, full: bool = False):
+    async def correct(
+        self,
+        data: AstrometricSolution,
+        full: bool = False,
+        wait_for_correction: bool = True,
+    ):
         """Runs the astrometric fit"""
 
         if not self.command.actor or self.command.status.is_done:
@@ -410,7 +420,11 @@ class Acquisition:
         if self.observatory == "APO":
             await self._correct_apo(data, full=full)
         else:
-            await self._correct_lco(data, full=full)
+            await self._correct_lco(
+                data,
+                full=full,
+                wait_for_correction=wait_for_correction,
+            )
 
     async def _correct_apo(self, data: AstrometricSolution, full: bool = False):
 
@@ -467,7 +481,12 @@ class Acquisition:
             correction_applied=data.correction_applied,
         )
 
-    async def _correct_lco(self, data: AstrometricSolution, full: bool = False):
+    async def _correct_lco(
+        self,
+        data: AstrometricSolution,
+        full: bool = False,
+        wait_for_correction: bool = True,
+    ):
 
         do_focus: bool = False
 
@@ -493,6 +512,7 @@ class Acquisition:
             delta_rot=data.delta_rot,
             delta_focus=data.delta_focus if do_focus else None,
             full=full,
+            wait_for_correction=wait_for_correction,
         )
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
