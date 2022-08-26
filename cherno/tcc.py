@@ -60,7 +60,7 @@ async def apply_axes_correction(
             max_corr_arcsec = guide_loop[ax]["max_correction"]
 
             if numpy.abs(corr_ax) < min_corr_arcsec:
-                command.debug(f"Skipping small {ax.upper()} correction.")
+                command.debug(f"Skipping small {ax.lower()} correction.")
                 corr_ax = 0.0
             elif numpy.abs(corr_ax) > max_corr_arcsec:
                 raise ChernoError(f"{ax.upper()} correction too large: {corr_ax:.2f}.")
