@@ -91,6 +91,14 @@
         { "title": "rms", "type": "number" }
       ]
     },
+    "default_offset": {
+      "type": "array",
+      "items": [
+        { "title": "ra_offset", "type": "number" },
+        { "title": "dec_offset", "type": "number" },
+        { "title": "pa_offset", "type": "number" }
+      ]
+    },
     "offset": {
       "type": "array",
       "items": [

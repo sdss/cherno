@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from cherno import config
+
 from . import ChernoCommandType, cherno_parser
 
 
@@ -20,6 +22,9 @@ async def status(command: ChernoCommandType):
 
     command.info(guider_status=hex(command.actor.state.status.value))
     command.info(enabled_axes=command.actor.state.enabled_axes)
+
+    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+    command.info(default_offset=default_offset)
     command.info(offset=command.actor.state.offset)
 
     for axis in ["ra", "dec", "rot", "focus"]:

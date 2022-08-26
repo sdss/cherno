@@ -48,18 +48,18 @@ guide_loop:
     pid:
       k: 0.7
       ti: 0.01
-    min_correction: 0.05
+    min_correction: 0.03
     max_correction: 600
   dec:
     pid:
       k: 0.7
       ti: 0.01
-    min_correction: 0.05
+    min_correction: 0.03
     max_correction: 600
   rot:
     pid:
       k: 0.6
-    min_correction: 10
+    min_correction: 6
     max_correction: 7200
     min_isolated_correction: 30
   focus:
