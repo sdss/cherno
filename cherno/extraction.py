@@ -133,12 +133,13 @@ class Extraction:
         regions["mjd"] = mjd
         regions["exposure"] = exp_no
         regions["camera"] = cam_no
+        regions["fwhm_valid"] = 1
 
         if len(regions) > 0 and self.params["rejection_method"] is not None:
             self.reject(regions)
 
         # Prevent NaNs here since this is output to the headers.
-        valid = regions.loc[regions.valid == 1]
+        valid = regions.loc[regions.fwhm_valid == 1]
         perc_50 = numpy.percentile(valid.fwhm, 50)
         fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
         fwhm_median_round = float(numpy.round(fwhm_median, 3))
@@ -539,7 +540,7 @@ class Extraction:
             sigma = self.params.get("reject_sigma", 3.0)
             sigma_clip = SigmaClip(sigma, cenfunc="median")
             masked: Any = sigma_clip(fwhm, masked=True)
-            regions.loc[masked.mask, "valid"] = 0
+            regions.loc[masked.mask, "fwhm_valid"] = 0
 
         elif method == "nreject":
             nreject = self.params.get("nreject", 3)
@@ -557,7 +558,7 @@ class Extraction:
                 else:
                     nreject = nreject // 2
 
-            regions.loc[~regions.index.isin(valid.index), "valid"] = 0
+            regions.loc[~regions.index.isin(valid.index), "fwhm_valid"] = 0
 
         else:
             raise ValueError(f"Invalid rejection method {method!r}.")

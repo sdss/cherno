@@ -106,7 +106,7 @@ def focus_fit(
     weights = []
 
     for e_d in e_data:
-        valid = e_d.regions.loc[e_d.regions.valid == 1]
+        valid = e_d.regions.loc[e_d.regions.fwhm_valid == 1]
         if len(valid) == 0 or e_d.fwhm_median < 0:
             continue
 
@@ -117,7 +117,7 @@ def focus_fit(
 
         # Calculate the weights as the inverse variance of the FWHM measurement.
         # Also add a subjective estimation of how reliable each camera is.
-        residual_fit = e_d.regions.loc[e_d.regions.valid == 1]["residual_fit"]
+        residual_fit = e_d.regions.loc[e_d.regions.fwhm_valid == 1]["residual_fit"]
         ivar = 1 / (residual_fit**2)
         ivar_camera = config["cameras"]["focus_weight"][e_d.camera] * ivar
         weights += ivar_camera.values.tolist()
