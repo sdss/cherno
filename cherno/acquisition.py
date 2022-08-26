@@ -284,11 +284,6 @@ class Acquisition:
             else:
                 offset = list(config.get("offset", [0.0, 0.0, 0.0]))
 
-        if any(offset):
-            self.command.warning(offset=offset)
-        else:
-            self.command.debug(offset=offset)
-
         self.fitter.reset()
         for d in solved:
             self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd)
@@ -299,6 +294,12 @@ class Acquisition:
 
         default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
         full_offset = numpy.array(offset) + numpy.array(default_offset)
+
+        self.command.debug(default_offset=default_offset)
+        if any(offset):
+            self.command.warning(offset=offset)
+        else:
+            self.command.debug(offset=offset)
 
         guide_fit = self.fitter.fit(
             field_ra,
