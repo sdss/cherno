@@ -11,8 +11,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from typing import cast
-
 import clu
 from clu.legacy import TronKey
 
