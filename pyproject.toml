@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sdss-cherno"
-version = "0.2.0"
+version = "0.3.0-alpha.0"
 description = "SDSS guider actor"
 authors = ["José Sánchez-Gallego <gallegoj@uw.edu>"]
 license = "BSD-3-Clause"
