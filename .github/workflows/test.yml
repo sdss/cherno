@@ -52,12 +52,12 @@ jobs:
       - name: Lint with isort
         run: |
           pip install isort
-          isort -c python/
+          isort -c cherno/
 
       - name: Lint with black
         run: |
           pip install black
-          black --check python/
+          black --check cherno/
           black --check tests/
 
       - name: Test with pytest
