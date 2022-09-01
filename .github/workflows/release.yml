@@ -31,18 +31,17 @@ jobs:
         with:
           python-version: 3.9
 
-      - name: Setup poetry
-        uses: abatilo/actions-poetry@master
-
-      - name: Install package
+      - name: Install dependencies
         run: |
-          poetry install
+          python -m pip install --upgrade pip
+          pip install pep517
 
       - name: Build package
         run: |
-          poetry build
+          python -m pep517.build --source --binary --out-dir dist/ .
 
       - name: Publish to PyPI
-        run: |
-          poetry config pypi-token.pypi ${{ secrets.pypi_password }}
-          poetry publish
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.pypi_password }}

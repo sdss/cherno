@@ -21,21 +21,23 @@ import numpy
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
+from simple_pid.PID import PID
 
 from clu.command import FakeCommand
+from coordio.astrometry import AstrometryNet
+from coordio.guide import GuiderFitter, gfa_to_radec
 
 from cherno import config, log
-from cherno.astrometry import AstrometryNet
-from cherno.coordinates import gfa_to_radec
 from cherno.exceptions import ChernoError
 from cherno.extraction import Extraction, ExtractionData, PathLike
+from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
-from cherno.utils import astrometry_fit, focus_fit, run_in_executor
+from cherno.utils import focus_fit, run_in_executor
 
 
 if TYPE_CHECKING:
-    from cherno.actor import ChernoCommandType
+    from cherno.actor import ChernoActor, ChernoCommandType
     from cherno.actor.actor import ChernoState
 
 
@@ -50,6 +52,7 @@ __all__ = ["Acquisition"]
 class AcquisitionData:
     """Data from the acquisition process."""
 
+    camera: str
     extraction_data: ExtractionData
     solved: bool = False
     solve_time: float = -999.0
@@ -99,6 +102,33 @@ class AstrometricSolution:
     correction_applied: list[float] = field(default_factory=lambda: [0.0] * 5)
 
 
+class AxesPID:
+    """Store for the axis PID coefficient."""
+
+    def __init__(self, actor: ChernoActor | None = None):
+
+        self.actor = actor
+
+        self.ra = self.reset("ra")
+        self.dec = self.reset("dec")
+        self.rot = self.reset("rot")
+        self.focus = self.reset("focus")
+
+    def reset(self, axis: str):
+        """Restart the PID loop for an axis."""
+
+        if self.actor is None:
+            pid_coeffs = config["guide_loop"][axis]["pid"]
+        else:
+            pid_coeffs = self.actor.state.guide_loop[axis]["pid"]
+
+        return PID(
+            Kp=pid_coeffs["k"],
+            Ki=pid_coeffs.get("ti", 0),
+            Kd=pid_coeffs.get("td", 0),
+        )
+
+
 class Acquisition:
     """Runs the steps for field acquisition."""
 
@@ -117,7 +147,7 @@ class Acquisition:
         if astrometry is not None:
             self.astrometry = astrometry
         else:
-            pixel_scale = config["pixel_scale"][observatory.upper()]
+            pixel_scale = config["pixel_scale"]
             backend_config = pathlib.Path(__file__).parent / "etc/astrometrynet.cfg"
             self.astrometry = AstrometryNet(
                 backend_config=str(backend_config),
@@ -132,8 +162,11 @@ class Acquisition:
                 cpulimit=config["acquisition"]["cpulimit"],
                 **astrometry_params,
             )
+
         self.observatory = observatory.upper()
+        self.fitter = GuiderFitter(self.observatory)
         self.command = command or FakeCommand(log)
+        self.pids = AxesPID(command.actor if command is not None else None)
 
     def set_command(self, command: ChernoCommandType):
         """Sets the command."""
@@ -150,6 +183,7 @@ class Acquisition:
         full_correction: bool = False,
         offset: list[float] | None = None,
         scale_rms: bool = False,
+        wait_for_correction: bool = True,
     ):
         """Performs extraction and astrometry."""
 
@@ -198,7 +232,17 @@ class Acquisition:
         )
 
         if correct and ast_solution.valid_solution is True:
-            await self.correct(ast_solution, full=full_correction)
+            await self.correct(
+                ast_solution,
+                full=full_correction,
+                wait_for_correction=wait_for_correction,
+            )
+        else:
+            self.command.info(
+                acquisition_valid=ast_solution.valid_solution,
+                did_correct=any(ast_solution.correction_applied),
+                correction_applied=ast_solution.correction_applied,
+            )
 
         if self.command.actor:
             update_proc_headers(ast_solution, self.command.actor.state)
@@ -210,6 +254,7 @@ class Acquisition:
         data: list[AcquisitionData],
         offset: list[float] | None = None,
         scale_rms: bool = False,
+        do_focus: bool = True,
     ):
         """Calculate the astrometric solution."""
 
@@ -220,6 +265,7 @@ class Acquisition:
 
         if len(solved) == 0:
             self.command.error(acquisition_valid=False, did_correct=False)
+            return ast_solution
 
         fwhm = numpy.average([d.e_data.fwhm_median for d in solved], weights=weights)
         camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
@@ -238,58 +284,72 @@ class Acquisition:
             else:
                 offset = list(config.get("offset", [0.0, 0.0, 0.0]))
 
+        self.fitter.reset()
+        for d in solved:
+            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd)
+
+        field_ra = solved[0].field_ra
+        field_dec = solved[0].field_dec
+        field_pa = solved[0].field_pa
+
+        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+        full_offset = numpy.array(offset) + numpy.array(default_offset)
+
+        self.command.debug(default_offset=default_offset)
         if any(offset):
             self.command.warning(offset=offset)
         else:
             self.command.debug(offset=offset)
 
-        ast_fit = astrometry_fit(
-            solved,
-            offset=offset,
-            obstime=solved[0].obstime.jd,
+        guide_fit = self.fitter.fit(
+            field_ra,
+            field_dec,
+            field_pa,
+            offset=full_offset,
             scale_rms=scale_rms,
         )
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if ast_fit is False:
+        if guide_fit is False:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
         else:
-            delta_ra = ast_fit[0]
-            delta_dec = ast_fit[1]
-            delta_rot = ast_fit[2]
-            delta_scale = ast_fit[3]
+            delta_ra = guide_fit.delta_ra
+            delta_dec = guide_fit.delta_dec
+            delta_rot = guide_fit.delta_rot
+            delta_scale = guide_fit.delta_scale
 
-            xrms = ast_fit[4]
-            yrms = ast_fit[5]
-            rms = ast_fit[6]
+            xrms = guide_fit.xrms
+            yrms = guide_fit.yrms
+            rms = guide_fit.rms
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
         ast_solution.valid_solution = True
-        ast_solution.delta_ra = delta_ra
-        ast_solution.delta_dec = delta_dec
-        ast_solution.delta_rot = delta_rot
-        ast_solution.delta_scale = delta_scale
-        ast_solution.rms = rms
+        ast_solution.delta_ra = float(delta_ra)
+        ast_solution.delta_dec = float(delta_dec)
+        ast_solution.delta_rot = float(delta_rot)
+        ast_solution.delta_scale = float(delta_scale)
+        ast_solution.rms = float(rms)
 
-        try:
-            fwhm_fit, x_min, a, b, c, r2 = focus_fit(
-                [d.e_data for d in data],
-                plot=config["acquisition"]["plot_focus"],
-            )
+        if do_focus:
+            try:
+                fwhm_fit, x_min, a, b, c, r2 = focus_fit(
+                    [d.e_data for d in data],
+                    plot=config["acquisition"]["plot_focus"],
+                )
 
-            # Relationship between M2 move and focal plane. See
-            # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
-            focus_sensitivity = config["focus_sensitivity"][self.observatory]
+                # Relationship between M2 move and focal plane. See
+                # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
+                focus_sensitivity = config["focus_sensitivity"]
 
-            ast_solution.fwhm_fit = round(fwhm_fit, 3)
-            ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
-            ast_solution.focus_coeff = [a, b, c]
-            ast_solution.focus_r2 = round(r2, 3)
+                ast_solution.fwhm_fit = round(fwhm_fit, 3)
+                ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
+                ast_solution.focus_coeff = [a, b, c]
+                ast_solution.focus_r2 = round(r2, 3)
 
-        except Exception as err:
-            self.command.warning(f"Failed fitting focus curve: {err}.")
+            except Exception as err:
+                self.command.warning(f"Failed fitting focus curve: {err}.")
 
         self.command.info(
             astrometry_fit=[
@@ -339,7 +399,12 @@ class Acquisition:
 
         return ast_solution
 
-    async def correct(self, data: AstrometricSolution, full: bool = False):
+    async def correct(
+        self,
+        data: AstrometricSolution,
+        full: bool = False,
+        wait_for_correction: bool = True,
+    ):
         """Runs the astrometric fit"""
 
         if not self.command.actor or self.command.status.is_done:
@@ -348,9 +413,7 @@ class Acquisition:
         actor_state = self.command.actor.state
         guider_status = actor_state.status
 
-        stopping = (
-            guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)
-        ).value > 0
+        stopping = guider_status & (GuiderStatus.STOPPING | GuiderStatus.IDLE)
 
         if stopping:
             data.correction_applied = [0.0, 0.0, 0.0, 0.0, 0.0]
@@ -359,22 +422,36 @@ class Acquisition:
 
         self.command.info("Applying corrections.")
 
+        if self.observatory == "APO":
+            await self._correct_apo(data, full=full)
+        else:
+            await self._correct_lco(
+                data,
+                full=full,
+                wait_for_correction=wait_for_correction,
+            )
+
+    async def _correct_apo(self, data: AstrometricSolution, full: bool = False):
+
+        actor_state = self.command.actor.state
+
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
         if abs(data.delta_rot) >= min_isolated:
             self.command.debug("Applying only large rotator correction.")
             coro = apply_axes_correction(
                 self.command,
-                rot=-data.delta_rot,
-                k_rot=None if full is False else 1.0,
+                self.pids,
+                delta_rot=data.delta_rot,
+                full=full,
             )
 
         else:
             coro = apply_axes_correction(
                 self.command,
-                rot=-data.delta_rot,
-                radec=(-data.delta_ra, -data.delta_dec),
-                k_radec=None if full is False else 1.0,
-                k_rot=None if full is False else 1.0,
+                self.pids,
+                delta_radec=(data.delta_ra, data.delta_dec),
+                delta_rot=data.delta_rot,
+                full=full,
             )
 
         correct_tasks: list[Coroutine[Any, Any, Any]] = [coro]
@@ -388,7 +465,7 @@ class Acquisition:
             and data.focus_coeff[0] > 0
         ):
             do_focus = True
-            coro = apply_focus_correction(self.command, -data.delta_focus, k_focus=None)
+            coro = apply_focus_correction(self.command, self.pids, data.delta_focus)
             correct_tasks.append(coro)
         else:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
@@ -402,6 +479,50 @@ class Acquisition:
             data.correction_applied[4] = applied_corrections[1] or 0.0
         else:
             data.correction_applied[4] = 0.0
+
+        self.command.info(
+            acquisition_valid=True,
+            did_correct=any(data.correction_applied),
+            correction_applied=data.correction_applied,
+        )
+
+    async def _correct_lco(
+        self,
+        data: AstrometricSolution,
+        full: bool = False,
+        wait_for_correction: bool = True,
+    ):
+
+        do_focus: bool = False
+
+        enabled_axes = self.command.actor.state.enabled_axes
+
+        # Ignore focus correction when the r2 correlation is bad or when we got
+        # an inverted parabola.
+        if (
+            data.focus_r2 > config["acquisition"]["focus_r2_threshold"]
+            and data.focus_coeff[0] > 0
+            and "focus" in enabled_axes
+        ):
+            do_focus = True
+        else:
+            self.command.warning("Focus fit poorly constrained. Not correcting focus.")
+
+        self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
+
+        applied_corrections: Any = await apply_correction_lco(
+            self.command,
+            self.pids,
+            delta_radec=(data.delta_ra, data.delta_dec),
+            delta_rot=data.delta_rot,
+            delta_focus=data.delta_focus if do_focus else None,
+            full=full,
+            wait_for_correction=wait_for_correction,
+        )
+
+        self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
+
+        data.correction_applied = applied_corrections
 
         self.command.info(
             acquisition_valid=True,
@@ -445,16 +566,16 @@ class Acquisition:
 
         camera_id = int(ext_data.camera[-1])
         radec_centre = gfa_to_radec(
+            ext_data.observatory,
             1024,
             1024,
             camera_id,
             ext_data.field_ra,
             ext_data.field_dec,
             position_angle=ext_data.field_pa,
-            site_name=ext_data.observatory,
         )
 
-        proc = await self.astrometry.run(
+        proc = await self.astrometry.run_async(
             [gfa_xyls_path],
             stdout=outfile_root.with_suffix(".stdout"),
             stderr=outfile_root.with_suffix(".stderr"),
@@ -462,7 +583,7 @@ class Acquisition:
             dec=radec_centre[1],
         )
 
-        acq_data = AcquisitionData(ext_data, solve_time=proc.elapsed)
+        acq_data = AcquisitionData(ext_data.camera, ext_data, solve_time=proc.elapsed)
 
         if wcs_output.exists():
             acq_data.solved = True
@@ -470,8 +591,8 @@ class Acquisition:
             acq_data.wcs = wcs
 
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
-            acq_data.camera_racen = numpy.round(racen, 6)
-            acq_data.camera_deccen = numpy.round(deccen, 6)
+            acq_data.camera_racen = float(numpy.round(racen, 6))
+            acq_data.camera_deccen = float(numpy.round(deccen, 6))
 
             # TODO: consider parallactic angle here.
             cd: numpy.ndarray = wcs.wcs.cd
@@ -482,15 +603,16 @@ class Acquisition:
 
             # Rotation is from N to E to the x and y axes of the GFA.
             yrot, xrot = numpy.rad2deg(rot_rad)
-            acq_data.xrot = numpy.round(xrot % 360.0, 3)
-            acq_data.yrot = numpy.round(yrot % 360.0, 3)
+            acq_data.xrot = float(numpy.round(xrot % 360.0, 3))
+            acq_data.yrot = float(numpy.round(yrot % 360.0, 3))
 
             # Calculate field rotation.
-            camera_rot = config["cameras"]["rotation"][acq_data.camera]
+            cameras = config["cameras"]
+            camera_rot = cameras["rotation"][acq_data.camera]
             rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
             rotation[rotation > 180.0] -= 360.0
             rotation = numpy.mean(rotation)
-            acq_data.rotation = numpy.round(rotation, 3)
+            acq_data.rotation = float(numpy.round(rotation, 3))
 
         self.command.info(
             camera_solution=[
@@ -574,28 +696,33 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     guide_loop = guider_state.guide_loop
 
     enabled_axes = guider_state.enabled_axes
-    enabled_radec = "radec" in enabled_axes
+    enabled_ra = "ra" in enabled_axes
+    enabled_dec = "dec" in enabled_axes
     enabled_rot = "rot" in enabled_axes
     enabled_focus = "focus" in enabled_axes
 
     cra, cdec, crot, cscl, cfoc = data.correction_applied
 
-    radec_pid_k = guide_loop["radec"]["pid"]["k"]
-    radec_pid_td = guide_loop["radec"]["pid"].get("Td", 0.0)
-    radec_pid_ti = guide_loop["radec"]["pid"].get("Ti", 0.0)
+    ra_pid_k = guide_loop["ra"]["pid"]["k"]
+    ra_pid_td = guide_loop["ra"]["pid"].get("td", 0.0)
+    ra_pid_ti = guide_loop["ra"]["pid"].get("ti", 0.0)
+
+    dec_pid_k = guide_loop["dec"]["pid"]["k"]
+    dec_pid_td = guide_loop["dec"]["pid"].get("td", 0.0)
+    dec_pid_ti = guide_loop["dec"]["pid"].get("ti", 0.0)
 
     rot_pid_k = guide_loop["rot"]["pid"]["k"]
-    rot_pid_td = guide_loop["rot"]["pid"].get("Td", 0.0)
-    rot_pid_ti = guide_loop["rot"]["pid"].get("Ti", 0.0)
+    rot_pid_td = guide_loop["rot"]["pid"].get("td", 0.0)
+    rot_pid_ti = guide_loop["rot"]["pid"].get("ti", 0.0)
 
     focus_pid_k = guide_loop["focus"]["pid"]["k"]
-    focus_pid_td = guide_loop["focus"]["pid"].get("Td", 0.0)
-    focus_pid_ti = guide_loop["focus"]["pid"].get("Ti", 0.0)
+    focus_pid_td = guide_loop["focus"]["pid"].get("td", 0.0)
+    focus_pid_ti = guide_loop["focus"]["pid"].get("ti", 0.0)
 
     if "scale" in guide_loop:
         scale_pid_k = guide_loop["scale"]["pid"]["k"]
-        scale_pid_td = guide_loop["scale"]["pid"].get("Td", 0.0)
-        scale_pid_ti = guide_loop["scale"]["pid"].get("Ti", 0.0)
+        scale_pid_td = guide_loop["scale"]["pid"].get("td", 0.0)
+        scale_pid_ti = guide_loop["scale"]["pid"].get("ti", 0.0)
     else:
         scale_pid_k = 0.0
         scale_pid_td = 0.0
@@ -615,9 +742,14 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
             header = hdus[1].header
 
             header["EXTMETH"] = (a_data.e_data.algorithm, "Algorithm for star finding")
-            header["RADECK"] = (radec_pid_k, "PID K term for RA/Dec")
-            header["RADECTD"] = (radec_pid_td, "PID Td term for RA/Dec")
-            header["RADECTI"] = (radec_pid_ti, "PID Ti term for RA/Dec")
+
+            header["RAK"] = (ra_pid_k, "PID K term for RA")
+            header["RATD"] = (ra_pid_td, "PID Td term for RA")
+            header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
+
+            header["DECK"] = (dec_pid_k, "PID K term for Dec")
+            header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
+            header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
 
             header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
             header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
@@ -636,7 +768,8 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
 
             header["RMS"] = (rms, "Guide RMS [arcsec]")
 
-            header["E_RADEC"] = (enabled_radec, "RA/Dec corrections enabled?")
+            header["E_RA"] = (enabled_ra, "RA corrections enabled?")
+            header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
             header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
             header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
             header["E_SCL"] = (False, "Scale corrections enabled?")

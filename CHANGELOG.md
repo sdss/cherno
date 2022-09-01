@@ -1,5 +1,18 @@
 # Changelog
 
+## Next version
+
+## 🚀 New
+
+* [#5](https://github.com/sdss/cherno/issues/5) Merge LCO changes.
+* Split configuration between APO and LCO.
+* Various changes to account for differences at LCO.
+* Add `lcotcc.py` to apply corrections at LCO.
+* Move most of the astrometry.net and fitting code to `coordio`.
+* Implement full PID loop with `K`, `Ti` and `Td` terms.
+* Separate RA/Dec corrections and PID coefficients.
+
+
 ## 0.2.0 - August 31, 2022
 
 ### 🚀 New

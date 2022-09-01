@@ -6,6 +6,8 @@
 # @Filename: __main__.py
 # @License: BSD 3-clause (http://www.opensource.org/licenses/BSD-3-Clause)
 
+from __future__ import annotations
+
 import asyncio
 import os
 import signal
@@ -32,16 +34,22 @@ async def shutdown(signal, loop, actor):
 
 @click.group(cls=DefaultGroup, default="actor", default_if_no_args=True)
 @click.option(
+    "-o",
+    "--observatory",
+    type=str,
+    help="Observatory configuration to use. Defaults to using $OBSERVATORY.",
+)
+@click.option(
     "-v",
     "--verbose",
     count=True,
     help="Debug mode. Use additional v for more details.",
 )
 @click.pass_context
-def cherno(ctx, verbose):
+def cherno(ctx, verbose: bool = False, observatory: str | None = None):
     """Cherno CLI."""
 
-    ctx.obj = {"verbose": verbose}
+    ctx.obj = {"verbose": verbose, "observatory": observatory}
 
 
 @cherno.group(cls=DaemonGroup, prog="cherno_actor", workdir=os.getcwd())
@@ -50,7 +58,12 @@ def cherno(ctx, verbose):
 async def actor(ctx):
     """Runs the actor."""
 
-    config_file = os.path.join(os.path.dirname(__file__), "etc/cherno.yml")
+    observatory = ctx.obj["observatory"] or os.environ["OBSERVATORY"]
+
+    config_file = os.path.join(
+        os.path.dirname(__file__),
+        f"etc/cherno_{observatory}.yml",
+    )
 
     cherno_actor = ChernoActor.from_config(config_file)
 
