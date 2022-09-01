@@ -66,6 +66,12 @@ __all__ = ["acquire"]
     is_flag=True,
     help="Applies the full correction once. Cannot be used with --continuous.",
 )
+@click.option(
+    "-w",
+    "--wait",
+    type=float,
+    help="Time to wait between iterations.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float | None = None,
@@ -74,6 +80,7 @@ async def acquire(
     apply: bool = True,
     full: bool = False,
     cameras: str | None = None,
+    wait: float | None = None,
 ):
     """Runs the acquisition procedure."""
 
@@ -96,12 +103,13 @@ async def acquire(
             command.actor.state.exposure_time = exposure_time
 
     acquisition = Acquisition(config["observatory"])
+    command.actor.state._acquisition_obj = acquisition  # To update PID coeffs.
 
     callback = partial(
         acquisition.process,
         correct=apply,
         full_correction=full,
-        scale_rms=True,
+        wait_for_correction=(wait is None),
     )
     exposer = Exposer(command, callback=callback)
 
@@ -111,6 +119,7 @@ async def acquire(
             count=count if continuous is False else None,
             timeout=25,
             names=names,
+            delay=wait or 0.0,
         )
     except ExposerError as err:
         return command.fail(f"Acquisition failed: {err}")

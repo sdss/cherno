@@ -15,7 +15,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import matplotlib.pyplot as plt
 import numpy
@@ -80,7 +80,8 @@ class Extraction:
         **params,
     ):
 
-        self.pixel_scale = pixel_scale or config["pixel_scale"][observatory.upper()]
+        self.observatory = observatory.upper()
+        self.pixel_scale = pixel_scale or config["pixel_scale"]
 
         self.params = deepcopy(config["extraction"])
         self.params.update(params)
@@ -132,12 +133,16 @@ class Extraction:
         regions["mjd"] = mjd
         regions["exposure"] = exp_no
         regions["camera"] = cam_no
+        regions["fwhm_valid"] = 1
 
         if len(regions) > 0 and self.params["rejection_method"] is not None:
             self.reject(regions)
 
         # Prevent NaNs here since this is output to the headers.
-        fwhm_median = numpy.round(regions.loc[regions.valid == 1].fwhm.median(), 3)
+        valid = regions.loc[regions.fwhm_valid == 1]
+        perc_50 = numpy.percentile(valid.fwhm, 50)
+        fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
+        fwhm_median_round = float(numpy.round(fwhm_median, 3))
         if numpy.isnan(fwhm_median):
             fwhm_median = -999.0
 
@@ -156,7 +161,7 @@ class Extraction:
             regions=regions,
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
-            fwhm_median=fwhm_median,
+            fwhm_median=fwhm_median_round,
             focus_offset=config["cameras"]["focus_offset"][camera],
         )
 
@@ -391,6 +396,8 @@ class Extraction:
 
         for index, row in regions.iterrows():
 
+            index = cast(Any, index)
+
             # Ignore detections that we have already marked as invalid in SExtractor.
             if row.valid == 0:
                 continue
@@ -475,28 +482,32 @@ class Extraction:
             # plt.close("all")
 
             regions.loc[index, "gaussian_fit"] = int(gauss_valid)
-            regions.loc[index, ["x_gaussian", "y_gaussian"]] = gauss_centroids[::-1]
-            regions.loc[index, "fwhm_gaussian"] = numpy.mean(gauss_fwhm)
+            regions.loc[index, "x_gaussian"] = gauss_centroids[::-1][0]
+            regions.loc[index, "y_gaussian"] = gauss_centroids[::-1][1]
+            regions.loc[index, "fwhm_gaussian"] = float(numpy.mean(gauss_fwhm))
             gauss_residual_mean = (numpy.array(gauss_residual) ** 2).sum() ** 0.5
             regions.loc[index, "residual_gaussian"] = gauss_residual_mean
 
             regions.loc[index, "trapezoid_fit"] = int(trap_valid)
-            regions.loc[index, ["x_trapezoid", "y_trapezoid"]] = trap_centroids[::-1]
-            regions.loc[index, "fwhm_trapezoid"] = numpy.mean(trap_fwhm)
+            regions.loc[index, "x_trapezoid"] = trap_centroids[::-1][0]
+            regions.loc[index, "y_trapezoid"] = trap_centroids[::-1][1]
+            regions.loc[index, "fwhm_trapezoid"] = float(numpy.mean(trap_fwhm))
             trap_residual_mean = (numpy.array(trap_residual) ** 2).sum() ** 0.5
             regions.loc[index, "residual_trapezoid"] = trap_residual_mean
 
             if not gauss_valid and not trap_valid:
                 continue
             elif gauss_valid and gauss_residual_mean <= trap_residual_mean:
-                regions.loc[index, ["x_fit", "y_fit"]] = gauss_centroids[::-1]
-                regions.loc[index, ["fwhm"]] = numpy.mean(gauss_fwhm)
-                regions.loc[index, ["residual_fit"]] = gauss_residual_mean
+                regions.loc[index, "x_fit"] = gauss_centroids[::-1][0]
+                regions.loc[index, "y_fit"] = gauss_centroids[::-1][1]
+                regions.loc[index, "fwhm"] = float(numpy.mean(gauss_fwhm))
+                regions.loc[index, "residual_fit"] = gauss_residual_mean
                 regions.loc[index, "model_fit"] = "g"
             else:
-                regions.loc[index, ["x_fit", "y_fit"]] = trap_centroids[::-1]
-                regions.loc[index, ["fwhm"]] = numpy.mean(trap_fwhm)
-                regions.loc[index, ["residual_fit"]] = trap_residual_mean
+                regions.loc[index, "x_fit"] = trap_centroids[::-1][0]
+                regions.loc[index, "y_fit"] = trap_centroids[::-1][1]
+                regions.loc[index, "fwhm"] = float(numpy.mean(trap_fwhm))
+                regions.loc[index, "residual_fit"] = trap_residual_mean
                 regions.loc[index, "model_fit"] = "t"
 
         regions.loc[regions.model_fit == "", "valid"] = 0
@@ -529,7 +540,7 @@ class Extraction:
             sigma = self.params.get("reject_sigma", 3.0)
             sigma_clip = SigmaClip(sigma, cenfunc="median")
             masked: Any = sigma_clip(fwhm, masked=True)
-            regions.loc[masked.mask, "valid"] = 0
+            regions.loc[masked.mask, "fwhm_valid"] = 0
 
         elif method == "nreject":
             nreject = self.params.get("nreject", 3)
@@ -547,7 +558,7 @@ class Extraction:
                 else:
                     nreject = nreject // 2
 
-            regions.loc[~regions.index.isin(valid.index), "valid"] = 0
+            regions.loc[~regions.index.isin(valid.index), "fwhm_valid"] = 0
 
         else:
             raise ValueError(f"Invalid rejection method {method!r}.")

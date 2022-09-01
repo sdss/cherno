@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from typing import TYPE_CHECKING
+
 import clu
 from clu.legacy import TronKey
 
@@ -19,10 +21,16 @@ from cherno import __version__, config
 from cherno.maskbits import CameraStatus, GuiderStatus
 
 
+if TYPE_CHECKING:
+    from cherno.acquisition import Acquisition
+
+
 class ChernoActor(clu.LegacyActor):
     """The Cherno SDSS-style actor."""
 
     def __init__(self, *args, **kwargs):
+
+        self.observatory: str = config["observatory"].upper()
 
         models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
 
@@ -76,10 +84,19 @@ class ChernoState:
     enabled_axes: list = field(default_factory=list)
     scale_history: list = field(default_factory=list)
 
+    _acquisition_obj: Acquisition | None = None
+
     def __post_init__(self):
-        self.guide_loop = config["guide_loop"].copy()
+
+        self.observatory = self.actor.observatory
         self.enabled_cameras = config["cameras"]["names"].copy()
-        self.enabled_axes = ["radec", "rot", "focus"]
+        self.enabled_axes = config["enabled_axes"].copy()
+
+        self.guide_loop = config["guide_loop"].copy()
+        for axis in ["ra", "dec", "rot", "focus"]:
+            for term in ["td", "ti"]:
+                if term not in self.guide_loop[axis]["pid"]:
+                    self.guide_loop[axis]["pid"][term] = 0.0
 
     def set_status(self, new_status: GuiderStatus, mode="override", report=True):
         """Sets the status and broadcasts it."""

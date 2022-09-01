@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from cherno import config
+
 from . import ChernoCommandType, cherno_parser
 
 
@@ -20,11 +22,18 @@ async def status(command: ChernoCommandType):
 
     command.info(guider_status=hex(command.actor.state.status.value))
     command.info(enabled_axes=command.actor.state.enabled_axes)
+
+    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+    command.info(default_offset=default_offset)
     command.info(offset=command.actor.state.offset)
 
-    for axis in ["radec", "rot", "focus"]:
+    for axis in ["ra", "dec", "rot", "focus"]:
         command.info(
-            message={f"pid_{axis}": [command.actor.state.guide_loop[axis]["pid"]["k"]]}
+            message={
+                f"pid_{axis}": list(
+                    command.actor.state.guide_loop[axis]["pid"].values()
+                )
+            }
         )
 
     return command.finish()
