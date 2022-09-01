@@ -203,7 +203,10 @@ class Extraction:
         return output_dir / basename
 
     def _process_sextractor(
-        self, data: numpy.ndarray, path: pathlib.Path, plot: bool | None = None
+        self,
+        data: numpy.ndarray,
+        path: pathlib.Path,
+        plot: bool | None = None,
     ):
         """Process image data using SExtractor."""
 
@@ -244,8 +247,7 @@ class Extraction:
             regions = regions.loc[regions.valid == 1, :]
             regions = regions.head(self.params["max_stars"])
 
-        regions = calculate_fwhm_from_ellipse(regions)
-        regions.fwhm *= self.pixel_scale
+        regions = calculate_fwhm_from_ellipse(regions, self.pixel_scale)
 
         if plot:
             data_back = data - back.back()
@@ -535,8 +537,25 @@ class Extraction:
 
         method = self.params.get("rejection_method", "sigclip")
 
+        if self.star_finder in ["sextractor", "marginal"]:
+
+            # Filter out bad FWHM values.
+            ecc = numpy.sqrt(regions.a**2 - regions.b**2) / regions.a
+
+            filter = (
+                ((regions.a * self.pixel_scale) < 5)
+                & ((regions.a * self.pixel_scale) > 0.4)
+                & (regions.cpeak < 60000)
+                & (ecc < 0.7)
+            )
+
+            regions.loc[~filter, "fwhm_valid"] = 0
+
         if method == "sigclip":
-            fwhm = numpy.ma.array(regions.fwhm.values, mask=(regions.valid == 0))
+            fwhm = numpy.ma.array(
+                regions.fwhm.values,
+                mask=((regions.valid == 0) | (regions.fwhm_valid == 0)),
+            )
             sigma = self.params.get("reject_sigma", 3.0)
             sigma_clip = SigmaClip(sigma, cenfunc="median")
             masked: Any = sigma_clip(fwhm, masked=True)
@@ -628,6 +647,7 @@ class Extraction:
 
 def calculate_fwhm_from_ellipse(
     regions: pandas.DataFrame,
+    pixel_scale: float,
     a_col: str = "a",
     b_col: str = "b",
 ):
@@ -638,6 +658,8 @@ def calculate_fwhm_from_ellipse(
     regions
         The pandas data frame with the list of regions. Usually an output from
         ``sep``. Must include columns ``valid``, ``a``, and ``b``.
+    pixel_scale
+        The pixel scale in arcsec per pixel.
     a_col
         Column with the semi-major axis measurement.
     b_col
@@ -651,10 +673,8 @@ def calculate_fwhm_from_ellipse(
 
     """
 
-    fwhm = numpy.max(numpy.array([regions[a_col] * 2, regions[b_col] * 2]), axis=0)
-
-    # From Dylan
-    # fwhm = 2 * numpy.sqrt(numpy.log(2) * (regions[a_col] ** 2 + regions[b_col] ** 2))
+    fwhm_pixel = 2 * (numpy.log(2) * (regions[a_col] ** 2 + regions[b_col] ** 2)) ** 0.5
+    fwhm = pixel_scale * fwhm_pixel
 
     regions = regions.copy()
     regions["fwhm"] = fwhm
