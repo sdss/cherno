@@ -14,8 +14,8 @@ actor:
   log_dir: /data/logs/actors/cherno
 
 cameras:
-  path: /data/gcam/
   names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
+  path: /data/gcam/
   focus_offset:
     gfa1: -35.5
     gfa2: -305
@@ -38,17 +38,16 @@ cameras:
     gfa5: 1
     gfa6: 1
 
-pixel_scale: 0.216
+pixel_scale:
+  APO: 0.216
+  LCO: 0.216
 
-focus_sensitivity: 5.94
+focus_sensitivity:
+  APO: 5.94
+  LCO: 7.25
 
 guide_loop:
-  ra:
-    pid:
-      k: 0.7
-    min_correction: 0.05
-    max_correction: 600
-  dec:
+  radec:
     pid:
       k: 0.7
     min_correction: 0.05
@@ -64,8 +63,6 @@ guide_loop:
       k: 0.3
     min_correction: 10
     max_correction: 200
-
-enabled_axes: ['ra', 'dec', 'rot', 'focus']
 
 acquisition:
   cpulimit: 15

@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import click
 
-from cherno import config
-
 from . import ChernoCommandType, cherno_parser
 
 
@@ -43,6 +41,4 @@ async def offset(
     assert command.actor
     command.actor.state.offset = (ra, dec, pa)
 
-    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
-
-    return command.finish(offset=[ra, dec, pa], default_offset=default_offset)
+    return command.finish(offset=[ra, dec, pa])

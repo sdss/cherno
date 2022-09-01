@@ -23,8 +23,8 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
     Valid parameters are:
         exposure-time [EXPTIME]
-        pid ra|dec|rot|focus k|ti|td [VALUE]
-        axes [ra dec rot off]
+        pid radec|rot k [VALUE]
+        axes [radec rot off]
         cameras CAMERAS
 
     """
@@ -46,36 +46,17 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
             return command.fail("Invalid number of parameters")
 
         axis = options[1]
-        term = options[2].lower()
+        component = options[2]
         value = float(options[3])
 
-        if axis not in ["ra", "dec", "rot", "focus"]:
+        if axis not in ["radec", "rot", "focus"]:
             return command.fail(f"Invalid axis {axis}.")
 
-        if term not in ["k", "ti", "td"]:
-            return command.fail(f"Invalid term {term}.")
+        if value <= 0 or value > 1:
+            return command.fail("Invalid value. Must be between 0 and 1.")
 
-        command.actor.state.guide_loop[axis]["pid"][term] = value
-
-        command.info(
-            message={
-                f"pid_{axis}": [
-                    command.actor.state.guide_loop[axis]["pid"][t]
-                    for t in ["k", "ti", "td"]
-                ]
-            }
-        )
-
-        if command.actor.state._acquisition_obj:
-            # This is what actually changes the PID loop during an exposure.
-            pid_attr = getattr(command.actor.state._acquisition_obj.pids, axis)
-            if term == "k":
-                pid_attr.Kp = value
-            elif term == "ti":
-                pid_attr.Ki = value
-            elif term == "td":
-                pid_attr.Kd = value
-            pid_attr.reset()
+        command.info(message={f"pid_{axis}": [value]})
+        command.actor.state.guide_loop[axis]["pid"][component] = value
 
     elif options[0] == "axes":
 
