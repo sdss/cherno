@@ -1,6 +1,3 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
 name: Test
 
 on:
@@ -33,40 +30,42 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Install HDF5
+        run: sudo apt-get install libhdf5-serial-dev
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install HDF5
-        run: sudo apt-get install libhdf5-serial-dev
-
-      - name: Setup poetry
-        uses: abatilo/actions-poetry@master
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          poetry install
+          pip install .
 
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          poetry run flake8 . --count --show-source --statistics
-
-      - name: Lint with black
-        run: |
-          poetry run black --check .
+          pip install flake8
+          flake8 . --count --show-source --statistics
 
       - name: Lint with isort
         run: |
-          poetry run isort -c cherno
+          pip install isort
+          isort -c python/
+
+      - name: Lint with black
+        run: |
+          pip install black
+          black --check python/
+          black --check tests/
 
       - name: Test with pytest
         run: |
-          poetry run pytest
+          pip install pytest pytest-mock pytest-asyncio pytest-cov pyserial-asyncio
+          pytest
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           file: ./coverage.xml
