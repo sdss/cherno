@@ -182,7 +182,7 @@ class Acquisition:
         correct: bool = True,
         full_correction: bool = False,
         offset: list[float] | None = None,
-        scale_rms: bool = False,
+        scale_rms: bool = True,
         wait_for_correction: bool = True,
     ):
         """Performs extraction and astrometry."""
