@@ -45,7 +45,25 @@ async def apply_correction_lco(
     corr_rot: float = 0.0
     corr_focus: float = 0.0
 
-    if delta_radec is not None:
+    if delta_rot is not None and "rot" in enabled_axes:
+
+        if full:
+            corr_rot = -delta_rot
+        else:
+            corr_rot = pids.rot(delta_rot) or 0.0
+
+        min_corr_arcsec = guide_loop["rot"]["min_correction"]
+        max_corr_arcsec = guide_loop["rot"]["max_correction"]
+
+        if numpy.abs(corr_rot) < min_corr_arcsec:
+            command.debug("Skipping small rotator correction.")
+            corr_rot = 0.0
+        elif numpy.abs(corr_rot) > max_corr_arcsec:
+            raise ChernoError(f"Rotator correction too large: {corr_rot:.1f}.")
+
+        corr_rot /= 3600
+
+    if corr_rot == 0.0 and delta_radec is not None:
 
         for ax_idx, ax in enumerate(["ra", "dec"]):
             if ax not in enabled_axes:
@@ -67,24 +85,6 @@ async def apply_correction_lco(
                 raise ChernoError(f"{ax.upper()} correction too large: {corr_ax:.2f}.")
 
             corr_radec[ax_idx] = corr_ax / 3600
-
-    if delta_rot is not None and "rot" in enabled_axes:
-
-        if full:
-            corr_rot = -delta_rot
-        else:
-            corr_rot = pids.rot(delta_rot) or 0.0
-
-        min_corr_arcsec = guide_loop["rot"]["min_correction"]
-        max_corr_arcsec = guide_loop["rot"]["max_correction"]
-
-        if numpy.abs(corr_rot) < min_corr_arcsec:
-            command.debug("Skipping small rotator correction.")
-            corr_rot = 0.0
-        elif numpy.abs(corr_rot) > max_corr_arcsec:
-            raise ChernoError(f"Rotator correction too large: {corr_rot:.1f}.")
-
-        corr_rot /= 3600
 
     if delta_focus is not None and "focus" in enabled_axes:
 
