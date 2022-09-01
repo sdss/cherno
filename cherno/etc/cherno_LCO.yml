@@ -77,7 +77,7 @@ extraction:
   output_dir: ./extraction
   star_finder: marginal
   background_sigma: 3.0
-  min_npix: 20
+  min_npix: 10
   plot: false
   rejection_method: sigclip
   reject_sigma: 2.0
