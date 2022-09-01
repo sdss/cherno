@@ -203,7 +203,7 @@ class Acquisition:
         )
 
         for d in ext_data:
-            if d.nvalid < 5:
+            if d.nvalid == 0:
                 self.command.warning(f"Camera {d.camera}: not enough sources.")
             else:
                 self.command.info(
