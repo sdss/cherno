@@ -441,7 +441,7 @@ class Extraction:
 
                     gauss_init = Gaussian1D(
                         amplitude=data_marginal.max(),
-                        stddev=row.fwhm_sextractor / p_scale,
+                        stddev=row.fwhm_sextractor / p_scale / gaussian_sigma_to_fwhm,
                         mean=mid,
                     )
                     g = fitter(gauss_init, x_mesh, data_marginal)
@@ -457,7 +457,7 @@ class Extraction:
                     trap_init = Trapezoid1D(
                         amplitude=data_marginal.max(),
                         x_0=mid,
-                        width=row.fwhm_sextractor / p_scale,
+                        width=row.fwhm_sextractor / p_scale / gaussian_sigma_to_fwhm,
                         slope=0.1,
                     )
                     t = fitter(trap_init, x_mesh, data_marginal)
