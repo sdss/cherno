@@ -219,7 +219,7 @@ class Extraction:
                 fig, ax = plt.subplots()
                 ax.imshow(back, origin="lower")
                 ax.set_title("Background: " + path.parts[-1])
-                ax.set_gid(False)
+                ax.grid(False)
                 fig.savefig(str(output_root) + "-background.pdf")
 
         regions = sep.extract(
