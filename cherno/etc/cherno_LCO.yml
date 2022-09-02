@@ -79,7 +79,7 @@ extraction:
   output_dir: ./extraction
   star_finder: sextractor
   background_sigma: 3.0
-  min_npix: 10
+  min_npix: 15
   plot: false
   rejection_method: sigclip
   reject_sigma: 2.0
