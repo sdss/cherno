@@ -42,12 +42,18 @@ __all__ = ["converge"]
     default=300,
     help="Maximum age, in seconds, of the RMS mesurements.",
 )
+@click.option(
+    "--require-new",
+    is_flag=True,
+    help="Requires that the last RMS measurement is less than 5 seconds old.",
+)
 @timeout(600)
 async def converge(
     command: ChernoCommandType,
     rms: float | None = None,
     iterations: int = 2,
     max_age: float = 300,
+    require_new: bool = True,
 ):
     """Runs until the guide RMS has been below a given threshold for N iterations."""
 
@@ -64,7 +70,9 @@ async def converge(
         kws = [k for k in kws if (datetime.now() - k.date).total_seconds() < max_age]
         values = numpy.array([k.value[-1] for k in kws if len(k.value) > 0])
 
-        if len(values) >= iterations and numpy.all(values <= rms):
-            return command.finish("RMS has been reached.")
+        last_age = (datetime.now() - kws[-1].date).total_seconds()
+        if (not require_new) or (require_new and last_age < 5):
+            if len(values) >= iterations and numpy.all(values <= rms):
+                return command.finish("RMS has been reached.")
 
         await asyncio.sleep(1)
