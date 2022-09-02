@@ -7,6 +7,7 @@ actor:
     - fliswarm
     - tcc
     - mcp
+  store: ['guide_rms']
   verbose: 30
   tron_host: sdss5-hub
   tron_port: 6093

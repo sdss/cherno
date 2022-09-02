@@ -1173,7 +1173,7 @@ numpy = ">=1.18.5,<1.25.0"
 
 [[package]]
 name = "sdss-clu"
-version = "1.7.0"
+version = "1.8.1"
 description = "A new protocol for SDSS actors."
 category = "main"
 optional = false
@@ -1663,7 +1663,7 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9,<3.11"
-content-hash = "b54ae85a0e0d5bfdaee2de1c70a0066b18d875a5e0b36f9fedff61da7af7c435"
+content-hash = "94c74256c6902099b3f37ff7a517543f0a6f0e4c555ab3f5e29d2bbd07f0d991"
 
 [metadata.files]
 aio-pika = [
@@ -2744,8 +2744,8 @@ scipy = [
     {file = "scipy-1.9.1.tar.gz", hash = "sha256:26d28c468900e6d5fdb37d2812ab46db0ccd22c63baa095057871faa3a498bc9"},
 ]
 sdss-clu = [
-    {file = "sdss-clu-1.7.0.tar.gz", hash = "sha256:b98142c902565251ba7f8b54bb82f79c8746c9ab72bae66b313bf4a436489c26"},
-    {file = "sdss_clu-1.7.0-py3-none-any.whl", hash = "sha256:c63668978c375eb781cd15ed15ea893abbc29dfd2e8dc57b07e2f7bc929af087"},
+    {file = "sdss-clu-1.8.1.tar.gz", hash = "sha256:bb8a3ad42ca5391cadcc12a5855829a8a1aed2bbfb0a2124d174eee6c6557b94"},
+    {file = "sdss_clu-1.8.1-py3-none-any.whl", hash = "sha256:cd3d3471e456a04f402f906a5ec1579db3d030b9031f735781b661f0d22acd06"},
 ]
 sdss-coordio = [
     {file = "sdss-coordio-1.4.1.tar.gz", hash = "sha256:cd0679d7e278f3fba4d6d6f4779d958064ef8e1415386236da1f153cdead6d91"},
