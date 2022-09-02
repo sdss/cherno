@@ -29,7 +29,7 @@ cherno = "cherno.__main__:cherno"
 [tool.poetry.dependencies]
 python = "^3.9,<3.11"
 sdsstools = ">=0.1.0"
-sdss-clu = "^1.0.0"
+sdss-clu = "^1.8.0"
 sdssdb = ">=0.4.3"
 numpy = "^1.19.2"
 astropy = ">=4.0.0"

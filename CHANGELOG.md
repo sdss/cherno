@@ -11,6 +11,7 @@
 * Move most of the astrometry.net and fitting code to `coordio`.
 * Implement full PID loop with `K`, `Ti` and `Td` terms.
 * Separate RA/Dec corrections and PID coefficients.
+* Added `converge` command.
 
 
 ## 0.2.0 - August 31, 2022
