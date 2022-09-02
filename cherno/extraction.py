@@ -606,7 +606,7 @@ class Extraction:
             fig, ax = plt.subplots()
 
         ax.set_title(title or path.parts[-1])
-        ax.set_gid(False)
+        ax.grid(False)
 
         # Image
         ax.imshow(data, origin="lower", cmap="gray", vmin=vmin, vmax=vmax)
