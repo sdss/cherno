@@ -22,8 +22,10 @@ async def show(command: ChernoCommandType):
 
     assert command.actor
 
+    skip_fields = ["actor", "camera_state", "scale_history"]
+
     for field in command.actor.state.__dataclass_fields__:
-        if field in ["actor", "camera_state", "scale_history", "_acquisition_obj"]:
+        if field in skip_fields or field.startswith("_"):
             continue
         lines = pformat(getattr(command.actor.state, field), width=60).splitlines()
         for nline, line in enumerate(lines):

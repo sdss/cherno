@@ -16,6 +16,7 @@
 ## ✨ Improved
 
 * Added an option to tweak the odds for astrometry.net to find a solution.
+* Added option `--no-block` to `cherno acquire`.
 
 
 ## 0.2.0 - August 31, 2022

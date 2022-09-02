@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass, field
 
@@ -86,6 +87,7 @@ class ChernoState:
     astrometry_net_odds: float = 1e9
 
     _acquisition_obj: Acquisition | None = None
+    _exposure_loop: asyncio.Task | None = None
 
     def __post_init__(self):
 

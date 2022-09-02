@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from functools import partial
 
 from typing import TYPE_CHECKING
@@ -72,6 +73,11 @@ __all__ = ["acquire"]
     type=float,
     help="Time to wait between iterations.",
 )
+@click.option(
+    "--no-block",
+    is_flag=True,
+    help="Returns immediatly after starting the acquisition loop.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float | None = None,
@@ -81,6 +87,7 @@ async def acquire(
     full: bool = False,
     cameras: str | None = None,
     wait: float | None = None,
+    no_block: bool = False,
 ):
     """Runs the acquisition procedure."""
 
@@ -88,6 +95,11 @@ async def acquire(
 
     if count is not None and continuous is True:
         return command.fail("--count and --continuous are incompatible.")
+
+    _exposure_loop = command.actor.state._exposure_loop
+    if _exposure_loop is not None and not _exposure_loop.done():
+        command.warning("An active Exposer loop was found. Cancelling it.")
+        _exposure_loop.cancel()
 
     count = count or 1
 
@@ -113,15 +125,22 @@ async def acquire(
     )
     exposer = Exposer(command, callback=callback)
 
-    try:
-        await exposer.loop(
+    command.actor.state._exposure_loop = asyncio.create_task(
+        exposer.loop(
             None,
             count=count if continuous is False else None,
             timeout=25,
             names=names,
             delay=wait or 0.0,
         )
-    except ExposerError as err:
-        return command.fail(f"Acquisition failed: {err}")
+    )
+
+    if not no_block:
+        try:
+            await command.actor.state._exposure_loop
+        except ExposerError as err:
+            return command.fail(f"Acquisition failed: {err}")
+    else:
+        return command.finish("Finishing due to --no-block. The guide loop is running.")
 
     return command.finish()
