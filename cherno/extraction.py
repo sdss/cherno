@@ -143,8 +143,8 @@ class Extraction:
         perc_50 = numpy.percentile(valid.fwhm, 50)
         fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
         fwhm_median_round = float(numpy.round(fwhm_median, 3))
-        if numpy.isnan(fwhm_median):
-            fwhm_median = -999.0
+        if numpy.isnan(fwhm_median_round):
+            fwhm_median_round = -999.0
 
         extraction_data = ExtractionData(
             str(image),
