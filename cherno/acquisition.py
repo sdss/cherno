@@ -581,6 +581,7 @@ class Acquisition:
             stderr=outfile_root.with_suffix(".stderr"),
             ra=radec_centre[0],
             dec=radec_centre[1],
+            odds_to_solve=10**self.command.actor.state.astrometry_net_odds,
         )
 
         acq_data = AcquisitionData(ext_data.camera, ext_data, solve_time=proc.elapsed)

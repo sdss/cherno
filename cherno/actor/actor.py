@@ -83,6 +83,7 @@ class ChernoState:
     enabled_cameras: list = field(default_factory=list)
     enabled_axes: list = field(default_factory=list)
     scale_history: list = field(default_factory=list)
+    astrometry_net_odds: float = 1e9
 
     _acquisition_obj: Acquisition | None = None
 
@@ -91,6 +92,7 @@ class ChernoState:
         self.observatory = self.actor.observatory
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = config["enabled_axes"].copy()
+        self.astrometry_net_odds = config["acquisition"]["astrometry_net_odds"]
 
         self.guide_loop = config["guide_loop"].copy()
         for axis in ["ra", "dec", "rot", "focus"]:

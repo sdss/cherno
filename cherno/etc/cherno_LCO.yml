@@ -73,6 +73,7 @@ acquisition:
   astrometry_dir: ./astrometry
   focus_r2_threshold: 0.2
   plot_focus: true
+  astrometry_net_odds: 9
 
 extraction:
   output_dir: ./extraction

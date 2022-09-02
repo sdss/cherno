@@ -26,6 +26,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         pid ra|dec|rot|focus k|ti|td [VALUE]
         axes [ra dec rot off]
         cameras CAMERAS
+        odds 1-10
 
     """
 
@@ -93,6 +94,16 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
 
         cameras = options[1:]
         command.actor.state.enabled_cameras = list(cameras)
+
+    elif options[0] == "odds":
+        if len(options) != 2:
+            return command.fail("Invalid number of parameters")
+
+        odds = int(options[1])
+        if odds < 1 or odds > 10:
+            return command.fail("Invalid odds value. Valid range is 1-10.")
+
+        command.actor.state.astrometry_net_odds = odds
 
     else:
         return command.fail("Invalid parameter.")

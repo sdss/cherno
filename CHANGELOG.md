@@ -13,6 +13,10 @@
 * Separate RA/Dec corrections and PID coefficients.
 * Added `converge` command.
 
+## ✨ Improved
+
+* Added an option to tweak the odds for astrometry.net to find a solution.
+
 
 ## 0.2.0 - August 31, 2022
 
