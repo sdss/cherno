@@ -138,12 +138,17 @@ class Extraction:
         if len(regions) > 0 and self.params["rejection_method"] is not None:
             self.reject(regions)
 
-        # Prevent NaNs here since this is output to the headers.
         valid = regions.loc[regions.fwhm_valid == 1]
-        perc_50 = numpy.percentile(valid.fwhm, 50)
-        fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
-        fwhm_median_round = float(numpy.round(fwhm_median, 3))
-        if numpy.isnan(fwhm_median_round):
+
+        if len(valid) > 0:
+            perc_50 = numpy.percentile(valid.fwhm, 50)
+            fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
+            fwhm_median_round = float(numpy.round(fwhm_median, 3))
+
+            # Prevent NaNs here since this is output to the headers.
+            if numpy.isnan(fwhm_median_round):
+                fwhm_median_round = -999.0
+        else:
             fwhm_median_round = -999.0
 
         extraction_data = ExtractionData(
