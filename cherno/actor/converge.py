@@ -18,6 +18,7 @@ from clu.parsers.click import (
     cancel_command,
     get_current_command_name,
     get_running_tasks,
+    timeout,
 )
 
 from . import ChernoCommandType, cherno_parser
@@ -26,8 +27,8 @@ from . import ChernoCommandType, cherno_parser
 __all__ = ["converge"]
 
 
-@cherno_parser.command(cancellable=True)
-@click.argument("RMS", type=float, required=False)
+@cherno_parser.command()
+@click.argument("RMS", type=float)
 @click.option(
     "-n",
     "--iterations",
@@ -41,6 +42,7 @@ __all__ = ["converge"]
     default=300,
     help="Maximum age, in seconds, of the RMS mesurements.",
 )
+@timeout(600)
 async def converge(
     command: ChernoCommandType,
     rms: float | None = None,
@@ -48,11 +50,6 @@ async def converge(
     max_age: float = 300,
 ):
     """Runs until the guide RMS has been below a given threshold for N iterations."""
-
-    # We made rms non-required so that --stop works to cancel the command, but it
-    # really is required in all other cases.
-    if rms is None:
-        return command.fail("RMS is required.")
 
     tasks = get_running_tasks(get_current_command_name())
     if tasks and len(tasks) > 1:
@@ -65,9 +62,9 @@ async def converge(
         kws: list = command.actor.store.tail("guide_rms", n=iterations)
 
         kws = [k for k in kws if (datetime.now() - k.date).total_seconds() < max_age]
-        values = numpy.array([k.value for k in kws])
+        values = numpy.array([k.value[-1] for k in kws if len(k.value) > 0])
 
-        if len(kws) >= iterations and numpy.all(values <= rms):
+        if len(values) >= iterations and numpy.all(values <= rms):
             return command.finish("RMS has been reached.")
 
         await asyncio.sleep(1)
