@@ -141,7 +141,10 @@
       ]
     },
     "scale_median": { "type": "number" },
-    "focus_data": { "type": "array", "items": { "type": "number" } }
+    "focus_data": { "type": "array", "items": { "type": "number" } },
+    "coordio_version": { "type": "string" },
+    "fps_calibrations_version": { "type": "string" },
+    "astrometrynet_version": { "type": "string" }
   },
   "additionalProperties": false
 }

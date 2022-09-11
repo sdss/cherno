@@ -26,3 +26,4 @@ from .set import *
 from .show import *
 from .status import *
 from .stop import *
+from .version import *
