@@ -148,7 +148,8 @@ class Acquisition:
             self.astrometry = astrometry
         else:
             pixel_scale = config["pixel_scale"]
-            backend_config = pathlib.Path(__file__).parent / "etc/astrometrynet.cfg"
+            astrometry_net_config = config["acquisition"]["astrometry_net_config"]
+            backend_config = pathlib.Path(__file__).parent / astrometry_net_config
             self.astrometry = AstrometryNet(
                 backend_config=str(backend_config),
                 width=2048,

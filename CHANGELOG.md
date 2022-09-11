@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+## ✨ Improved
+
+* Split astrometry.net configuration for APO and LCO and use index_5200 for APO.
+
+
 ## 0.3.0 - September 11, 2022
 
 ## 🚀 New
