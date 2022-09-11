@@ -76,7 +76,7 @@ sections = ["FUTURE", "STDLIB", "TYPING", "THIRDPARTY", "SDSS", "FIRSTPARTY", "L
 default_section = "THIRDPARTY"
 known_first_party = "cherno"
 known_typing = ["typing"]
-known_sdss = ["clu", "sdsstools", "sdssdb", "coordio"]
+known_sdss = ["clu", "sdsstools", "sdssdb", "coordio", "fps_calibrations"]
 lines_after_imports = 2
 
 [tool.pytest.ini_options]

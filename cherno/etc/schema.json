@@ -144,7 +144,11 @@
     "focus_data": { "type": "array", "items": { "type": "number" } },
     "coordio_version": { "type": "string" },
     "fps_calibrations_version": { "type": "string" },
-    "astrometrynet_version": { "type": "string" }
+    "astrometrynet_version": { "type": "string" },
+    "astrometrynet_index_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
   },
   "additionalProperties": false
 }

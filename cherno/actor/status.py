@@ -8,12 +8,42 @@
 
 from __future__ import annotations
 
+import pathlib
+
+from yaml import warnings
+
 from cherno import config
+from cherno.exceptions import ChernoUserWarning
 
 from . import ChernoCommandType, cherno_parser
 
 
 __all__ = ["status"]
+
+
+def get_astrometrynet_paths():
+    """Returns a list of astrometry.net index paths that cherno will use."""
+
+    astrometry_net_config = config["acquisition"]["astrometry_net_config"]
+    backend_config = pathlib.Path(__file__).parents[1] / astrometry_net_config
+
+    if not backend_config.exists():
+        warnings.warn(
+            "Cannot find astrometry.net backend configuration. "
+            "This is a critical issue.",
+            ChernoUserWarning,
+        )
+        return []
+
+    index_paths: list[str] = []
+    for line in open(backend_config, "r").readlines():
+        line = line.strip()
+        if line.startswith("#"):
+            continue
+        if line.startswith("add_path"):
+            index_paths.append(line.split()[1])
+
+    return index_paths
 
 
 @cherno_parser.command()
@@ -22,6 +52,8 @@ async def status(command: ChernoCommandType):
 
     command.info(guider_status=hex(command.actor.state.status.value))
     command.info(enabled_axes=command.actor.state.enabled_axes)
+
+    command.info(astrometrynet_index_paths=get_astrometrynet_paths())
 
     default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
     command.info(default_offset=default_offset)
