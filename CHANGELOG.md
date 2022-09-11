@@ -2,14 +2,19 @@
 
 ## Next version
 
-## ✨ Improved
+### 🚀 New
+
+* `version` command report the versions of astrometry.net, coordio, and fps_calibrations.
+* `status` now reports the index paths for astrometry.net.
+
+### ✨ Improved
 
 * Split astrometry.net configuration for APO and LCO and use index_5200 for APO.
 
 
 ## 0.3.0 - September 11, 2022
 
-## 🚀 New
+### 🚀 New
 
 * [#5](https://github.com/sdss/cherno/issues/5) Merge LCO changes.
 * Split configuration between APO and LCO.
@@ -20,7 +25,7 @@
 * Separate RA/Dec corrections and PID coefficients.
 * Added `converge` command.
 
-## ✨ Improved
+### ✨ Improved
 
 * Added an option to tweak the odds for astrometry.net to find a solution.
 * Added option `--no-block` to `cherno acquire`.
