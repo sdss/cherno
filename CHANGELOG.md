@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Calculate FWHM from all cameras with `fwhm_median > 0` instead of using cameras solved.
+
+
 ## 0.3.1 - September 11, 2022
 
 ### 🚀 New

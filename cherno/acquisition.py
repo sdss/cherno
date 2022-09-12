@@ -268,7 +268,9 @@ class Acquisition:
             self.command.error(acquisition_valid=False, did_correct=False)
             return ast_solution
 
-        fwhm = numpy.average([d.e_data.fwhm_median for d in solved], weights=weights)
+        fwhm = [d.e_data.fwhm_median for d in data if d.e_data.fwhm_median > 0]
+        fwhm = numpy.average(fwhm)
+
         camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
 
         ast_solution.fwhm_median = numpy.round(float(fwhm), 3)
