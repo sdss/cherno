@@ -312,13 +312,16 @@ class Acquisition:
             self.command.debug(offset=offset)
 
         if only_radec is True:
-            # No message because this is what the user wants.
-            pass
+            self.command.warning(
+                "Only fitting RA/Dec. The rotation and scale offsets "
+                "are informational-only and not corrected."
+            )
         elif auto_radec_min >= 0 and len(solved) <= auto_radec_min:
             only_radec = True
             self.command.warning(
                 f"Only {len(solved)} cameras solved. Only fitting RA/Dec. "
-                "The rotation and scale offsets are informative and not corrected."
+                "The rotation and scale offsets are informational-only "
+                "and not corrected."
             )
 
         guide_fit = self.fitter.fit(
