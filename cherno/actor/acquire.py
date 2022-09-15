@@ -77,7 +77,7 @@ __all__ = ["acquire"]
     type=int,
     default=config["acquisition"]["auto_radec_min"],
     help="Number of cameras solving below which only RA/Dec will be fit. "
-    "-1 disabled this feature and a full fit is allways performed.",
+    "-1 disables this feature and a full fit is allways performed.",
 )
 @click.option(
     "-w",

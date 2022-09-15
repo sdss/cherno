@@ -58,7 +58,7 @@ async def get_scale(
         command.warning("Not enough points to calculate median scale.")
         return command.finish(scale_median=-999.0)
 
-    # Make first column the delat wrt now.
+    # Make first column the delta wrt now.
     data[:, 0] = time.time() - data[:, 0]
 
     valid = data[data[:, 0] < max_age]
