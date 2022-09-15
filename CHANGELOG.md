@@ -6,6 +6,10 @@
 
 * `cherno acquire` now accepts a flag `--only-radec`. When passed, the RA and Dec offsets in the guide loop will calculated as a simple average translation between the GFA positions and the astrometric solutions. Rotation and scale are still measured and output as usual but they are not corrected. This approach is also used then the number of cameras solving is equal or below `config.acquisition.auto_radec_min` (set to 2 by default); this can be changed by setting the `--auto-radec-min` flag.
 
+### ✨ Improved
+
+* Allow to use all extracted regions (`config.acquisition.astrometry_net_use_all_regions`).
+
 ### 🔧 Fixed
 
 * Calculate FWHM from all cameras with `fwhm_median > 0` instead of using cameras solved.

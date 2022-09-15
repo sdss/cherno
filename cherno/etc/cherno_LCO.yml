@@ -71,6 +71,7 @@ guide_loop:
 acquisition:
   cpulimit: 15
   astrometry_net_config: etc/astrometrynet_LCO.cfg
+  astrometry_net_use_all_regions: true
   astrometry_dir: ./astrometry
   focus_r2_threshold: 0.2
   plot_focus: true

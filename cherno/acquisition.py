@@ -564,7 +564,10 @@ class Acquisition:
 
     async def _astrometry_one(self, ext_data: ExtractionData):
 
-        regions = ext_data.regions.loc[ext_data.regions.valid == 1].copy()
+        if config["acquisition"]["astrometry_net_use_all_regions"]:
+            regions = ext_data.regions.copy()
+        else:
+            regions = ext_data.regions.loc[ext_data.regions.valid == 1].copy()
 
         if self.astrometry._options.get("dir", None) is None:
             astrometry_dir = pathlib.Path(config["acquisition"]["astrometry_dir"])
