@@ -68,6 +68,18 @@ __all__ = ["acquire"]
     help="Applies the full correction once. Cannot be used with --continuous.",
 )
 @click.option(
+    "--only-radec",
+    is_flag=True,
+    help="Only fits and corrects RA/Dec. Rotation and scale values are informative.",
+)
+@click.option(
+    "--auto-radec-min",
+    type=int,
+    default=config["acquisition"]["auto_radec_min"],
+    help="Number of cameras solving below which only RA/Dec will be fit. "
+    "-1 disabled this feature and a full fit is allways performed.",
+)
+@click.option(
     "-w",
     "--wait",
     type=float,
@@ -85,6 +97,8 @@ async def acquire(
     count: int | None = None,
     apply: bool = True,
     full: bool = False,
+    only_radec: bool = False,
+    auto_radec_min: int = config["acquisition"]["auto_radec_min"],
     cameras: str | None = None,
     wait: float | None = None,
     no_block: bool = False,
@@ -122,6 +136,8 @@ async def acquire(
         correct=apply,
         full_correction=full,
         wait_for_correction=(wait is None),
+        only_radec=only_radec,
+        auto_radec_min=auto_radec_min,
     )
     exposer = Exposer(command, callback=callback)
 
