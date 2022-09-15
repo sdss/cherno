@@ -314,7 +314,7 @@ class Acquisition:
         if only_radec is True:
             # No message because this is what the user wants.
             pass
-        elif len(solved) <= auto_radec_min:
+        elif auto_radec_min >= 0 and len(solved) <= auto_radec_min:
             only_radec = True
             self.command.warning(
                 f"Only {len(solved)} cameras solved. Only fitting RA/Dec. "
