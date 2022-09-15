@@ -223,7 +223,7 @@ class Extraction:
         back = sep.Background(data.astype("i4"))
 
         if plot:
-            with plt.ioff():  # type: ignore
+            with plt.ioff():
                 fig, ax = plt.subplots()
                 ax.imshow(back, origin="lower")
                 ax.set_title("Background: " + path.parts[-1])
@@ -452,7 +452,7 @@ class Extraction:
                     g = fitter(gauss_init, x_mesh, data_marginal)
                     if gauss_valid is True:
                         # Reject if the fitting routine doesn't say this is a good fit.
-                        gauss_valid = fitter.fit_info["ierr"] <= 4  # type: ignore
+                        gauss_valid = fitter.fit_info["ierr"] <= 4
                     if numpy.abs(g.mean - mid) > 10:
                         gauss_valid = False
                     gauss_centroids.append(cen[axis] + (g.mean - mid) + 0.5)
@@ -467,7 +467,7 @@ class Extraction:
                     )
                     t = fitter(trap_init, x_mesh, data_marginal)
                     if trap_valid is True:
-                        trap_valid = fitter.fit_info["ierr"] <= 4  # type: ignore
+                        trap_valid = fitter.fit_info["ierr"] <= 4
                     if numpy.abs(t.x_0 - mid):
                         trap_valid = False
                     trap_centroids.append(cen[axis] + (t.x_0 - mid) + 0.5)
@@ -607,7 +607,7 @@ class Extraction:
     ):
         """Plot regions."""
 
-        with plt.ioff():  # type: ignore
+        with plt.ioff():
             fig, ax = plt.subplots()
 
         ax.set_title(title or path.parts[-1])
