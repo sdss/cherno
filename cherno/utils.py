@@ -162,7 +162,7 @@ def focus_fit(
 
         seaborn.set_theme(style="darkgrid", palette="dark")
 
-        with plt.ioff():  # type: ignore
+        with plt.ioff():
             fig, ax = plt.subplots()
 
             for icam in sorted(numpy.unique(cam)):

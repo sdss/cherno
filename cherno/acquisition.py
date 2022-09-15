@@ -93,6 +93,7 @@ class AstrometricSolution:
     delta_rot: float = -999.0
     delta_scale: float = -999.0
     delta_focus: float = -999.0
+    fit_mode: str = "full"
     rms: float = -999.0
     fwhm_median: float = -999.0
     fwhm_fit: float = -999.0
@@ -185,6 +186,8 @@ class Acquisition:
         offset: list[float] | None = None,
         scale_rms: bool = True,
         wait_for_correction: bool = True,
+        only_radec: bool = False,
+        auto_radec_min: int = 2,
     ):
         """Performs extraction and astrometry."""
 
@@ -230,6 +233,8 @@ class Acquisition:
             list(acq_data),
             offset=offset,
             scale_rms=scale_rms,
+            only_radec=only_radec,
+            auto_radec_min=auto_radec_min,
         )
 
         if correct and ast_solution.valid_solution is True:
@@ -256,6 +261,8 @@ class Acquisition:
         offset: list[float] | None = None,
         scale_rms: bool = False,
         do_focus: bool = True,
+        only_radec: bool = False,
+        auto_radec_min: int = 2,
     ):
         """Calculate the astrometric solution."""
 
@@ -304,12 +311,26 @@ class Acquisition:
         else:
             self.command.debug(offset=offset)
 
+        if only_radec is True:
+            self.command.warning(
+                "Only fitting RA/Dec. The rotation and scale offsets "
+                "are informational-only and not corrected."
+            )
+        elif auto_radec_min >= 0 and len(solved) <= auto_radec_min:
+            only_radec = True
+            self.command.warning(
+                f"Only {len(solved)} cameras solved. Only fitting RA/Dec. "
+                "The rotation and scale offsets are informational-only "
+                "and not corrected."
+            )
+
         guide_fit = self.fitter.fit(
             field_ra,
             field_dec,
             field_pa,
             offset=full_offset,
             scale_rms=scale_rms,
+            only_radec=only_radec,
         )
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
@@ -334,6 +355,9 @@ class Acquisition:
         ast_solution.delta_rot = float(delta_rot)
         ast_solution.delta_scale = float(delta_scale)
         ast_solution.rms = float(rms)
+
+        if guide_fit.only_radec:
+            ast_solution.fit_mode = "radec"
 
         if do_focus:
             try:
@@ -394,7 +418,12 @@ class Acquisition:
             ]
         )
 
-        if delta_scale > 0 and self.command.actor and fwhm < 2.5:
+        if (
+            delta_scale > 0
+            and self.command.actor
+            and fwhm < 2.5
+            and not guide_fit.only_radec
+        ):
             # If we measured the scale, add it to the actor state. This is later
             # used to compute the average scale over a period. We also add the time
             # because we'll want to reject measurements that are too old.
@@ -444,7 +473,7 @@ class Acquisition:
             coro = apply_axes_correction(
                 self.command,
                 self.pids,
-                delta_rot=data.delta_rot,
+                delta_rot=data.delta_rot if data.fit_mode == "full" else None,
                 full=full,
             )
 
@@ -453,7 +482,7 @@ class Acquisition:
                 self.command,
                 self.pids,
                 delta_radec=(data.delta_ra, data.delta_dec),
-                delta_rot=data.delta_rot,
+                delta_rot=data.delta_rot if data.fit_mode == "full" else None,
                 full=full,
             )
 
@@ -517,7 +546,7 @@ class Acquisition:
             self.command,
             self.pids,
             delta_radec=(data.delta_ra, data.delta_dec),
-            delta_rot=data.delta_rot,
+            delta_rot=data.delta_rot if data.fit_mode == "full" else None,
             delta_focus=data.delta_focus if do_focus else None,
             full=full,
             wait_for_correction=wait_for_correction,
@@ -771,6 +800,7 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
             header["FWHMFIT"] = (data.fwhm_fit, "Fitted FWHM [arcsec]")
 
             header["RMS"] = (rms, "Guide RMS [arcsec]")
+            header["FITMODE"] = (data.fit_mode, "Fit mode (full or RA/Dec)")
 
             header["E_RA"] = (enabled_ra, "RA corrections enabled?")
             header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
