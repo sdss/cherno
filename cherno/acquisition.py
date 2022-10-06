@@ -56,6 +56,7 @@ class AcquisitionData:
     extraction_data: ExtractionData
     solved: bool = False
     solve_time: float = -999.0
+    solve_method: str = ""
     wcs: WCS = field(default_factory=WCS)
     camera_racen: float = -999.0
     camera_deccen: float = -999.0
@@ -356,7 +357,7 @@ class Acquisition:
         ast_solution.delta_scale = float(delta_scale)
         ast_solution.rms = float(rms)
 
-        if guide_fit.only_radec:
+        if guide_fit and guide_fit.only_radec:
             ast_solution.fit_mode = "radec"
 
         if do_focus:
@@ -422,6 +423,7 @@ class Acquisition:
             delta_scale > 0
             and self.command.actor
             and fwhm < 2.5
+            and guide_fit
             and not guide_fit.only_radec
         ):
             # If we measured the scale, add it to the actor state. This is later
@@ -625,6 +627,7 @@ class Acquisition:
             acq_data.solved = True
             wcs = WCS(open(wcs_output).read())
             acq_data.wcs = wcs
+            acq_data.solve_method = "astrometry.net"
 
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
             acq_data.camera_racen = float(numpy.round(racen, 6))
