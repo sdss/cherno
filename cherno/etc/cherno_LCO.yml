@@ -76,6 +76,7 @@ acquisition:
   focus_r2_threshold: 0.2
   plot_focus: true
   auto_radec_min: 2
+  use_astrometry_net: true
   astrometry_net_odds: 9
   gaia_phot_g_mean_mag_max: 18
   gaia_search_radius: 0.05

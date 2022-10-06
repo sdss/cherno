@@ -223,8 +223,14 @@ class Acquisition:
                     ]
                 )
 
-        self.command.info("Running astrometry.net.")
-        acq_data = await asyncio.gather(*[self._astrometry_one(d) for d in ext_data])
+        acq_data: list[AcquisitionData]
+        if config["acquisition"].get("use_astrometry_net", True):
+            self.command.info("Running astrometry.net.")
+            acq_data = await asyncio.gather(
+                *[self._astrometry_one(d) for d in ext_data]
+            )
+        else:
+            acq_data = [AcquisitionData(ed.camera, ed) for ed in ext_data]
 
         # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
         not_solved = [ad for ad in acq_data if ad.solved is False]
