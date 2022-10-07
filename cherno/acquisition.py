@@ -638,13 +638,18 @@ class Acquisition:
             position_angle=ext_data.field_pa,
         )
 
+        if self.command.actor and self.command.actor.state:
+            odds_to_solve = 10**self.command.actor.state.astrometry_net_odds
+        else:
+            odds_to_solve = None
+
         proc = await self.astrometry.run_async(
             [gfa_xyls_path],
             stdout=outfile_root.with_suffix(".stdout"),
             stderr=outfile_root.with_suffix(".stderr"),
             ra=radec_centre[0],
             dec=radec_centre[1],
-            odds_to_solve=10**self.command.actor.state.astrometry_net_odds,
+            odds_to_solve=odds_to_solve,
         )
 
         acq_data = AcquisitionData(ext_data.camera, ext_data, solve_time=proc.elapsed)
