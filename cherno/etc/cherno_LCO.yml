@@ -82,7 +82,7 @@ acquisition:
   gaia_search_radius: 0.05
   gaia_use_cross_correlation_shift: true
   gaia_cross_correlation_blur: 3
-  gaia_cross_correlation_min_error: 0.8
+  gaia_cross_correlation_min_error: 0.5
   gaia_distance_upper_bound: 10
 
 extraction:
