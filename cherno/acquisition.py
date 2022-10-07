@@ -191,6 +191,8 @@ class Acquisition:
         wait_for_correction: bool = True,
         only_radec: bool = False,
         auto_radec_min: int = 2,
+        use_astrometry_net: bool | None = None,
+        use_gaia: bool = True,
     ):
         """Performs extraction and astrometry."""
 
@@ -224,7 +226,14 @@ class Acquisition:
                 )
 
         acq_data: list[AcquisitionData]
-        if config["acquisition"].get("use_astrometry_net", True):
+
+        use_astrometry_net = (
+            use_astrometry_net
+            if use_astrometry_net is not None
+            else config["acquisition"].get("use_astrometry_net", True)
+        )
+
+        if use_astrometry_net:
             self.command.info("Running astrometry.net.")
             acq_data = await asyncio.gather(
                 *[self._astrometry_one(d) for d in ext_data]
@@ -234,7 +243,8 @@ class Acquisition:
 
         # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
         not_solved = [ad for ad in acq_data if ad.solved is False]
-        if len(not_solved) > 0:
+        if use_gaia and len(not_solved) > 0:
+            self.command.info("Running Gaia cross-match.")
             res = await asyncio.gather(
                 *[self._gaia_cross_match_one(ad) for ad in not_solved],
                 return_exceptions=True,
