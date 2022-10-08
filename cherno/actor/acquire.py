@@ -97,6 +97,16 @@ __all__ = ["acquire"]
     help="Solving mode. Hybrid uses astrometry.net first and Gaia for the cameras "
     "not solved.",
 )
+@click.option(
+    "--gaia-max-mag",
+    type=float,
+    help="Maximum Gaia magnitude to query.",
+)
+@click.option(
+    "--cross-match-blur",
+    type=float,
+    help="Blur sigma for cross-correlation",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float | None = None,
@@ -110,6 +120,8 @@ async def acquire(
     wait: float | None = None,
     no_block: bool = False,
     mode: str | None = None,
+    gaia_max_mag: float | None = None,
+    cross_match_blur: float | None = None,
 ):
     """Runs the acquisition procedure."""
 
@@ -154,6 +166,8 @@ async def acquire(
         wait_for_correction=(wait is None),
         only_radec=only_radec,
         auto_radec_min=auto_radec_min,
+        gaia_phot_g_mean_mag_max=gaia_max_mag,
+        gaia_cross_correlation_blur=cross_match_blur,
         **mode_kwargs,
     )
     exposer = Exposer(command, callback=callback)

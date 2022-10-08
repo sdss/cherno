@@ -193,6 +193,8 @@ class Acquisition:
         auto_radec_min: int = 2,
         use_astrometry_net: bool | None = None,
         use_gaia: bool = True,
+        gaia_phot_g_mean_mag_max: float | None = None,
+        gaia_cross_correlation_blur: float | None = None,
     ):
         """Performs extraction and astrometry."""
 
@@ -246,7 +248,14 @@ class Acquisition:
         if use_gaia and len(not_solved) > 0:
             self.command.info("Running Gaia cross-match.")
             res = await asyncio.gather(
-                *[self._gaia_cross_match_one(ad) for ad in not_solved],
+                *[
+                    self._gaia_cross_match_one(
+                        ad,
+                        gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
+                        gaia_cross_correlation_blur=gaia_cross_correlation_blur,
+                    )
+                    for ad in not_solved
+                ],
                 return_exceptions=True,
             )
             for ii, rr in enumerate(res):
@@ -717,7 +726,12 @@ class Acquisition:
             ]
         )
 
-    async def _gaia_cross_match_one(self, acquisition_data: AcquisitionData):
+    async def _gaia_cross_match_one(
+        self,
+        acquisition_data: AcquisitionData,
+        gaia_phot_g_mean_mag_max: float | None = None,
+        gaia_cross_correlation_blur: float | None = None,
+    ):
         """Solves a field cross-matching to Gaia."""
 
         cam = acquisition_data.camera
@@ -774,13 +788,13 @@ class Acquisition:
         )
 
         gaia_search_radius = acq_config["gaia_search_radius"]
-        phot_g_mean_mag_max = acq_config["gaia_phot_g_mean_mag_max"]
+        g_mag = gaia_phot_g_mean_mag_max or acq_config["gaia_phot_g_mean_mag_max"]
 
         gaia_stars = pandas.read_sql(
-            "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
+            "SELECT * FROM catalogdb.gaia_dr2_source "
             "WHERE q3c_radial_query(ra, dec, "
             f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
-            f"phot_g_mean_mag < {phot_g_mean_mag_max}",
+            f"phot_g_mean_mag < {g_mag}",
             database,
         )
 
@@ -806,10 +820,10 @@ class Acquisition:
             & (gaia[:, 1] < 2048)
         ]
 
-        cross_correlation_shift = acq_config["gaia_use_cross_correlation_shift"]
-        cross_correlation_blur = acq_config["gaia_cross_correlation_blur"]
+        shift = acq_config["gaia_use_cross_correlation_shift"]
+        blur = gaia_cross_correlation_blur or acq_config["gaia_cross_correlation_blur"]
         distance_upper_bound = acq_config["gaia_distance_upper_bound"]
-        cross_correlation_min_error = acq_config["gaia_cross_correlation_min_error"]
+        min_error = acq_config["gaia_cross_correlation_min_error"]
 
         loop = asyncio.get_running_loop()
         cross_match_func = partial(
@@ -819,14 +833,17 @@ class Acquisition:
             gaia[:, 2:],
             2048,
             2048,
-            blur=cross_correlation_blur,
+            blur=blur,
             upsample_factor=100,
-            cross_corrlation_shift=cross_correlation_shift,
+            cross_corrlation_shift=shift,
             distance_upper_bound=distance_upper_bound,
         )
         wcs, error = await loop.run_in_executor(None, cross_match_func)
 
-        if cross_correlation_shift and error < cross_correlation_min_error:
+        if wcs is None:
+            # Failed probably because not enough independent measurements
+            pass
+        elif shift and error < min_error:
             self.command.warning(f"{cam}: cross-matching error {error}. Cannot solve.")
         else:
             acquisition_data.solved = True
