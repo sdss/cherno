@@ -331,9 +331,9 @@ class Acquisition:
 
         self.fitter.reset()
         for d in solved:
-            regions = d.extraction_data.regions
-            xyls = regions.loc[:, ["x", "y"]].copy().values
-            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd, pixels=xyls)
+            # regions = d.extraction_data.regions
+            # xyls = regions.loc[:, ["x", "y"]].copy().values
+            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd)
 
         field_ra = solved[0].field_ra
         field_dec = solved[0].field_dec
