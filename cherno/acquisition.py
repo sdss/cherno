@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from cherno.actor import ChernoActor, ChernoCommandType
     from cherno.actor.actor import ChernoState
 
-warnings.filterwarnings("ignore", message="pandas only support SQLAlchemy")
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
 warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
 
@@ -713,6 +713,7 @@ class Acquisition:
                 acq_data.xrot,
                 acq_data.yrot,
                 acq_data.rotation,
+                acq_data.solve_method,
             ]
         )
 

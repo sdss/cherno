@@ -12,7 +12,8 @@
         { "title": "deccen", "type": "number" },
         { "title": "x_rotation", "type": "number" },
         { "title": "y_rotation", "type": "number" },
-        { "title": "rotation", "type": "number" }
+        { "title": "rotation", "type": "number" },
+        { "title": "solve_mode", "type": "string" }
       ]
     },
     "acquisition_valid": { "type": "boolean" },
