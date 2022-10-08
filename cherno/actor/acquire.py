@@ -90,6 +90,13 @@ __all__ = ["acquire"]
     is_flag=True,
     help="Returns immediatly after starting the acquisition loop.",
 )
+@click.option(
+    "--mode",
+    type=click.Choice(["hybrid", "astrometrynet", "gaia"], case_sensitive=False),
+    default=None,
+    help="Solving mode. Hybrid uses astrometry.net first and Gaia for the cameras "
+    "not solved.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float | None = None,
@@ -102,6 +109,7 @@ async def acquire(
     cameras: str | None = None,
     wait: float | None = None,
     no_block: bool = False,
+    mode: str | None = None,
 ):
     """Runs the acquisition procedure."""
 
@@ -131,6 +139,14 @@ async def acquire(
     acquisition = Acquisition(config["observatory"])
     command.actor.state._acquisition_obj = acquisition  # To update PID coeffs.
 
+    mode_kwargs = {}
+    if mode == "hybrid":
+        mode_kwargs = {"use_astrometry_net": True, "use_gaia": True}
+    elif mode == "astrometrynet":
+        mode_kwargs = {"use_astrometry_net": True, "use_gaia": False}
+    elif mode == "gaia":
+        mode_kwargs = {"use_astrometry_net": False, "use_gaia": True}
+
     callback = partial(
         acquisition.process,
         correct=apply,
@@ -138,6 +154,7 @@ async def acquire(
         wait_for_correction=(wait is None),
         only_radec=only_radec,
         auto_radec_min=auto_radec_min,
+        **mode_kwargs,
     )
     exposer = Exposer(command, callback=callback)
 
