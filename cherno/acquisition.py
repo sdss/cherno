@@ -173,6 +173,9 @@ class Acquisition:
         self.command = command or FakeCommand(log)
         self.pids = AxesPID(command.actor if command is not None else None)
 
+        # To cache Gaia sources.
+        self._gaia_sources: list = []
+
     def set_command(self, command: ChernoCommandType):
         """Sets the command."""
 
@@ -790,13 +793,18 @@ class Acquisition:
         gaia_search_radius = acq_config["gaia_search_radius"]
         g_mag = gaia_phot_g_mean_mag_max or acq_config["gaia_phot_g_mean_mag_max"]
 
-        gaia_stars = pandas.read_sql(
-            "SELECT * FROM catalogdb.gaia_dr2_source "
-            "WHERE q3c_radial_query(ra, dec, "
-            f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
-            f"phot_g_mean_mag < {g_mag}",
-            database,
-        )
+        fid = acquisition_data.extraction_data.field_id
+        if fid != -999 and fid in self._gaia_sources:
+            gaia_stars = self._gaia_sources[1]
+        else:
+            gaia_stars = pandas.read_sql(
+                "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
+                "WHERE q3c_radial_query(ra, dec, "
+                f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
+                f"phot_g_mean_mag < {g_mag}",
+                database,
+            )
+            self._gaia_sources = [fid, gaia_stars]
 
         gaia_x, gaia_y = radec_to_gfa(
             "LCO",
