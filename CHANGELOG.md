@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* The TCC module at APO was not applying negative rotator corrections!
+
+
 ## 0.3.2 - September 15, 2022
 
 ### 🚀 New

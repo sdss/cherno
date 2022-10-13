@@ -98,7 +98,7 @@ async def apply_axes_correction(
 
         corr_rot /= 3600
 
-        if corr_rot > 0:
+        if numpy.abs(corr_rot) > 0:
             tcc_offset_cmd = await command.send_command(
                 "tcc",
                 f"offset guide 0.0, 0.0, {corr_rot} /computed",
