@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.3b1 - October 15, 2022
+## 0.4.0b1 - October 15, 2022
 
 ### 🚀 New
 
