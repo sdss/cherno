@@ -26,7 +26,13 @@ from simple_pid.PID import PID
 
 from clu.command import FakeCommand
 from coordio.astrometry import AstrometryNet
-from coordio.guide import GuiderFitter, cross_match, gfa_to_radec, radec_to_gfa
+from coordio.guide import (
+    GuiderFit,
+    GuiderFitter,
+    cross_match,
+    gfa_to_radec,
+    radec_to_gfa,
+)
 from sdssdb.peewee.sdss5db import database
 
 from cherno import config, log
@@ -91,6 +97,7 @@ class AstrometricSolution:
 
     valid_solution: bool
     acquisition_data: list[AcquisitionData]
+    guider_fit: GuiderFit | None = None
     delta_ra: float = -999.0
     delta_dec: float = -999.0
     delta_rot: float = -999.0
@@ -343,9 +350,9 @@ class Acquisition:
 
         self.fitter.reset()
         for d in solved:
-            # regions = d.extraction_data.regions
-            # xyls = regions.loc[:, ["x", "y"]].copy().values
-            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd)
+            regions = d.extraction_data.regions
+            xyls = regions.loc[:, ["x", "y"]].copy().values
+            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd, pixels=xyls)
 
         field_ra = solved[0].field_ra
         field_dec = solved[0].field_dec
@@ -373,7 +380,7 @@ class Acquisition:
                 "and not corrected."
             )
 
-        guide_fit = self.fitter.fit(
+        guider_fit = self.fitter.fit(
             field_ra,
             field_dec,
             field_pa,
@@ -384,28 +391,32 @@ class Acquisition:
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if guide_fit is False:
+        if guider_fit is False:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
+            ast_solution.guider_fit = None
         else:
-            delta_ra = guide_fit.delta_ra
-            delta_dec = guide_fit.delta_dec
-            delta_rot = guide_fit.delta_rot
-            delta_scale = guide_fit.delta_scale
+            delta_ra = guider_fit.delta_ra
+            delta_dec = guider_fit.delta_dec
+            delta_rot = guider_fit.delta_rot
+            delta_scale = guider_fit.delta_scale
 
-            xrms = guide_fit.xrms
-            yrms = guide_fit.yrms
-            rms = guide_fit.rms
+            xrms = guider_fit.xrms
+            yrms = guider_fit.yrms
+            rms = guider_fit.rms
+
+            ast_solution.guider_fit = guider_fit
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
         ast_solution.valid_solution = True
+
         ast_solution.delta_ra = float(delta_ra)
         ast_solution.delta_dec = float(delta_dec)
         ast_solution.delta_rot = float(delta_rot)
         ast_solution.delta_scale = float(delta_scale)
         ast_solution.rms = float(rms)
 
-        if guide_fit and guide_fit.only_radec:
+        if guider_fit and guider_fit.only_radec:
             ast_solution.fit_mode = "radec"
 
         if do_focus:
@@ -471,8 +482,8 @@ class Acquisition:
             delta_scale > 0
             and self.command.actor
             and fwhm < 2.5
-            and guide_fit
-            and not guide_fit.only_radec
+            and guider_fit
+            and not guider_fit.only_radec
         ):
             # If we measured the scale, add it to the actor state. This is later
             # used to compute the average scale over a period. We also add the time
