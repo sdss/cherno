@@ -76,7 +76,14 @@ acquisition:
   focus_r2_threshold: 0.2
   plot_focus: true
   auto_radec_min: 2
+  use_astrometry_net: true
   astrometry_net_odds: 9
+  gaia_phot_g_mean_mag_max: 19
+  gaia_search_radius: 0.05
+  gaia_use_cross_correlation_shift: true
+  gaia_cross_correlation_blur: 1
+  gaia_cross_correlation_min_error: 0.6
+  gaia_distance_upper_bound: 100
 
 extraction:
   output_dir: ./extraction

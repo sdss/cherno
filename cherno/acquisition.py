@@ -18,6 +18,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Coroutine
 
 import numpy
+import pandas
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
@@ -25,7 +26,8 @@ from simple_pid.PID import PID
 
 from clu.command import FakeCommand
 from coordio.astrometry import AstrometryNet
-from coordio.guide import GuiderFitter, gfa_to_radec
+from coordio.guide import GuiderFitter, cross_match, gfa_to_radec, radec_to_gfa
+from sdssdb.peewee.sdss5db import database
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
@@ -40,7 +42,7 @@ if TYPE_CHECKING:
     from cherno.actor import ChernoActor, ChernoCommandType
     from cherno.actor.actor import ChernoState
 
-
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
 warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
 
@@ -56,6 +58,7 @@ class AcquisitionData:
     extraction_data: ExtractionData
     solved: bool = False
     solve_time: float = -999.0
+    solve_method: str = ""
     wcs: WCS = field(default_factory=WCS)
     camera_racen: float = -999.0
     camera_deccen: float = -999.0
@@ -170,6 +173,9 @@ class Acquisition:
         self.command = command or FakeCommand(log)
         self.pids = AxesPID(command.actor if command is not None else None)
 
+        # To cache Gaia sources.
+        self._gaia_sources: list = []
+
     def set_command(self, command: ChernoCommandType):
         """Sets the command."""
 
@@ -188,6 +194,10 @@ class Acquisition:
         wait_for_correction: bool = True,
         only_radec: bool = False,
         auto_radec_min: int = 2,
+        use_astrometry_net: bool | None = None,
+        use_gaia: bool = True,
+        gaia_phot_g_mean_mag_max: float | None = None,
+        gaia_cross_correlation_blur: float | None = None,
     ):
         """Performs extraction and astrometry."""
 
@@ -220,8 +230,45 @@ class Acquisition:
                     ]
                 )
 
-        self.command.info("Running astrometry.net.")
-        acq_data = await asyncio.gather(*[self._astrometry_one(d) for d in ext_data])
+        acq_data: list[AcquisitionData]
+
+        use_astrometry_net = (
+            use_astrometry_net
+            if use_astrometry_net is not None
+            else config["acquisition"].get("use_astrometry_net", True)
+        )
+
+        if use_astrometry_net:
+            self.command.info("Running astrometry.net.")
+            acq_data = await asyncio.gather(
+                *[self._astrometry_one(d) for d in ext_data]
+            )
+        else:
+            acq_data = [AcquisitionData(ed.camera, ed) for ed in ext_data]
+
+        # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
+        not_solved = [ad for ad in acq_data if ad.solved is False]
+        if use_gaia and len(not_solved) > 0:
+            self.command.info("Running Gaia cross-match.")
+            res = await asyncio.gather(
+                *[
+                    self._gaia_cross_match_one(
+                        ad,
+                        gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
+                        gaia_cross_correlation_blur=gaia_cross_correlation_blur,
+                    )
+                    for ad in not_solved
+                ],
+                return_exceptions=True,
+            )
+            for ii, rr in enumerate(res):
+                if isinstance(rr, Exception):
+                    cam = not_solved[ii].camera
+                    self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
+
+        # Output all the camera_solution keywords at once.
+        for ad in acq_data:
+            self.output_camera_solution(ad)
 
         self.command.debug("Saving proc- file.")
         if write_proc:
@@ -296,6 +343,8 @@ class Acquisition:
 
         self.fitter.reset()
         for d in solved:
+            # regions = d.extraction_data.regions
+            # xyls = regions.loc[:, ["x", "y"]].copy().values
             self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd)
 
         field_ra = solved[0].field_ra
@@ -356,7 +405,7 @@ class Acquisition:
         ast_solution.delta_scale = float(delta_scale)
         ast_solution.rms = float(rms)
 
-        if guide_fit.only_radec:
+        if guide_fit and guide_fit.only_radec:
             ast_solution.fit_mode = "radec"
 
         if do_focus:
@@ -422,6 +471,7 @@ class Acquisition:
             delta_scale > 0
             and self.command.actor
             and fwhm < 2.5
+            and guide_fit
             and not guide_fit.only_radec
         ):
             # If we measured the scale, add it to the actor state. This is later
@@ -610,13 +660,18 @@ class Acquisition:
             position_angle=ext_data.field_pa,
         )
 
+        if self.command.actor and self.command.actor.state:
+            odds_to_solve = 10**self.command.actor.state.astrometry_net_odds
+        else:
+            odds_to_solve = None
+
         proc = await self.astrometry.run_async(
             [gfa_xyls_path],
             stdout=outfile_root.with_suffix(".stdout"),
             stderr=outfile_root.with_suffix(".stderr"),
             ra=radec_centre[0],
             dec=radec_centre[1],
-            odds_to_solve=10**self.command.actor.state.astrometry_net_odds,
+            odds_to_solve=odds_to_solve,
         )
 
         acq_data = AcquisitionData(ext_data.camera, ext_data, solve_time=proc.elapsed)
@@ -625,6 +680,16 @@ class Acquisition:
             acq_data.solved = True
             wcs = WCS(open(wcs_output).read())
             acq_data.wcs = wcs
+            acq_data.solve_method = "astrometry.net"
+
+        return acq_data
+
+    def output_camera_solution(self, acq_data: AcquisitionData):
+        """Calculates and outputs the camera_solution keyword."""
+
+        wcs = acq_data.wcs
+
+        if wcs and acq_data.solved:
 
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
             acq_data.camera_racen = float(numpy.round(racen, 6))
@@ -660,10 +725,138 @@ class Acquisition:
                 acq_data.xrot,
                 acq_data.yrot,
                 acq_data.rotation,
+                acq_data.solve_method,
             ]
         )
 
-        return acq_data
+    async def _gaia_cross_match_one(
+        self,
+        acquisition_data: AcquisitionData,
+        gaia_phot_g_mean_mag_max: float | None = None,
+        gaia_cross_correlation_blur: float | None = None,
+    ):
+        """Solves a field cross-matching to Gaia."""
+
+        cam = acquisition_data.camera
+
+        regions = acquisition_data.extraction_data.regions.copy()
+        if acquisition_data.extraction_data.algorithm == "marginal":
+            xyls_df = regions.loc[:, ["x", "y", "flux"]].copy()
+            xyls_df = xyls_df.rename(columns={"x_fit": "x", "y_fit": "y"})
+        elif acquisition_data.extraction_data.algorithm == "daophot":
+            xyls_df = regions.loc[:, ["x_0", "y_0", "flux_0"]].copy()
+            xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
+        else:
+            xyls_df = regions.loc[:, ["x", "y", "flux"]]
+
+        if len(xyls_df) < 4:
+            self.command.warning(f"{cam}: too few sources. Cannot cross-match to Gaia.")
+            return
+
+        assert database.connected, "Database is not connected"
+
+        acq_config = config["acquisition"]
+
+        ra = acquisition_data.extraction_data.field_ra
+        dec = acquisition_data.extraction_data.field_dec
+        pa = acquisition_data.extraction_data.field_pa
+
+        if self.command.actor is not None:
+            offsets = self.command.actor.state.offset
+        else:
+            offsets = [0.0] * 3
+
+        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+
+        offra = default_offset[0] + offsets[0]
+        offdec = default_offset[1] + offsets[1]
+        offpa = default_offset[2] + offsets[2]
+
+        cam_id = int(acquisition_data.camera[-1])
+        obstime_jd = acquisition_data.extraction_data.obstime.jd
+
+        ccd_centre = gfa_to_radec(
+            self.observatory,
+            1024,
+            1024,
+            cam_id,
+            ra,
+            dec,
+            pa,
+            offra,
+            offdec,
+            offpa,
+            obstime_jd,
+            icrs=True,
+        )
+
+        gaia_search_radius = acq_config["gaia_search_radius"]
+        g_mag = gaia_phot_g_mean_mag_max or acq_config["gaia_phot_g_mean_mag_max"]
+
+        fid = acquisition_data.extraction_data.field_id
+        if fid != -999 and fid in self._gaia_sources:
+            gaia_stars = self._gaia_sources[1]
+        else:
+            gaia_stars = pandas.read_sql(
+                "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
+                "WHERE q3c_radial_query(ra, dec, "
+                f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
+                f"phot_g_mean_mag < {g_mag}",
+                database,
+            )
+            self._gaia_sources = [fid, gaia_stars]
+
+        gaia_x, gaia_y = radec_to_gfa(
+            "LCO",
+            numpy.array(gaia_stars["ra"].values),
+            numpy.array(gaia_stars["dec"].values),
+            cam_id,
+            ra,
+            dec,
+            pa,
+            offra,
+            offdec,
+            offpa,
+            obstime_jd,
+        )
+
+        gaia = numpy.vstack([gaia_x, gaia_y, gaia_stars.ra, gaia_stars.dec]).T
+        gaia = gaia[
+            (gaia[:, 0] >= 0)
+            & (gaia[:, 0] < 2048)
+            & (gaia[:, 1] >= 0)
+            & (gaia[:, 1] < 2048)
+        ]
+
+        shift = acq_config["gaia_use_cross_correlation_shift"]
+        blur = gaia_cross_correlation_blur or acq_config["gaia_cross_correlation_blur"]
+        distance_upper_bound = acq_config["gaia_distance_upper_bound"]
+        min_error = acq_config["gaia_cross_correlation_min_error"]
+
+        loop = asyncio.get_running_loop()
+        cross_match_func = partial(
+            cross_match,
+            xyls_df.values[:, :2],
+            gaia[:, 0:2],
+            gaia[:, 2:],
+            2048,
+            2048,
+            blur=blur,
+            upsample_factor=100,
+            cross_corrlation_shift=shift,
+            distance_upper_bound=distance_upper_bound,
+        )
+        wcs, error = await loop.run_in_executor(None, cross_match_func)
+
+        if wcs is None:
+            # Failed probably because not enough independent measurements
+            pass
+        elif shift and error < min_error:
+            self.command.warning(f"{cam}: cross-matching error {error}. Cannot solve.")
+        else:
+            acquisition_data.solved = True
+            acquisition_data.solve_method = "gaia"
+            acquisition_data.wcs = wcs
 
     async def write_proc_image(
         self,
@@ -681,6 +874,10 @@ class Acquisition:
         proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
 
         proc_hdu[1].header["SOLVED"] = acq_data.solved
+        proc_hdu[1].header["SOLVMODE"] = (
+            acq_data.solve_method,
+            "Method used to solve the field",
+        )
         proc_hdu[1].header["SOLVTIME"] = (
             acq_data.solve_time,
             "Time to solve the field or fail",
