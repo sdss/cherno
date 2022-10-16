@@ -4,10 +4,28 @@ import os
 import pathlib
 import warnings
 
-from typing import cast
+from typing import Any, cast
 
 from sdsstools import get_logger, get_package_version
-from sdsstools.configuration import __ENVVARS__, get_config
+from sdsstools.configuration import __ENVVARS__, Configuration, get_config
+
+
+def set_observatory(observatory: str | None):
+    """Returns and sets the config for the desired observatory."""
+
+    if config is not None:
+        globals()["config"].clear()
+    else:
+        globals()["config"] = {}
+
+    if observatory is None:
+        observatory = "APO"
+        warnings.warn("Unknown observatory. Defaulting to APO!", UserWarning)
+    else:
+        observatory = observatory.upper()
+
+    os.environ["OBSERVATORY"] = observatory
+    globals()["config"].update(get_config(f"cherno_{observatory}"))
 
 
 NAME = "sdss-cherno"
@@ -17,15 +35,9 @@ NAME = "sdss-cherno"
 log = get_logger(NAME)
 
 
-__ENVVARS__["OBSERVATORY"] = "?"
-
-OBSERVATORY = os.environ.get("OBSERVATORY", None)
-if OBSERVATORY is None:
-    OBSERVATORY = "APO"
-    warnings.warn("Unknown observatory. Defaulting to APO!", UserWarning)
-    config = get_config("cherno")
-else:
-    config = get_config(f"cherno_{OBSERVATORY}")
+# Sets the config for the observatory defined in $OBSERVATORY.
+config: dict[str, Any] | None = None
+set_observatory(os.environ.get("OBSERVATORY", None))
 
 
 __version__ = cast(str, get_package_version(path=__file__, package_name=NAME))
