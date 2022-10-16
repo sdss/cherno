@@ -1,14 +1,17 @@
 # Changelog
 
+## Next version
+
+### ✨ Improved
+
+* Improved how observatory configuration is managed. There is now a `set_observatory()` function that can be imported directory from `cherno` that allows to set the current observatory. On initial import, that function is called with the value of the `$OBSERVATORY` environment variable.
+
+
 ## 0.4.0b1 - October 15, 2022
 
 ### 🚀 New
 
 * Added a new acquisition mode that uses cross-match with Gaia sources to generate a WCS solution for a field (see `coordio.guide.cross_match()`). This method first cross-correlates the detected regions with Gaia sources below a certain magnitude range (`acquisition.gaia_phot_g_mean_mag_max`) to determine the initial translation shift. It then uses a KD-tree nearest neighbout to determine the best matches and creates a WCS using Gaia astrometry. There are three different acquisition modes: `hybrid` (the default) that uses astrometry.net first and Gaia for the cameras that failed to solve; `astrometrynet` that uses only astrometry.net (the past behaviour); and `gaia` that uses Gaia cross-matching for all cameras.
-
-### ✨ Improved
-
-* Improved how observatory configuration is managed. There is now a `set_observatory()` function that can be imported directory from `cherno` that allows to set the current observatory. On initial import, that function is called with the value of the `$OBSERVATORY` environment variable.
 
 ### 🔧 Fixed
 
