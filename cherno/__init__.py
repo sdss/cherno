@@ -1,19 +1,18 @@
 # encoding: utf-8
 
 import os
-import pathlib
 import warnings
 
 from typing import Any, cast
 
 from sdsstools import get_logger, get_package_version
-from sdsstools.configuration import __ENVVARS__, Configuration, get_config
+from sdsstools.configuration import __ENVVARS__, get_config
 
 
 def set_observatory(observatory: str | None):
     """Returns and sets the config for the desired observatory."""
 
-    if config is not None:
+    if "config" in globals() and config is not None:
         globals()["config"].clear()
     else:
         globals()["config"] = {}
@@ -25,7 +24,11 @@ def set_observatory(observatory: str | None):
         observatory = observatory.upper()
 
     os.environ["OBSERVATORY"] = observatory
-    globals()["config"].update(get_config(f"cherno_{observatory}"))
+
+    new_config = get_config(f"cherno_{observatory}")
+    globals()["config"].update(new_config)
+
+    return new_config
 
 
 NAME = "sdss-cherno"
@@ -36,8 +39,7 @@ log = get_logger(NAME)
 
 
 # Sets the config for the observatory defined in $OBSERVATORY.
-config: dict[str, Any] | None = None
-set_observatory(os.environ.get("OBSERVATORY", None))
+config: dict[str, Any] = set_observatory(os.environ.get("OBSERVATORY", None))
 
 
 __version__ = cast(str, get_package_version(path=__file__, package_name=NAME))
