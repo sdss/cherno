@@ -818,7 +818,7 @@ class Acquisition:
             self._gaia_sources = [fid, gaia_stars]
 
         gaia_x, gaia_y = radec_to_gfa(
-            "LCO",
+            self.observatory,
             numpy.array(gaia_stars["ra"].values),
             numpy.array(gaia_stars["dec"].values),
             cam_id,
