@@ -2,6 +2,10 @@
 
 ## Next version
 
+### 🚀 New
+
+* Added a `cherno config` command group that allows to change configuration parameters during runtime.
+
 ### ✨ Improved
 
 * Improved how observatory configuration is managed. There is now a `set_observatory()` function that can be imported directory from `cherno` that allows to set the current observatory. On initial import, that function is called with the value of the `$OBSERVATORY` environment variable.
