@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🏷️ Changed
+
+* Use astrometry.net 5200 indices for LCO.
+
+
 ## 0.4.0b2 - October 20, 2022
 
 ### 🚀 New
