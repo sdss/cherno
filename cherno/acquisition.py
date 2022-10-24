@@ -208,6 +208,7 @@ class Acquisition:
         gaia_phot_g_mean_mag_max: float | None = None,
         gaia_cross_correlation_blur: float | None = None,
         fit_all_detections: bool = True,
+        fit_focus: bool = True,
     ):
         """Performs extraction and astrometry."""
 
@@ -293,6 +294,7 @@ class Acquisition:
             only_radec=only_radec,
             auto_radec_min=auto_radec_min,
             fit_all_detections=fit_all_detections,
+            fit_focus=fit_focus,
         )
 
         if correct and ast_solution.valid_solution is True:
@@ -318,7 +320,7 @@ class Acquisition:
         data: list[AcquisitionData],
         offset: list[float] | None = None,
         scale_rms: bool = False,
-        do_focus: bool = True,
+        fit_focus: bool = True,
         only_radec: bool = False,
         auto_radec_min: int = 2,
         fit_all_detections: bool = True,
@@ -427,7 +429,7 @@ class Acquisition:
         if guider_fit and guider_fit.only_radec:
             ast_solution.fit_mode = "radec"
 
-        if do_focus:
+        if fit_focus:
             try:
                 fwhm_fit, x_min, a, b, c, r2 = focus_fit(
                     [d.e_data for d in data],
