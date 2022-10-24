@@ -5,6 +5,7 @@
 ### ✨ Improved
 
 * Try to reconnect to the database if necessary when cross-matching with Gaia.
+* Add `--fit-all-detections` flag for `cherno acquire` (default to `acquisition.fit_all_detections`) to adjust whether all detections or only the centre of each camera are used.
 
 ### 🏷️ Changed
 

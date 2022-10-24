@@ -84,6 +84,7 @@ acquisition:
   gaia_cross_correlation_blur: 1
   gaia_cross_correlation_min_error: 0.6
   gaia_distance_upper_bound: 5
+  fit_all_detections: true
 
 extraction:
   output_dir: ./extraction

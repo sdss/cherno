@@ -107,6 +107,12 @@ __all__ = ["acquire"]
     type=float,
     help="Blur sigma for cross-correlation",
 )
+@click.option(
+    "--fit-all-detections/--no-fit-all-detections",
+    default=config["acquire"]["fit_all_detections"],
+    help="Perform fit using all detected sources. Otherwise uses only "
+    "the centre of each solved camera.",
+)
 async def acquire(
     command: ChernoCommandType,
     exposure_time: float | None = None,
@@ -122,6 +128,7 @@ async def acquire(
     mode: str | None = None,
     gaia_max_mag: float | None = None,
     cross_match_blur: float | None = None,
+    fit_all_detections: bool = True,
 ):
     """Runs the acquisition procedure."""
 
@@ -169,6 +176,7 @@ async def acquire(
         auto_radec_min=auto_radec_min,
         gaia_phot_g_mean_mag_max=gaia_max_mag,
         gaia_cross_correlation_blur=cross_match_blur,
+        fit_all_detections=fit_all_detections,
         **mode_kwargs,
     )
     exposer = Exposer(command, callback=callback)

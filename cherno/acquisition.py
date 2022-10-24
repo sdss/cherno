@@ -207,6 +207,7 @@ class Acquisition:
         use_gaia: bool = True,
         gaia_phot_g_mean_mag_max: float | None = None,
         gaia_cross_correlation_blur: float | None = None,
+        fit_all_detections: bool = True,
     ):
         """Performs extraction and astrometry."""
 
@@ -291,6 +292,7 @@ class Acquisition:
             scale_rms=scale_rms,
             only_radec=only_radec,
             auto_radec_min=auto_radec_min,
+            fit_all_detections=fit_all_detections,
         )
 
         if correct and ast_solution.valid_solution is True:
@@ -319,6 +321,7 @@ class Acquisition:
         do_focus: bool = True,
         only_radec: bool = False,
         auto_radec_min: int = 2,
+        fit_all_detections: bool = True,
     ):
         """Calculate the astrometric solution."""
 
@@ -352,9 +355,12 @@ class Acquisition:
 
         self.fitter.reset()
         for d in solved:
-            regions = d.extraction_data.regions
-            xyls = regions.loc[:, ["x", "y"]].copy().values
-            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd, pixels=xyls)
+            if fit_all_detections:
+                regions = d.extraction_data.regions
+                pixels = regions.loc[:, ["x", "y"]].copy().values
+            else:
+                pixels = None
+            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd, pixels=pixels)
 
         field_ra = solved[0].field_ra
         field_dec = solved[0].field_dec
