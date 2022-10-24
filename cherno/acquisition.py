@@ -183,6 +183,8 @@ class Acquisition:
         # To cache Gaia sources.
         self._gaia_sources: list = []
 
+        self._database_lock = asyncio.Lock()
+
     def set_command(self, command: ChernoCommandType):
         """Sets the command."""
 
@@ -764,7 +766,12 @@ class Acquisition:
             self.command.warning(f"{cam}: too few sources. Cannot cross-match to Gaia.")
             return
 
-        assert database.connected, "Database is not connected"
+        async with self._database_lock:
+            if not database.connected:
+                self.command.warning("Database is not connected; trying to reconnect.")
+                database.connect()
+                if not database.connected:
+                    raise RuntimeError("Database is not connected.")
 
         acq_config = config["acquisition"]
 

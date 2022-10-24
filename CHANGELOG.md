@@ -2,6 +2,10 @@
 
 ## Next version
 
+### ✨ Improved
+
+* Try to reconnect to the database if necessary when cross-matching with Gaia.
+
 ### 🏷️ Changed
 
 * Use astrometry.net 5200 indices for LCO.
