@@ -160,7 +160,7 @@ class Extraction:
             int(obstime.mjd),
             obstime,
             observatory,
-            field_id=header.get("FIELID", -999),
+            field_id=header.get("FIELDID", -999),
             field_ra=header["RAFIELD"],
             field_dec=header["DECFIELD"],
             field_pa=header["FIELDPA"],

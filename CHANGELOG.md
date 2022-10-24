@@ -11,6 +11,10 @@
 
 * Use astrometry.net 5200 indices for LCO.
 
+### 🔧 Fixed
+
+* The cached Gaia query was not being used due to an issue retrieving the field ID.
+
 
 ## 0.4.0b2 - October 20, 2022
 

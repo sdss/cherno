@@ -181,7 +181,7 @@ class Acquisition:
         self.pids = AxesPID(command.actor if command is not None else None)
 
         # To cache Gaia sources.
-        self._gaia_sources: list = []
+        self._gaia_sources: dict = {}
 
         self._database_lock = asyncio.Lock()
 
@@ -772,13 +772,6 @@ class Acquisition:
             self.command.warning(f"{cam}: too few sources. Cannot cross-match to Gaia.")
             return
 
-        async with self._database_lock:
-            if not database.connected:
-                self.command.warning("Database is not connected; trying to reconnect.")
-                database.connect()
-                if not database.connected:
-                    raise RuntimeError("Database is not connected.")
-
         acq_config = config["acquisition"]
 
         ra = acquisition_data.extraction_data.field_ra
@@ -818,9 +811,17 @@ class Acquisition:
         g_mag = gaia_phot_g_mean_mag_max or acq_config["gaia_phot_g_mean_mag_max"]
 
         fid = acquisition_data.extraction_data.field_id
-        if fid != -999 and fid in self._gaia_sources:
-            gaia_stars = self._gaia_sources[1]
+        if fid != -999 and (fid, cam_id) in self._gaia_sources:
+            gaia_stars = self._gaia_sources[(fid, cam_id)]
+
         else:
+            async with self._database_lock:
+                if not database.connected:
+                    self.command.warning("Database not connected; trying to reconnect.")
+                    database.connect()
+                    if not database.connected:
+                        raise RuntimeError("Database is not connected.")
+
             gaia_stars = pandas.read_sql(
                 "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
                 "WHERE q3c_radial_query(ra, dec, "
@@ -828,7 +829,7 @@ class Acquisition:
                 f"phot_g_mean_mag < {g_mag}",
                 database,
             )
-            self._gaia_sources = [fid, gaia_stars]
+            self._gaia_sources[(fid, cam_id)] = gaia_stars
 
         gaia_x, gaia_y = radec_to_gfa(
             self.observatory,
