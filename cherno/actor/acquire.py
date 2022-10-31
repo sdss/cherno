@@ -109,7 +109,7 @@ __all__ = ["acquire"]
 )
 @click.option(
     "--fit-all-detections/--no-fit-all-detections",
-    default=config["acquire"]["fit_all_detections"],
+    default=config["acquisition"]["fit_all_detections"],
     help="Perform fit using all detected sources. Otherwise uses only "
     "the centre of each solved camera.",
 )
