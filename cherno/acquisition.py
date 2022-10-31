@@ -33,7 +33,6 @@ from coordio.guide import (
     gfa_to_radec,
     radec_to_gfa,
 )
-from sdssdb.peewee.sdss5db import database
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
@@ -817,19 +816,13 @@ class Acquisition:
             gaia_stars = self._gaia_sources[(fid, cam_id)]
 
         else:
-            async with self._database_lock:
-                if not database.connected:
-                    self.command.warning("Database not connected; trying to reconnect.")
-                    database.connect()
-                    if not database.connected:
-                        raise RuntimeError("Database is not connected.")
 
             gaia_stars = pandas.read_sql(
                 "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
                 "WHERE q3c_radial_query(ra, dec, "
                 f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
                 f"phot_g_mean_mag < {g_mag}",
-                database,
+                config["acquisition"]["gaia_connection_string"],
             )
             self._gaia_sources[(fid, cam_id)] = gaia_stars
 

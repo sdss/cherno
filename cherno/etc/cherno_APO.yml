@@ -78,6 +78,7 @@ acquisition:
   auto_radec_min: -1
   use_astrometry_net: true
   astrometry_net_odds: 9
+  gaia_connection_string: postgresql://sdss_user@sdss5-db/chernodb
   gaia_phot_g_mean_mag_max: 18
   gaia_search_radius: 0.09
   gaia_use_cross_correlation_shift: true
