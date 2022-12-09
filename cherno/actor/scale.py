@@ -53,7 +53,6 @@ async def get_scale(
 
     data = numpy.array(command.actor.state.scale_history)
 
-    # Require at least
     if len(data) == 0:
         command.warning("Not enough points to calculate median scale.")
         return command.finish(scale_median=-999.0)
@@ -66,18 +65,17 @@ async def get_scale(
         command.warning("Not enough points to calculate median scale.")
         return command.finish(scale_median=-999.0)
 
-    if len(valid[valid[:, 1] < 900]) > 10:
+    # Generally prefer data from the last exposure.
+    if len(valid[valid[:, 0] < 900]) > 10:
         valid = data[data[:, 0] < 900]
 
-    scales = valid[:, 1]
+    wmean = numpy.average(valid[:, 1], weights=1.0 / valid[:, 0])
 
-    median0 = numpy.median(scales)
-    std = numpy.std(scales)
-
-    clipped = scales[numpy.abs(scales - median0) <= sigma * std]
-
-    if len(clipped) < 3:
-        command.warning("Too few data points after sigma clipping.")
+    if wmean < 0.999 or wmean > 1.001:
+        command.warning(
+            f"Unexpectedly large/small scale factor {wmean:.6f}. "
+            "This is unexpected. If you are sure, use this value manually."
+        )
         return command.finish(scale_median=-999.0)
 
-    return command.finish(scale_median=numpy.round(numpy.median(clipped), 7))
+    return command.finish(scale_median=numpy.round(numpy.median(wmean), 7))
