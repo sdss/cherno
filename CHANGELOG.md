@@ -11,10 +11,12 @@
 ### 🏷️ Changed
 
 * Use astrometry.net 5200 indices for LCO.
+* Use Gaia limit of `G<19` for APO
 
 ### 🔧 Fixed
 
 * The cached Gaia query was not being used due to an issue retrieving the field ID.
+* Fix typo in `--fit-all-detections`.
 
 
 ## 0.4.0b2 - October 20, 2022
