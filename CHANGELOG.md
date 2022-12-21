@@ -1,6 +1,6 @@
 # Changelog
 
-## Next version
+## 0.4.0 - December 20, 2022
 
 ### ✨ Improved
 
