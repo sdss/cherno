@@ -210,8 +210,6 @@ class Exposer:
 
             n_exp += 1
 
-            self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
-
     def _check_ffs(self):
         """Checks that the FFS are open."""
 
