@@ -16,6 +16,8 @@ from cherno.exceptions import ChernoError
 
 
 if TYPE_CHECKING:
+    from clu.command import FakeCommand
+
     from cherno.actor import ChernoCommandType
     from cherno.guider import AxesPID
 
@@ -24,7 +26,7 @@ __all__ = ["apply_correction_lco"]
 
 
 async def apply_correction_lco(
-    command: ChernoCommandType,
+    command: ChernoCommandType | FakeCommand,
     pids: AxesPID,
     delta_radec: tuple[float, float] | numpy.ndarray | None = None,
     delta_rot: float | None = None,
