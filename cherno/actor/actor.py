@@ -24,7 +24,7 @@ from cherno.maskbits import CameraStatus, GuiderStatus
 
 
 if TYPE_CHECKING:
-    from cherno.acquisition import Acquisition
+    from cherno.guider import Guider
 
 
 class ChernoActor(clu.LegacyActor):
@@ -87,14 +87,14 @@ class ChernoState:
     rms_history: deque = field(default_factory=deque)
     astrometry_net_odds: float = 1e9
 
-    _acquisition_obj: Acquisition | None = None
+    _guider_obj: Guider | None = None
     _exposure_loop: asyncio.Task | None = None
 
     def __post_init__(self):
         self.observatory = self.actor.observatory
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = config["enabled_axes"].copy()
-        self.astrometry_net_odds = config["acquisition"]["astrometry_net_odds"]
+        self.astrometry_net_odds = config["guide"]["astrometry_net_odds"]
         self.rms_history = deque(maxlen=10)
 
         self.guide_loop = config["guide_loop"].copy()

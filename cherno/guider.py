@@ -3,7 +3,7 @@
 #
 # @Author: José Sánchez-Gallego (gallegoj@uw.edu)
 # @Date: 2022-02-07
-# @Filename: acquisition.py
+# @Filename: guider.py
 # @License: BSD 3-clause (http://www.opensource.org/licenses/BSD-3-Clause)
 
 from __future__ import annotations
@@ -52,11 +52,11 @@ warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
 
 
-__all__ = ["Acquisition"]
+__all__ = ["Guider", "GuideData", "AstrometricSolution", "AxesPID"]
 
 
 @dataclass
-class AcquisitionData:
+class GuideData:
     """Data from the acquisition process."""
 
     camera: str
@@ -94,7 +94,7 @@ class AstrometricSolution:
     """Astrometric solution data."""
 
     valid_solution: bool
-    acquisition_data: list[AcquisitionData]
+    guide_data: list[GuideData]
     guider_fit: GuiderFit | None = None
     delta_ra: float = -999.0
     delta_dec: float = -999.0
@@ -137,7 +137,7 @@ class AxesPID:
         )
 
 
-class Acquisition:
+class Guider:
     """Runs the steps for field acquisition and guiding."""
 
     def __init__(
@@ -155,7 +155,7 @@ class Acquisition:
             self.astrometry = astrometry
         else:
             pixel_scale = config["pixel_scale"]
-            astrometry_net_config = config["acquisition"]["astrometry_net_config"]
+            astrometry_net_config = config["guider"]["astrometry_net_config"]
             backend_config = pathlib.Path(__file__).parent / astrometry_net_config
             self.astrometry = AstrometryNet(
                 backend_config=str(backend_config),
@@ -167,7 +167,7 @@ class Acquisition:
                 scale_units="arcsecperpix",
                 sort_column="flux",
                 radius=0.5,
-                cpulimit=config["acquisition"]["cpulimit"],
+                cpulimit=config["guider"]["cpulimit"],
                 **astrometry_params,
             )
 
@@ -238,24 +238,24 @@ class Acquisition:
                     ]
                 )
 
-        acq_data: list[AcquisitionData]
+        guide_data: list[GuideData]
 
         use_astrometry_net = (
             use_astrometry_net
             if use_astrometry_net is not None
-            else config["acquisition"].get("use_astrometry_net", True)
+            else config["guider"].get("use_astrometry_net", True)
         )
 
         if use_astrometry_net:
             self.command.info("Running astrometry.net.")
-            acq_data = await asyncio.gather(
+            guide_data = await asyncio.gather(
                 *[self._astrometry_one(d) for d in ext_data]
             )
         else:
-            acq_data = [AcquisitionData(ed.camera, ed) for ed in ext_data]
+            guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
 
         # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
-        not_solved = [ad for ad in acq_data if ad.solved is False]
+        not_solved = [ad for ad in guide_data if ad.solved is False]
         if use_gaia and len(not_solved) > 0:
             self.command.info("Running Gaia cross-match.")
             res = await asyncio.gather(
@@ -275,17 +275,17 @@ class Acquisition:
                     self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
 
         # Output all the camera_solution keywords at once.
-        for ad in acq_data:
+        for ad in guide_data:
             self.output_camera_solution(ad)
 
         self.command.debug("Saving proc- file.")
         if write_proc:
             await asyncio.gather(
-                *[self.write_proc_image(d, overwrite=overwrite) for d in acq_data]
+                *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
 
         ast_solution = await self.fit(
-            list(acq_data),
+            list(guide_data),
             offset=offset,
             scale_rms=scale_rms,
             only_radec=only_radec,
@@ -314,7 +314,7 @@ class Acquisition:
 
     async def fit(
         self,
-        data: list[AcquisitionData],
+        data: list[GuideData],
         offset: list[float] | None = None,
         scale_rms: bool = False,
         fit_focus: bool = True,
@@ -434,7 +434,7 @@ class Acquisition:
             try:
                 fwhm_fit, x_min, a, b, c, r2 = focus_fit(
                     [d.e_data for d in data],
-                    plot=config["acquisition"]["plot_focus"],
+                    plot=config["guider"]["plot_focus"],
                 )
 
                 # Relationship between M2 move and focal plane. See
@@ -467,7 +467,7 @@ class Acquisition:
 
         # Output focus data in a single keyword, mostly for Boson's benefit.
         focus_data = [int(exp_no)]
-        for d in ast_solution.acquisition_data:
+        for d in ast_solution.guide_data:
             if d.extraction_data.fwhm_median > 0 and d.extraction_data.nvalid > 0:
                 focus_data += [
                     int(d.camera[-1]),
@@ -564,7 +564,7 @@ class Acquisition:
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
-            data.focus_r2 > config["acquisition"]["focus_r2_threshold"]
+            data.focus_r2 > config["guider"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
         ):
             do_focus = True
@@ -602,7 +602,7 @@ class Acquisition:
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
-            data.focus_r2 > config["acquisition"]["focus_r2_threshold"]
+            data.focus_r2 > config["guider"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
             and "focus" in enabled_axes
         ):
@@ -633,13 +633,13 @@ class Acquisition:
         )
 
     async def _astrometry_one(self, ext_data: ExtractionData):
-        if config["acquisition"]["astrometry_net_use_all_regions"]:
+        if config["guider"]["astrometry_net_use_all_regions"]:
             regions = ext_data.regions.copy()
         else:
             regions = ext_data.regions.loc[ext_data.regions.valid == 1].copy()
 
         if self.astrometry._options.get("dir", None) is None:
-            astrometry_dir = pathlib.Path(config["acquisition"]["astrometry_dir"])
+            astrometry_dir = pathlib.Path(config["guider"]["astrometry_dir"])
             if astrometry_dir.is_absolute():
                 pass
             else:
@@ -693,25 +693,25 @@ class Acquisition:
             odds_to_solve=odds_to_solve,
         )
 
-        acq_data = AcquisitionData(ext_data.camera, ext_data, solve_time=proc.elapsed)
+        guide_data = GuideData(ext_data.camera, ext_data, solve_time=proc.elapsed)
 
         if wcs_output.exists():
-            acq_data.solved = True
+            guide_data.solved = True
             wcs = WCS(open(wcs_output).read())
-            acq_data.wcs = wcs
-            acq_data.solve_method = "astrometry.net"
+            guide_data.wcs = wcs
+            guide_data.solve_method = "astrometry.net"
 
-        return acq_data
+        return guide_data
 
-    def output_camera_solution(self, acq_data: AcquisitionData):
+    def output_camera_solution(self, guide_data: GuideData):
         """Calculates and outputs the camera_solution keyword."""
 
-        wcs = acq_data.wcs
+        wcs = guide_data.wcs
 
-        if wcs and acq_data.solved:
+        if wcs and guide_data.solved:
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
-            acq_data.camera_racen = float(numpy.round(racen, 6))
-            acq_data.camera_deccen = float(numpy.round(deccen, 6))
+            guide_data.camera_racen = float(numpy.round(racen, 6))
+            guide_data.camera_deccen = float(numpy.round(deccen, 6))
 
             # TODO: consider parallactic angle here.
             cd: numpy.ndarray = wcs.wcs.cd
@@ -722,46 +722,46 @@ class Acquisition:
 
             # Rotation is from N to E to the x and y axes of the GFA.
             yrot, xrot = numpy.rad2deg(rot_rad)
-            acq_data.xrot = float(numpy.round(xrot % 360.0, 3))
-            acq_data.yrot = float(numpy.round(yrot % 360.0, 3))
+            guide_data.xrot = float(numpy.round(xrot % 360.0, 3))
+            guide_data.yrot = float(numpy.round(yrot % 360.0, 3))
 
             # Calculate field rotation.
             cameras = config["cameras"]
-            camera_rot = cameras["rotation"][acq_data.camera]
+            camera_rot = cameras["rotation"][guide_data.camera]
             rotation = numpy.array([xrot - camera_rot - 90, yrot - camera_rot]) % 360
             rotation[rotation > 180.0] -= 360.0
             rotation = numpy.mean(rotation)
-            acq_data.rotation = float(numpy.round(rotation, 3))
+            guide_data.rotation = float(numpy.round(rotation, 3))
 
         self.command.info(
             camera_solution=[
-                acq_data.camera,
-                acq_data.exposure_no,
-                acq_data.solved,
-                acq_data.camera_racen,
-                acq_data.camera_deccen,
-                acq_data.xrot,
-                acq_data.yrot,
-                acq_data.rotation,
-                acq_data.solve_method,
+                guide_data.camera,
+                guide_data.exposure_no,
+                guide_data.solved,
+                guide_data.camera_racen,
+                guide_data.camera_deccen,
+                guide_data.xrot,
+                guide_data.yrot,
+                guide_data.rotation,
+                guide_data.solve_method,
             ]
         )
 
     async def _gaia_cross_match_one(
         self,
-        acquisition_data: AcquisitionData,
+        guide_data: GuideData,
         gaia_phot_g_mean_mag_max: float | None = None,
         gaia_cross_correlation_blur: float | None = None,
     ):
         """Solves a field cross-matching to Gaia."""
 
-        cam = acquisition_data.camera
+        cam = guide_data.camera
 
-        regions = acquisition_data.extraction_data.regions.copy()
-        if acquisition_data.extraction_data.algorithm == "marginal":
+        regions = guide_data.extraction_data.regions.copy()
+        if guide_data.extraction_data.algorithm == "marginal":
             xyls_df = regions.loc[:, ["x", "y", "flux"]].copy()
             xyls_df = xyls_df.rename(columns={"x_fit": "x", "y_fit": "y"})
-        elif acquisition_data.extraction_data.algorithm == "daophot":
+        elif guide_data.extraction_data.algorithm == "daophot":
             xyls_df = regions.loc[:, ["x_0", "y_0", "flux_0"]].copy()
             xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
         else:
@@ -771,11 +771,11 @@ class Acquisition:
             self.command.warning(f"{cam}: too few sources. Cannot cross-match to Gaia.")
             return
 
-        acq_config = config["acquisition"]
+        acq_config = config["guider"]
 
-        ra = acquisition_data.extraction_data.field_ra
-        dec = acquisition_data.extraction_data.field_dec
-        pa = acquisition_data.extraction_data.field_pa
+        ra = guide_data.extraction_data.field_ra
+        dec = guide_data.extraction_data.field_dec
+        pa = guide_data.extraction_data.field_pa
 
         if self.command.actor is not None:
             offsets = self.command.actor.state.offset
@@ -788,8 +788,8 @@ class Acquisition:
         offdec = default_offset[1] + offsets[1]
         offpa = default_offset[2] + offsets[2]
 
-        cam_id = int(acquisition_data.camera[-1])
-        obstime_jd = acquisition_data.extraction_data.obstime.jd
+        cam_id = int(guide_data.camera[-1])
+        obstime_jd = guide_data.extraction_data.obstime.jd
 
         ccd_centre = gfa_to_radec(
             self.observatory,
@@ -809,7 +809,7 @@ class Acquisition:
         gaia_search_radius = acq_config["gaia_search_radius"]
         g_mag = gaia_phot_g_mean_mag_max or acq_config["gaia_phot_g_mean_mag_max"]
 
-        fid = acquisition_data.extraction_data.field_id
+        fid = guide_data.extraction_data.field_id
         if fid != -999 and (fid, cam_id) in self._gaia_sources:
             gaia_stars = self._gaia_sources[(fid, cam_id)]
 
@@ -819,7 +819,7 @@ class Acquisition:
                 "WHERE q3c_radial_query(ra, dec, "
                 f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
                 f"phot_g_mean_mag < {g_mag}",
-                config["acquisition"]["gaia_connection_string"],
+                config["guider"]["gaia_connection_string"],
             )
             self._gaia_sources[(fid, cam_id)] = gaia_stars
 
@@ -871,32 +871,32 @@ class Acquisition:
         elif shift and error < min_error:
             self.command.warning(f"{cam}: cross-matching error {error}. Cannot solve.")
         else:
-            acquisition_data.solved = True
-            acquisition_data.solve_method = "gaia"
-            acquisition_data.wcs = wcs
+            guide_data.solved = True
+            guide_data.solve_method = "gaia"
+            guide_data.wcs = wcs
 
     async def write_proc_image(
         self,
-        acq_data: AcquisitionData,
+        guide_data: GuideData,
         outpath: PathLike = None,
         overwrite: bool = False,
     ):
         """Writes the proc-gimg image."""
 
-        ext_data = acq_data.extraction_data
+        ext_data = guide_data.extraction_data
 
-        proc_hdu = fits.open(str(acq_data.path)).copy()
+        proc_hdu = fits.open(str(guide_data.path)).copy()
 
-        rec = Table.from_pandas(acq_data.extraction_data.regions).as_array()
+        rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
         proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
 
-        proc_hdu[1].header["SOLVED"] = acq_data.solved
+        proc_hdu[1].header["SOLVED"] = guide_data.solved
         proc_hdu[1].header["SOLVMODE"] = (
-            acq_data.solve_method,
+            guide_data.solve_method,
             "Method used to solve the field",
         )
         proc_hdu[1].header["SOLVTIME"] = (
-            acq_data.solve_time,
+            guide_data.solve_time,
             "Time to solve the field or fail",
         )
 
@@ -919,7 +919,7 @@ class Acquisition:
         proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
         proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
 
-        proc_hdu[1].header.update(acq_data.wcs.to_header())
+        proc_hdu[1].header.update(guide_data.wcs.to_header())
 
         proc_path: pathlib.Path
         if outpath is not None:
@@ -938,7 +938,7 @@ class Acquisition:
         )
         await loop.run_in_executor(None, func)
 
-        acq_data.proc_image = proc_path
+        guide_data.proc_image = proc_path
 
 
 def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
@@ -985,7 +985,7 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     delta_focus = data.delta_focus
 
     # Update headers of proc images with deltas.
-    for a_data in data.acquisition_data:
+    for a_data in data.guide_data:
         if a_data.proc_image is not None:
             hdus = fits.open(str(a_data.proc_image), mode="update")
             header = hdus[1].header

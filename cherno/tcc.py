@@ -16,8 +16,8 @@ from cherno.exceptions import ChernoError
 
 
 if TYPE_CHECKING:
-    from cherno.acquisition import AxesPID
     from cherno.actor import ChernoCommandType
+    from cherno.guider import AxesPID
 
 
 __all__ = ["apply_axes_correction"]

@@ -15,10 +15,9 @@ from types import SimpleNamespace
 import click
 
 from cherno import config
-from cherno.acquisition import Acquisition
 from cherno.actor.exposer import Exposer
 from cherno.exceptions import ExposerError
-from cherno.maskbits import GuiderStatus
+from cherno.guider import Guider
 
 from .. import ChernoCommandType, cherno_parser
 
@@ -171,13 +170,13 @@ def check_params(params: Params):
 
 
 def get_callback(params: Params):
-    """Returns the Acquisition.process() callback."""
+    """Returns the Guide.process() callback."""
 
-    acquisition = Acquisition(config["observatory"])
-    params.command.actor.state._acquisition_obj = acquisition  # To update PID coeffs.
+    guider = Guider(config["observatory"])
+    params.command.actor.state._guider_obj = guider  # To update PID coeffs.
 
     return partial(
-        acquisition.process,
+        guider.process,
         correct=params.apply,
         full_correction=params.full,
         wait_for_correction=(params.wait is None),
