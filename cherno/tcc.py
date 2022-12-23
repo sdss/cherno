@@ -43,7 +43,6 @@ async def apply_axes_correction(
     correction_applied = [0.0, 0.0, 0.0, 0.0]
 
     if delta_radec is not None:
-
         corr_radec = [0.0, 0.0]
 
         for ax_idx, ax in enumerate(["ra", "dec"]):
@@ -81,7 +80,6 @@ async def apply_axes_correction(
             correction_applied[1] = float(numpy.round(corr_radec[1] * 3600.0, 3))
 
     if delta_rot is not None and "rot" in enabled_axes:
-
         if full:
             corr_rot = -delta_rot
         else:

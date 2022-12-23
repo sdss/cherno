@@ -80,7 +80,6 @@ class Extraction:
         marginal_params={},
         **params,
     ):
-
         self.observatory = observatory.upper()
         self.pixel_scale = pixel_scale or config["pixel_scale"]
 
@@ -184,7 +183,6 @@ class Extraction:
         images: list[PathLike],
         n_cpus: int | None = None,
     ) -> list[ExtractionData]:
-
         n_cpus = n_cpus or multiprocessing.cpu_count()
 
         with multiprocessing.Pool(n_cpus) as pool:
@@ -404,7 +402,6 @@ class Extraction:
         data_back = data - back.back()
 
         for index, row in regions.iterrows():
-
             index = cast(Any, index)
 
             # Ignore detections that we have already marked as invalid in SExtractor.
@@ -545,7 +542,6 @@ class Extraction:
         method = self.params.get("rejection_method", "sigclip")
 
         if self.star_finder in ["sextractor", "marginal"]:
-
             # Filter out bad FWHM values.
             ecc = numpy.sqrt(regions.a**2 - regions.b**2) / regions.a
 

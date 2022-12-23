@@ -73,7 +73,6 @@ class AcquisitionData:
     proc_image: pathlib.Path | None = None
 
     def __post_init__(self):
-
         self.path = self.extraction_data.path
         self.camera = self.extraction_data.camera
         self.exposure_no = self.extraction_data.exposure_no
@@ -116,7 +115,6 @@ class AxesPID:
     """Store for the axis PID coefficient."""
 
     def __init__(self, actor: ChernoActor | None = None):
-
         self.actor = actor
 
         self.ra = self.reset("ra")
@@ -151,7 +149,6 @@ class Acquisition:
         astrometry_params: dict = {},
         extraction_params: dict = {},
     ):
-
         self.extractor = extractor or Extraction(observatory, **extraction_params)
 
         if astrometry is not None:
@@ -534,7 +531,6 @@ class Acquisition:
             )
 
     async def _correct_apo(self, data: AstrometricSolution, full: bool = False):
-
         actor_state = self.command.actor.state
 
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
@@ -594,7 +590,6 @@ class Acquisition:
         full: bool = False,
         wait_for_correction: bool = True,
     ):
-
         do_focus: bool = False
 
         enabled_axes = self.command.actor.state.enabled_axes
@@ -633,7 +628,6 @@ class Acquisition:
         )
 
     async def _astrometry_one(self, ext_data: ExtractionData):
-
         if config["acquisition"]["astrometry_net_use_all_regions"]:
             regions = ext_data.regions.copy()
         else:
@@ -710,7 +704,6 @@ class Acquisition:
         wcs = acq_data.wcs
 
         if wcs and acq_data.solved:
-
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
             acq_data.camera_racen = float(numpy.round(racen, 6))
             acq_data.camera_deccen = float(numpy.round(deccen, 6))
@@ -816,7 +809,6 @@ class Acquisition:
             gaia_stars = self._gaia_sources[(fid, cam_id)]
 
         else:
-
             gaia_stars = pandas.read_sql(
                 "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
                 "WHERE q3c_radial_query(ra, dec, "
@@ -945,7 +937,6 @@ class Acquisition:
 
 
 def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
-
     guide_loop = guider_state.guide_loop
 
     enabled_axes = guider_state.enabled_axes

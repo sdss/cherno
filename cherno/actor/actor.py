@@ -30,7 +30,6 @@ class ChernoActor(clu.LegacyActor):
     """The Cherno SDSS-style actor."""
 
     def __init__(self, *args, **kwargs):
-
         self.observatory: str = config["observatory"].upper()
 
         models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
@@ -90,7 +89,6 @@ class ChernoState:
     _exposure_loop: asyncio.Task | None = None
 
     def __post_init__(self):
-
         self.observatory = self.actor.observatory
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = config["enabled_axes"].copy()

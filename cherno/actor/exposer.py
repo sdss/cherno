@@ -47,7 +47,6 @@ class Exposer:
     """
 
     def __init__(self, command: ChernoCommandType, callback: CallbackType = None):
-
         self.command = command
 
         assert command.actor
@@ -135,7 +134,6 @@ class Exposer:
 
         n_exp = 0
         while True:
-
             if self.is_stopping() or (count is not None and n_exp >= count):
                 self.actor_state.set_status(GuiderStatus.STOPPING, mode="remove")
                 self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
