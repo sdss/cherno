@@ -18,13 +18,13 @@ ChernoCommandType = Union[Command[ChernoActor], FakeCommand]
 
 
 from .acquire import *
-from .config import *
-from .converge import *
+from .commands.config import *
+from .commands.converge import *
 from .guide import *
-from .offset import *
-from .scale import *
-from .set import *
-from .show import *
-from .status import *
-from .stop import *
-from .version import *
+from .commands.offset import *
+from .commands.scale import *
+from .commands.set import *
+from .commands.show import *
+from .commands.status import *
+from .commands.stop import *
+from .commands.version import *

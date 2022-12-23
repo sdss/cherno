@@ -12,7 +12,7 @@ import click
 
 from cherno import config
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["offset"]
