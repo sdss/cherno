@@ -19,7 +19,6 @@ ChernoCommandType = Command[ChernoActor]
 
 from .commands.acquire import *
 from .commands.config import *
-from .commands.converge import *
 from .commands.guide import *
 from .commands.offset import *
 from .commands.scale import *
