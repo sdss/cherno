@@ -138,7 +138,7 @@ class AxesPID:
 
 
 class Acquisition:
-    """Runs the steps for field acquisition."""
+    """Runs the steps for field acquisition and guiding."""
 
     def __init__(
         self,
@@ -179,6 +179,10 @@ class Acquisition:
         # To cache Gaia sources.
         self._gaia_sources: dict = {}
 
+        # Clear RMS history.
+        if self.command.actor:
+            self.command.actor.state.rms_history.clear()
+
         self._database_lock = asyncio.Lock()
 
     def set_command(self, command: ChernoCommandType):
@@ -189,7 +193,7 @@ class Acquisition:
     async def process(
         self,
         command: ChernoCommandType | None,
-        images: PathLike | list[PathLike],
+        images: list[PathLike],
         write_proc: bool = True,
         overwrite: bool = False,
         correct: bool = True,
@@ -210,9 +214,6 @@ class Acquisition:
 
         if command is not None:
             self.set_command(command)
-
-        if not isinstance(images, (list, tuple)):
-            images = [images]
 
         self.command.info("Extracting sources.")
 
@@ -413,6 +414,10 @@ class Acquisition:
             ast_solution.guider_fit = guider_fit
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
+
+            # Store RMS. This is used to determine acquisition convergence.
+            if rms > 0:
+                self.command.actor.state.rms_history.append(rms)
 
         ast_solution.valid_solution = True
 

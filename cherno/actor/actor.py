@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections import deque
 from dataclasses import dataclass, field
 
 from typing import TYPE_CHECKING
@@ -83,6 +84,7 @@ class ChernoState:
     enabled_cameras: list = field(default_factory=list)
     enabled_axes: list = field(default_factory=list)
     scale_history: list = field(default_factory=list)
+    rms_history: deque = field(default_factory=deque)
     astrometry_net_odds: float = 1e9
 
     _acquisition_obj: Acquisition | None = None
@@ -93,6 +95,7 @@ class ChernoState:
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = config["enabled_axes"].copy()
         self.astrometry_net_odds = config["acquisition"]["astrometry_net_odds"]
+        self.rms_history = deque(maxlen=10)
 
         self.guide_loop = config["guide_loop"].copy()
         for axis in ["ra", "dec", "rot", "focus"]:
