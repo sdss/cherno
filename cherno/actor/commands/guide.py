@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from functools import partial
 from types import SimpleNamespace
 
@@ -15,6 +16,8 @@ import click
 
 from cherno import config
 from cherno.acquisition import Acquisition
+from cherno.actor.exposer import Exposer
+from cherno.exceptions import ExposerError
 from cherno.maskbits import GuiderStatus
 
 from .. import ChernoCommandType, cherno_parser
@@ -187,35 +190,40 @@ def get_callback(params: Params):
     )
 
 
+async def _guide(params: Params):
+    """Actually run the guide loop."""
+
+    command = params.command
+
+    if not check_params(params):
+        # Already failed
+        return
+
+    callback = get_callback(params)
+    exposer = Exposer(command, callback=callback)
+
+    command.actor.state._exposure_loop = asyncio.create_task(
+        exposer.loop(
+            None,
+            count=params.count if params.continuous is False else None,
+            timeout=25,
+            names=params.names,
+            delay=params.wait or 0.0,
+        )
+    )
+
+    try:
+        await command.actor.state._exposure_loop
+    except ExposerError as err:
+        return command.fail(f"Acquisition failed: {err}")
+
+    return command.finish()
+
+
 @cherno_parser.command()
-@click.option(
-    "-o",
-    "--off",
-    is_flag=True,
-    help="Turns guiding off.",
-)
-@click.option(
-    "-t",
-    "--timeout",
-    type=float,
-    default=5.0,
-    help="Extra time to wait for an exposure to be done before failiing.",
-)
-async def guide(command: ChernoCommandType, off: bool = False, timeout: float = 5.0):
-    """Starts the guiding loop."""
+async def guide(**kwargs):
+    """Runs the guiding loop."""
 
-    assert command.actor
+    params = Params(**kwargs)
 
-    state = command.actor.state
-
-    if off:
-        if state.status & GuiderStatus.STOPPING:
-            return command.fail(error="Guider is already stopping.")
-        elif not (state.status & GuiderStatus.EXPOSING):
-            return command.fail(error="Guider is not exposing.")
-
-    command.info("Starting guider loop.")
-
-    while True:
-        if state.status & (GuiderStatus.STOPPING | GuiderStatus.FAILED):
-            return command.finish("Finishing guider loop.")
+    return await _guide(params)
