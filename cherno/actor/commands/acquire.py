@@ -8,24 +8,53 @@
 
 from __future__ import annotations
 
+from functools import partial
+
+from typing import TYPE_CHECKING
+
 import click
 
-from cherno.actor.commands.guide import Params, _guide, get_guide_common_params
+from cherno.actor.commands.guide import GuideParams, _guide, get_guide_common_params
 
 from .. import cherno_parser
 
 
+if TYPE_CHECKING:
+    from .. import ChernoCommandType
+
+
 __all__ = ["acquire"]
+
+
+def stop_acquisition(command: ChernoCommandType, target: float):
+    """Determines whether the acquisition should be stopped."""
+
+    rms_history = command.actor.state.rms_history
+
+    if len(rms_history) == 0:
+        return False
+
+    return rms_history[-1] <= target
 
 
 acquire_params = get_guide_common_params(continuous=False, full=True)
 
 
 @cherno_parser.command(params=acquire_params)
-@click.option("--test", is_flag=True)
-async def acquire(**kwargs):
+@click.option(
+    "--target-rms",
+    "-r",
+    type=float,
+    help="RMS at which to stop the acquisition process.",
+)
+async def acquire(target_rms: float | None = None, **kwargs):
     """Runs the acquisition procedure."""
 
-    params = Params(**kwargs)
+    params = GuideParams(**kwargs)
 
-    return await _guide(params)
+    if target_rms is not None:
+        stop_condition = partial(stop_acquisition, params.command, target_rms)
+    else:
+        stop_condition = None
+
+    return await _guide(params, stop_condition=stop_condition)

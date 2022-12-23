@@ -12,6 +12,8 @@ import asyncio
 from functools import partial
 from types import SimpleNamespace
 
+from typing import Callable
+
 import click
 
 from cherno import config
@@ -22,7 +24,13 @@ from cherno.guider import Guider
 from .. import ChernoCommandType, cherno_parser
 
 
-__all__ = ["guide", "get_callback", "get_guide_common_params", "Params", "check_params"]
+__all__ = [
+    "guide",
+    "get_callback",
+    "get_guide_common_params",
+    "GuideParams",
+    "check_params",
+]
 
 
 def get_guide_common_params(continuous: bool = True, full: bool = False):
@@ -110,7 +118,7 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
     return sorted(options, key=lambda opt: opt.name or "")
 
 
-class Params(SimpleNamespace):
+class GuideParams(SimpleNamespace):
     command: ChernoCommandType
     exposure_time: float | None = None
     continuous: bool = False
@@ -129,7 +137,7 @@ class Params(SimpleNamespace):
     names: list[str] | None = None
 
 
-def check_params(params: Params):
+def check_params(params: GuideParams):
     """Checks the parameters. Fails the command if an error is found."""
 
     command = params.command
@@ -169,7 +177,7 @@ def check_params(params: Params):
     return True
 
 
-def get_callback(params: Params):
+def get_callback(params: GuideParams):
     """Returns the Guide.process() callback."""
 
     guider = Guider(config["observatory"])
@@ -189,7 +197,7 @@ def get_callback(params: Params):
     )
 
 
-async def _guide(params: Params):
+async def _guide(params: GuideParams, stop_condition: Callable[[], bool] | None = None):
     """Actually run the guide loop."""
 
     command = params.command
@@ -208,13 +216,17 @@ async def _guide(params: Params):
             timeout=25,
             names=params.names,
             delay=params.wait or 0.0,
+            stop_condition=stop_condition,
         )
     )
 
     try:
         await command.actor.state._exposure_loop
     except ExposerError as err:
-        return command.fail(f"Acquisition failed: {err}")
+        return command.fail(f"Guiding failed: {err}")
+
+    if stop_condition is not None and exposer.stop_reached:
+        command.info("Stop condition has been reached.")
 
     return command.finish()
 
@@ -223,6 +235,6 @@ async def _guide(params: Params):
 async def guide(**kwargs):
     """Runs the guiding loop."""
 
-    params = Params(**kwargs)
+    params = GuideParams(**kwargs)
 
     return await _guide(params)
