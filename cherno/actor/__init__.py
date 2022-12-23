@@ -17,10 +17,10 @@ from .actor import ChernoActor
 ChernoCommandType = Union[Command[ChernoActor], FakeCommand]
 
 
-from .acquire import *
+from .commands.acquire import *
 from .commands.config import *
 from .commands.converge import *
-from .guide import *
+from .commands.guide import *
 from .commands.offset import *
 from .commands.scale import *
 from .commands.set import *
