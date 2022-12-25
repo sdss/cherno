@@ -53,6 +53,7 @@ async def acquire(target_rms: float | None = None, **kwargs):
     params = GuideParams(**kwargs)
 
     if target_rms is not None:
+        params.continuous = True
         stop_condition = partial(stop_acquisition, params.command, target_rms)
     else:
         stop_condition = None
