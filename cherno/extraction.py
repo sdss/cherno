@@ -600,6 +600,8 @@ class Extraction:
         regions: pandas.DataFrame,
         data: numpy.ndarray,
         path: pathlib.Path,
+        vmin: float,
+        vmax: float,
         only_valid: bool = True,
         xcen_col: str = "x",
         ycen_col: str = "y",
@@ -607,8 +609,6 @@ class Extraction:
         b_col: str = "b",
         theta_col: str | None = "theta",
         factor: float = 1.0,
-        vmin: float | None = None,
-        vmax: float | None = None,
         title: str | None = None,
     ):
         """Plot regions."""
@@ -646,7 +646,7 @@ class Extraction:
                 edgecolor="r",
                 linewidth=0.5,
             )
-            ell.set_clip_box(ax.bbox)
+            ell.set_clip_box(ax.bbox)  # type: ignore
             ax.add_patch(ell)
 
         ax.set_xlim(0, data.shape[1] - 1)
