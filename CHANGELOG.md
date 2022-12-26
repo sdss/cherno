@@ -4,7 +4,7 @@
 
 ### 🚀 New
 
-* Added a `guide` command that replaces the current `acquire`. `acquire` is still there and does basically the same (they share the same code) but by default applies full corrections and is not continuous. `acquire` also accepts a `--target-rms` flag that will stop the acquisition process if that RMS is reached. In the future we may introduce more differences, with `acquire` aiming to quick acquisition, so some features may be disabled.
+* [#10](https://github.com/sdss/cherno/issues/10) Added a `guide` command that replaces the current `acquire`. `acquire` is still there and does basically the same (they share the same code) but by default applies full corrections and is not continuous. `acquire` also accepts a `--target-rms` flag that will stop the acquisition process if that RMS is reached. In the future we may introduce more differences, with `acquire` aiming to quick acquisition, so some features may be disabled.
 
 
 ## 0.4.0 - December 20, 2022
