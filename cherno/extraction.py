@@ -254,6 +254,10 @@ class Extraction:
 
         regions = calculate_fwhm_from_ellipse(regions, self.pixel_scale)
 
+        # Copy x,y columns as x1,y1. Guider expects those columns regardless of the
+        # extraction method.
+        regions[["x1", "y1"]] = regions.loc[:, ["x", "y"]]
+
         if plot:
             data_back = data - back.back()
             self.plot_regions(
@@ -329,6 +333,10 @@ class Extraction:
 
         regions["fwhm"] = regions.sigma_fit * gaussian_sigma_to_fwhm * self.pixel_scale
         regions["valid"] = 1
+
+        # Copy x,y columns as x1,y1. Guider expects those columns regardless of the
+        # extraction method.
+        regions[["x1", "y1", "flux"]] = regions.loc[:, ["x_0", "y_0", "flux_0"]]
 
         if plot:
             self.plot_regions(
