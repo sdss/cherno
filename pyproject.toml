@@ -27,7 +27,7 @@ include = ["cherno/etc"]
 cherno = "cherno.__main__:cherno"
 
 [tool.poetry.dependencies]
-python = "^3.9,<3.11"
+python = "^3.9,<4"
 sdsstools = ">=0.1.0"
 sdss-clu = "^1.8.0"
 numpy = "^1.19.2"
