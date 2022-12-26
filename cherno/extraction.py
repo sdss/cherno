@@ -15,7 +15,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy
@@ -24,7 +24,6 @@ import seaborn
 import sep
 from astropy.io import fits
 from astropy.modeling.fitting import LevMarLSQFitter
-from astropy.modeling.models import Gaussian1D, Trapezoid1D
 from astropy.stats import SigmaClip, gaussian_sigma_to_fwhm
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
@@ -32,6 +31,8 @@ from matplotlib.patches import Ellipse
 from photutils.background import MedianBackground, StdBackgroundRMS
 from photutils.detection import DAOStarFinder
 from photutils.psf import BasicPSFPhotometry, DAOGroup, IntegratedGaussianPRF
+
+from coordio.extraction import extract_marginal
 
 from cherno import config
 
@@ -367,180 +368,27 @@ class Extraction:
         Determines the initial centroids using the SExtractor routine.
         Then a box around each detection is selected and background-subtracted.
         The marginal distributions of the detection (the collapsed sum on each axis)
-        are fitted using both a 1D Gaussian and 1D trapezoid, and the FWHM for each
-        are calculated. Then the best match for each detection is selected based on
-        the option that minimises the residuals.
+        are fitted using both a 1D Gaussian. See ``coordio.extraction.extract_marginal``
+        for details.
 
         """
 
         marginal_params = self.params["marginal"]
 
-        regions, back = self._process_sextractor(data, path, plot=False)
-        regions = regions.loc[regions.valid == 1]
-        regions = regions.rename(columns={"fwhm": "fwhm_sextractor"})
+        output_root = self._get_output_path(path)
+        plot_path = str(output_root) + "-marginal.pdf" if plot else None
 
-        regions["valid"] = 1 * (regions.npix > marginal_params["min_npix"])
+        regions = extract_marginal(
+            data,
+            marginal_params["background_sigma"],
+            sextractor_quick_options={"minarea": marginal_params["minarea"]},
+            plot=plot_path,
+        )
 
-        # Parameters of the Gaussian fit.
-        regions["gaussian_fit"] = 1
-        regions["x_gaussian"] = numpy.nan
-        regions["y_gaussian"] = numpy.nan
-        regions["fwhm_gaussian"] = numpy.nan
-        regions["residual_gaussian"] = numpy.nan
+        regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
+        regions["fwhm"] *= gaussian_sigma_to_fwhm
 
-        # Parameters of the trapezoid fit.
-        regions["trapezoid_fit"] = 1
-        regions["x_trapezoid"] = numpy.nan
-        regions["y_trapezoid"] = numpy.nan
-        regions["fwhm_trapezoid"] = numpy.nan
-        regions["residual_trapezoid"] = numpy.nan
-
-        # Parameters of the best fit. model_fit=g if the best fit was the Gaussian,
-        # t if the trapezoid, and empty if invalid.
-        regions["model_fit"] = ""
-        regions["x_fit"] = numpy.nan
-        regions["y_fit"] = numpy.nan
-        regions["fwhm"] = numpy.nan
-        regions["residual_fit"] = numpy.nan
-
-        fitter = LevMarLSQFitter()
-        fit_box = marginal_params["fit_box"]
-
-        p_scale = self.pixel_scale
-        data_back = data - back.back()
-
-        for index, row in regions.iterrows():
-            index = cast(Any, index)
-
-            # Ignore detections that we have already marked as invalid in SExtractor.
-            if row.valid == 0:
-                continue
-
-            cen = numpy.round([row.y, row.x]).astype(int)
-
-            gauss_residual = []
-            gauss_centroids = []
-            gauss_fwhm = []
-            gauss_valid = True
-
-            trap_residual = []
-            trap_centroids = []
-            trap_fwhm = []
-            trap_valid = True
-
-            data_region = data_back[
-                cen[0] - fit_box[0] // 2 : cen[0] + fit_box[0] // 2 + 1,
-                cen[1] - fit_box[1] // 2 : cen[1] + fit_box[1] // 2 + 1,
-            ].astype("f4")
-
-            # Deal with regions near the edges
-            if (
-                data_region.shape[0] != data_region.shape[1]
-                or data_region.shape[0] < fit_box[0]
-                or data_region.shape[1] < fit_box[1]
-            ):
-                continue
-
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-
-                for axis in [0, 1]:
-                    mid = fit_box[axis] // 2
-                    x_mesh = numpy.arange(fit_box[axis])
-
-                    data_marginal = data_region.sum(axis)
-                    data_marginal /= data_marginal.max()
-
-                    gauss_init = Gaussian1D(
-                        amplitude=data_marginal.max(),
-                        stddev=row.fwhm_sextractor / p_scale / gaussian_sigma_to_fwhm,
-                        mean=mid,
-                    )
-                    g = fitter(gauss_init, x_mesh, data_marginal)
-                    if gauss_valid is True:
-                        # Reject if the fitting routine doesn't say this is a good fit.
-                        gauss_valid = fitter.fit_info["ierr"] <= 4
-                    if numpy.abs(g.mean - mid) > 10:
-                        gauss_valid = False
-                    gauss_centroids.append(cen[axis] + (g.mean - mid) + 0.5)
-                    gauss_fwhm.append(g.stddev * gaussian_sigma_to_fwhm * p_scale)
-                    gauss_residual.append(numpy.sum((data_marginal - g(x_mesh)) ** 2))
-
-                    trap_init = Trapezoid1D(
-                        amplitude=data_marginal.max(),
-                        x_0=mid,
-                        width=row.fwhm_sextractor / p_scale / gaussian_sigma_to_fwhm,
-                        slope=0.1,
-                    )
-                    t = fitter(trap_init, x_mesh, data_marginal)
-                    if trap_valid is True:
-                        trap_valid = fitter.fit_info["ierr"] <= 4
-                    if numpy.abs(t.x_0 - mid):
-                        trap_valid = False
-                    trap_centroids.append(cen[axis] + (t.x_0 - mid) + 0.5)
-                    trap_fwhm.append((t.amplitude / t.slope + t.width) * p_scale)
-                    trap_residual.append(numpy.sum((data_marginal - t(x_mesh)) ** 2))
-
-            #         with plt.ioff():
-            #             fig, ax = plt.subplots()
-            #             ax.plot(data_marginal, c="k", ls="dotted")
-            #             ax.plot(g(x_mesh), "b-")
-            #             ax.plot(t(x_mesh), "g-")
-            #             ax.axhline(y=0.0, ls="--", c="r")
-            #             fig.savefig(
-            #                 path.parent
-            #                 / "extraction"
-            #                 / (path.stem + f"-{index}-{axis}.pdf")
-            #             )
-
-            # plt.close("all")
-
-            regions.loc[index, "gaussian_fit"] = int(gauss_valid)
-            regions.loc[index, "x_gaussian"] = gauss_centroids[::-1][0]
-            regions.loc[index, "y_gaussian"] = gauss_centroids[::-1][1]
-            regions.loc[index, "fwhm_gaussian"] = float(numpy.mean(gauss_fwhm))
-            gauss_residual_mean = (numpy.array(gauss_residual) ** 2).sum() ** 0.5
-            regions.loc[index, "residual_gaussian"] = gauss_residual_mean
-
-            regions.loc[index, "trapezoid_fit"] = int(trap_valid)
-            regions.loc[index, "x_trapezoid"] = trap_centroids[::-1][0]
-            regions.loc[index, "y_trapezoid"] = trap_centroids[::-1][1]
-            regions.loc[index, "fwhm_trapezoid"] = float(numpy.mean(trap_fwhm))
-            trap_residual_mean = (numpy.array(trap_residual) ** 2).sum() ** 0.5
-            regions.loc[index, "residual_trapezoid"] = trap_residual_mean
-
-            if not gauss_valid and not trap_valid:
-                continue
-            elif gauss_valid and gauss_residual_mean <= trap_residual_mean:
-                regions.loc[index, "x_fit"] = gauss_centroids[::-1][0]
-                regions.loc[index, "y_fit"] = gauss_centroids[::-1][1]
-                regions.loc[index, "fwhm"] = float(numpy.mean(gauss_fwhm))
-                regions.loc[index, "residual_fit"] = gauss_residual_mean
-                regions.loc[index, "model_fit"] = "g"
-            else:
-                regions.loc[index, "x_fit"] = trap_centroids[::-1][0]
-                regions.loc[index, "y_fit"] = trap_centroids[::-1][1]
-                regions.loc[index, "fwhm"] = float(numpy.mean(trap_fwhm))
-                regions.loc[index, "residual_fit"] = trap_residual_mean
-                regions.loc[index, "model_fit"] = "t"
-
-        regions.loc[regions.model_fit == "", "valid"] = 0
-
-        if plot:
-            self.plot_regions(
-                regions.loc[regions.model_fit != ""],
-                data,
-                path=path,
-                vmin=data.mean() - 5 * back.globalrms,
-                vmax=data.mean() + 5 * back.globalrms,
-                factor=1.0,
-                xcen_col="x_fit",
-                ycen_col="y_fit",
-                a_col="fwhm",
-                b_col="fwhm",
-                theta_col=None,
-                title=path.parts[-1] + " (marginal)",
-            )
+        regions.loc[:, "valid"] = 1
 
         return regions
 
@@ -552,14 +400,7 @@ class Extraction:
         if self.method in ["sextractor", "marginal"]:
             # Filter out bad FWHM values.
             ecc = numpy.sqrt(regions.a**2 - regions.b**2) / regions.a
-
-            filter = (
-                ((regions.a * self.pixel_scale) < 5)
-                & ((regions.a * self.pixel_scale) > 0.4)
-                & (regions.cpeak < 60000)
-                & (ecc < 0.7)
-            )
-
+            filter = (regions.cpeak < 60000) & (ecc < 0.8) & (ecc > 0.05)
             regions.loc[~filter, "fwhm_valid"] = 0
 
         if method == "sigclip":
