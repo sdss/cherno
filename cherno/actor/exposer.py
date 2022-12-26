@@ -47,13 +47,13 @@ class Exposer:
     """
 
     def __init__(self, command: ChernoCommandType, callback: CallbackType = None):
-
         self.command = command
 
         assert command.actor
         self.actor = command.actor
 
         self.actor_state = self.actor.state
+        self.stop_reached: bool = False
 
         self.callback = callback
         self._blocking: bool = True
@@ -99,6 +99,8 @@ class Exposer:
         names: list[str] | None = None,
         timeout: float | None = None,
         callback: CallbackType = None,
+        stop_condition: Callable[[], bool] | None = None,
+        max_iterations: int | None = None,
     ):
         """Loops the cameras.
 
@@ -121,6 +123,14 @@ class Exposer:
         callback
             The callback to invoke after each exposure completes. If specified,
             overrides the global callback only for this loop.
+        stop_condition
+            A function called at the end of each expose loop, and after the callback
+            has been executed, to determine whether to stop the loop. The function
+            is called without arguments and must return a boolean, with `True`
+            stopping the loop.
+        max_iterations
+            Maximum number of iterations after which to fail the loop, if
+            ``stop_condition`` has not been reached.
 
         """
 
@@ -135,7 +145,6 @@ class Exposer:
 
         n_exp = 0
         while True:
-
             if self.is_stopping() or (count is not None and n_exp >= count):
                 self.actor_state.set_status(GuiderStatus.STOPPING, mode="remove")
                 self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
@@ -207,12 +216,18 @@ class Exposer:
                 except Exception as err:
                     self.fail(str(err))
 
-            if delay:
-                await asyncio.sleep(delay)
-
             n_exp += 1
 
-            self.actor_state.set_status(GuiderStatus.IDLE, mode="add")
+            if stop_condition is not None and stop_condition():
+                self.actor_state.set_status(GuiderStatus.STOPPING, mode="add")
+                self.stop_reached = True
+                continue
+
+            if max_iterations and n_exp >= max_iterations:
+                self.fail("Maximum number of iterations reached.")
+
+            if delay:
+                await asyncio.sleep(delay)
 
     def _check_ffs(self):
         """Checks that the FFS are open."""

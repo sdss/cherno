@@ -15,7 +15,7 @@ from yaml import warnings
 from cherno import config
 from cherno.exceptions import ChernoUserWarning
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["status"]

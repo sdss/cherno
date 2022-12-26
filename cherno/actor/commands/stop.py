@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from cherno.maskbits import GuiderStatus
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["stop"]

@@ -9,7 +9,7 @@ actor:
     - mcp
   store: ['guide_rms']
   verbose: 30
-  tron_host: sdss5-hub
+  tron_host: localhost
   tron_port: 6093
   schema: etc/schema.json
   log_dir: /data/logs/actors/cherno
@@ -68,7 +68,7 @@ guide_loop:
 
 enabled_axes: ['ra', 'dec', 'rot', 'focus']
 
-acquisition:
+guider:
   cpulimit: 15
   astrometry_net_config: etc/astrometrynet_APO.cfg
   astrometry_net_use_all_regions: true

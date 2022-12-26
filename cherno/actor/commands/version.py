@@ -12,7 +12,7 @@ from coordio import __version__ as coordio_version
 
 from cherno import __version__ as cherno_version
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["version"]

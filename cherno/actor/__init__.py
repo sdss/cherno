@@ -8,23 +8,22 @@
 
 from typing import Union
 
-from clu import Command, FakeCommand
+from clu import Command
 from clu.parsers.click import command_parser as cherno_parser
 
 from .actor import ChernoActor
 
 
-ChernoCommandType = Union[Command[ChernoActor], FakeCommand]
+ChernoCommandType = Command[ChernoActor]
 
 
-from .acquire import *
-from .config import *
-from .converge import *
-from .guide import *
-from .offset import *
-from .scale import *
-from .set import *
-from .show import *
-from .status import *
-from .stop import *
-from .version import *
+from .commands.acquire import *
+from .commands.config import *
+from .commands.guide import *
+from .commands.offset import *
+from .commands.scale import *
+from .commands.set import *
+from .commands.show import *
+from .commands.status import *
+from .commands.stop import *
+from .commands.version import *

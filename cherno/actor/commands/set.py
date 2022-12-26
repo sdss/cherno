@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import click
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["set"]
@@ -79,7 +79,6 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
             pid_attr.reset()
 
     elif options[0] == "axes":
-
         if len(options) == 1 or (len(options) == 2 and options[1] in ["off", "none"]):
             axes = []
         else:
