@@ -573,7 +573,7 @@ class Extraction:
             regions_sorted = regions.sort_values("fwhm", ascending=True)
 
             while True:
-                # Endure we get at least some valid targets.
+                # Ensure we get at least some valid targets.
                 valid = regions_sorted.iloc[nreject[0] : -nreject[1]]
                 if len(valid) > 0:
                     break
