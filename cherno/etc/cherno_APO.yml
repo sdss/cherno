@@ -89,21 +89,23 @@ guider:
 
 extraction:
   output_dir: ./extraction
-  star_finder: sextractor
-  background_sigma: 3.0
-  min_npix: 15
+  method: sextractor
   plot: false
   rejection_method: sigclip
   reject_sigma: 2.0
   nreject: [2, 3]
   max_stars: 50
+  sextractor:
+    background_sigma: 3.0
+    min_npix: 15
   daophot:
+    background_sigma: 3.0
     fixed_sigma: false
     initial_psf_fwhm: 7.0
     use_sep_finder: false
   marginal:
-    fwhm_estimate: 10.0
-    fit_box: [51, 51]
+    background_sigma: 5.0
+    minarea: 15
 
 default_offset: [0.0, -0.1, -432]
 

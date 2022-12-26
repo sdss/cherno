@@ -652,14 +652,7 @@ class Guider:
         outfile_root = astrometry_dir / ext_data.path.stem
 
         # We use all detections, even invalid ones here.
-        if ext_data.algorithm == "marginal":
-            xyls_df = regions.loc[:, ["x", "y", "flux"]].copy()
-            xyls_df = xyls_df.rename(columns={"x_fit": "x", "y_fit": "y"})
-        elif ext_data.algorithm == "daophot":
-            xyls_df = regions.loc[:, ["x_0", "y_0", "flux_0"]].copy()
-            xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
-        else:
-            xyls_df = regions.loc[:, ["x", "y", "flux"]]
+        xyls_df = regions.loc[:, ["x1", "y1", "flux"]].copy()
 
         gfa_xyls = Table.from_pandas(xyls_df)
         gfa_xyls_path = outfile_root.with_suffix(".xyls")
@@ -758,16 +751,9 @@ class Guider:
         cam = guide_data.camera
 
         regions = guide_data.extraction_data.regions.copy()
-        if guide_data.extraction_data.algorithm == "marginal":
-            xyls_df = regions.loc[:, ["x", "y", "flux"]].copy()
-            xyls_df = xyls_df.rename(columns={"x_fit": "x", "y_fit": "y"})
-        elif guide_data.extraction_data.algorithm == "daophot":
-            xyls_df = regions.loc[:, ["x_0", "y_0", "flux_0"]].copy()
-            xyls_df = xyls_df.rename(columns={"x_0": "x", "y_0": "y", "flux_0": "flux"})
-        else:
-            xyls_df = regions.loc[:, ["x", "y", "flux"]]
+        xy_regions = regions.loc[:, ["x1", "y1", "flux"]].copy()
 
-        if len(xyls_df) < 4:
+        if len(xy_regions) < 4:
             self.command.warning(f"{cam}: too few sources. Cannot cross-match to Gaia.")
             return
 
@@ -853,7 +839,7 @@ class Guider:
         loop = asyncio.get_running_loop()
         cross_match_func = partial(
             cross_match,
-            xyls_df.values[:, :2],
+            xy_regions.values[:, :2],
             gaia[:, 0:2],
             gaia[:, 2:],
             2048,
