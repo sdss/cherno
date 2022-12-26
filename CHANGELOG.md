@@ -5,6 +5,7 @@
 ### 🚀 New
 
 * Added a `guide` command that replaces the current `acquire`. `acquire` is still there and does basically the same (they share the same code) but by default applies full corrections and is not continuous. `acquire` also accepts a `--target-rms` flag that will stop the acquisition process if that RMS is reached. In the future we may introduce more differences, with `acquire` aiming to quick acquisition, so some features may be disabled.
+* [#11](https://github.com/sdss/cherno/issues/11) The marginal distribution extraction now uses the code from `coordio.extraction.extract_marginal()`.
 
 
 ## 0.4.0 - December 20, 2022
