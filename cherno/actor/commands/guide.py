@@ -197,7 +197,11 @@ def get_callback(params: GuideParams):
     )
 
 
-async def _guide(params: GuideParams, stop_condition: Callable[[], bool] | None = None):
+async def _guide(
+    params: GuideParams,
+    stop_condition: Callable[[], bool] | None = None,
+    max_iterations: int | None = None,
+):
     """Actually run the guide loop."""
 
     command = params.command
@@ -213,6 +217,7 @@ async def _guide(params: GuideParams, stop_condition: Callable[[], bool] | None 
         exposer.loop(
             None,
             count=params.count if params.continuous is False else None,
+            max_iterations=max_iterations,
             timeout=25,
             names=params.names,
             delay=params.wait or 0.0,

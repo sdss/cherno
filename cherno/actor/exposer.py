@@ -100,6 +100,7 @@ class Exposer:
         timeout: float | None = None,
         callback: CallbackType = None,
         stop_condition: Callable[[], bool] | None = None,
+        max_iterations: int | None = None,
     ):
         """Loops the cameras.
 
@@ -127,6 +128,9 @@ class Exposer:
             has been executed, to determine whether to stop the loop. The function
             is called without arguments and must return a boolean, with `True`
             stopping the loop.
+        max_iterations
+            Maximum number of iterations after which to fail the loop, if
+            ``stop_condition`` has not been reached.
 
         """
 
@@ -218,6 +222,9 @@ class Exposer:
                 self.actor_state.set_status(GuiderStatus.STOPPING, mode="add")
                 self.stop_reached = True
                 continue
+
+            if max_iterations and n_exp >= max_iterations:
+                self.fail("Maximum number of iterations reached.")
 
             if delay:
                 await asyncio.sleep(delay)

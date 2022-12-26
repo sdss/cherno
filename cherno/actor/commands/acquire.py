@@ -47,7 +47,17 @@ acquire_params = get_guide_common_params(continuous=False, full=True)
     type=float,
     help="RMS at which to stop the acquisition process.",
 )
-async def acquire(target_rms: float | None = None, **kwargs):
+@click.option(
+    "--max-iterations",
+    "-x",
+    type=int,
+    help="Maximum number of iterations before failing.",
+)
+async def acquire(
+    target_rms: float | None = None,
+    max_iterations: int | None = None,
+    **kwargs,
+):
     """Runs the acquisition procedure."""
 
     params = GuideParams(**kwargs)
@@ -58,4 +68,8 @@ async def acquire(target_rms: float | None = None, **kwargs):
     else:
         stop_condition = None
 
-    return await _guide(params, stop_condition=stop_condition)
+    return await _guide(
+        params,
+        stop_condition=stop_condition,
+        max_iterations=max_iterations,
+    )
