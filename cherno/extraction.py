@@ -69,12 +69,12 @@ class ExtractionData:
 class Extraction:
     """Extract centroids and PSF information from an image."""
 
-    __VALID_STAR_FINDER = ["daophot", "sextractor", "marginal"]
+    __VALID_METHODS = ["daophot", "sextractor", "marginal"]
 
     def __init__(
         self,
         observatory: str,
-        star_finder: str | None = None,
+        method: str | None = None,
         pixel_scale: float | None = None,
         daophot_params={},
         marginal_params={},
@@ -90,10 +90,10 @@ class Extraction:
 
         self.output_dir = pathlib.Path(self.params["output_dir"])
 
-        self.star_finder = star_finder or self.params["star_finder"]
-        if self.star_finder not in self.__VALID_STAR_FINDER:
+        self.method = method or self.params["method"]
+        if self.method not in self.__VALID_METHODS:
             raise ValueError(
-                f"Invalid star finder. Valid values are {self.__VALID_STAR_FINDER}."
+                f"Invalid star finder. Valid values are {self.__VALID_METHODS}."
             )
 
     def process(self, image: PathLike) -> ExtractionData:
@@ -121,11 +121,11 @@ class Extraction:
             cam_no = 0
             exp_no = 0
 
-        if self.star_finder == "sextractor":
+        if self.method == "sextractor":
             regions = self._process_sextractor(data, path)[0]
-        elif self.star_finder == "daophot":
+        elif self.method == "daophot":
             regions = self._process_daophot(data, path)
-        elif self.star_finder == "marginal":
+        elif self.method == "marginal":
             regions = self._process_marginal(data, path)
         else:
             regions = pandas.DataFrame()
@@ -163,7 +163,7 @@ class Extraction:
             field_ra=header["RAFIELD"],
             field_dec=header["DECFIELD"],
             field_pa=header["FIELDPA"],
-            algorithm=self.star_finder,
+            algorithm=self.method,
             regions=regions,
             nregions=len(regions),
             nvalid=sum(regions.valid == 1),
@@ -541,7 +541,7 @@ class Extraction:
 
         method = self.params.get("rejection_method", "sigclip")
 
-        if self.star_finder in ["sextractor", "marginal"]:
+        if self.method in ["sextractor", "marginal"]:
             # Filter out bad FWHM values.
             ecc = numpy.sqrt(regions.a**2 - regions.b**2) / regions.a
 

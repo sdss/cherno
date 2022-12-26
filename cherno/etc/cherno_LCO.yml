@@ -89,7 +89,7 @@ guider:
 
 extraction:
   output_dir: ./extraction
-  star_finder: sextractor
+  method: sextractor
   background_sigma: 3.0
   min_npix: 15
   plot: false
