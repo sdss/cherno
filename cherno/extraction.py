@@ -232,7 +232,7 @@ class Extraction:
 
         regions = sep.extract(
             data - back.back(),
-            self.params["background_sigma"],
+            self.params["sextractor"]["background_sigma"],
             err=back.globalrms,
         )
 
@@ -240,7 +240,7 @@ class Extraction:
         regions.index.set_names("regions_id", inplace=True)
         regions.loc[:, "valid"] = 0
 
-        min_npix = self.params["min_npix"]
+        min_npix = self.params["sextractor"]["min_npix"]
         if len(regions) > 0:
             regions.loc[regions.npix > min_npix, "valid"] = 1
 
@@ -282,7 +282,7 @@ class Extraction:
         psf_fwhm = self.params["daophot"]["initial_psf_fwhm"]
         psf_sigma = psf_fwhm / gaussian_sigma_to_fwhm
 
-        background_sigma = self.params["background_sigma"]
+        background_sigma = self.params["daophot"]["background_sigma"]
         max_stars = self.params["daophot"].get("max_stars", None)
 
         data = data.astype("float32")
@@ -371,7 +371,7 @@ class Extraction:
         regions = regions.loc[regions.valid == 1]
         regions = regions.rename(columns={"fwhm": "fwhm_sextractor"})
 
-        regions["valid"] = 1 * (regions.npix > self.params["min_npix"])
+        regions["valid"] = 1 * (regions.npix > marginal_params["min_npix"])
 
         # Parameters of the Gaussian fit.
         regions["gaussian_fit"] = 1
