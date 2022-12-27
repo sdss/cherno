@@ -227,7 +227,13 @@ class Exposer:
                 self.fail("Maximum number of iterations reached.")
 
             if delay:
+                self.actor_state.set_status(GuiderStatus.WAITING, mode="add")
                 await asyncio.sleep(delay)
+                self.actor_state.set_status(
+                    GuiderStatus.WAITING,
+                    mode="remove",
+                    report=False,
+                )
 
     def _check_ffs(self):
         """Checks that the FFS are open."""
@@ -282,8 +288,18 @@ class Exposer:
         """Invokes the callback with a list of filenames."""
 
         def unset_processing(*args, **kwargs):
-            """Removes the ``PROCESSING`` flag after the callback completes."""
-            self.actor_state.set_status(GuiderStatus.PROCESSING, mode="remove")
+            """Removes the ``PROCESSING`` flag after the callback completes.
+
+            Does not report the status since the loop will already do that almost
+            immediately.
+
+            """
+
+            self.actor_state.set_status(
+                GuiderStatus.PROCESSING,
+                mode="remove",
+                report=False,
+            )
 
         self.actor_state.set_status(GuiderStatus.PROCESSING, mode="add")
 
