@@ -54,13 +54,14 @@ acquire_params = get_guide_common_params(continuous=False, full=True)
     help="Maximum number of iterations before failing.",
 )
 async def acquire(
+    command: ChernoCommandType,
     target_rms: float | None = None,
     max_iterations: int | None = None,
     **kwargs,
 ):
     """Runs the acquisition procedure."""
 
-    params = GuideParams(**kwargs)
+    params = GuideParams(command=command, **kwargs)
 
     if target_rms is not None:
         params.continuous = True

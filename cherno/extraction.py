@@ -373,6 +373,9 @@ class Extraction:
 
         """
 
+        if plot is None:
+            plot = self.params.get("plot", False)
+
         marginal_params = self.params["marginal"]
 
         output_root = self._get_output_path(path)
@@ -386,7 +389,7 @@ class Extraction:
         )
 
         regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
-        regions["fwhm"] *= gaussian_sigma_to_fwhm
+        regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
 
         regions.loc[:, "valid"] = 1
 

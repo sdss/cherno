@@ -94,7 +94,7 @@ class ChernoState:
         self.observatory = self.actor.observatory
         self.enabled_cameras = config["cameras"]["names"].copy()
         self.enabled_axes = config["enabled_axes"].copy()
-        self.astrometry_net_odds = config["guide"]["astrometry_net_odds"]
+        self.astrometry_net_odds = config["guider"]["astrometry_net_odds"]
         self.rms_history = deque(maxlen=10)
 
         self.guide_loop = config["guide_loop"].copy()

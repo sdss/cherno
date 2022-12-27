@@ -51,7 +51,7 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
         click.Option(
             ["--count", "-n"],
             type=int,
-            help="Number of acquisition iterations. Incompatible with --continuous.",
+            help="Number of guider iterations. Incompatible with --continuous.",
         ),
         click.Option(
             ["--apply/--no-apply"],
@@ -73,7 +73,7 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
         click.Option(
             ["--auto-radec-min"],
             type=int,
-            default=config["acquisition"]["auto_radec_min"],
+            default=config["guider"]["auto_radec_min"],
             help="Number of cameras solving below which only RA/Dec will be fit. "
             "-1 disables this feature and a full fit is allways performed.",
         ),
@@ -104,7 +104,7 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
         ),
         click.Option(
             ["--fit-all-detections/--no-fit-all-detections"],
-            default=config["acquisition"]["fit_all_detections"],
+            default=config["guider"]["fit_all_detections"],
             help="Perform fit using all detected sources. Otherwise uses only "
             "the centre of each solved camera.",
         ),
@@ -126,7 +126,7 @@ class GuideParams(SimpleNamespace):
     apply: bool = True
     full: bool = False
     only_radec: bool = False
-    auto_radec_min: int = config["acquisition"]["auto_radec_min"]
+    auto_radec_min: int = config["guider"]["auto_radec_min"]
     cameras: str | None = None
     wait: float | None = None
     mode: str | None = None
@@ -236,10 +236,13 @@ async def _guide(
     return command.finish()
 
 
-@cherno_parser.command()
-async def guide(**kwargs):
+guide_params = get_guide_common_params()
+
+
+@cherno_parser.command(params=guide_params)
+async def guide(command: ChernoCommandType, **kwargs):
     """Runs the guiding loop."""
 
-    params = GuideParams(**kwargs)
+    params = GuideParams(command=command, **kwargs)
 
     return await _guide(params)

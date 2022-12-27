@@ -9,8 +9,7 @@
 from __future__ import annotations
 
 import pathlib
-
-from yaml import warnings
+import warnings
 
 from cherno import config
 from cherno.exceptions import ChernoUserWarning
@@ -24,8 +23,8 @@ __all__ = ["status"]
 def get_astrometrynet_paths():
     """Returns a list of astrometry.net index paths that cherno will use."""
 
-    astrometry_net_config = config["acquisition"]["astrometry_net_config"]
-    backend_config = pathlib.Path(__file__).parents[1] / astrometry_net_config
+    astrometry_net_config = config["guider"]["astrometry_net_config"]
+    backend_config = pathlib.Path(__file__).parents[2] / astrometry_net_config
 
     if not backend_config.exists():
         warnings.warn(
