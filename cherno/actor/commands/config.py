@@ -15,7 +15,7 @@ import click
 from cherno import config as cherno_config
 from cherno import set_observatory
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["config_command"]

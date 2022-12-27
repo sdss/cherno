@@ -13,7 +13,7 @@ import time
 import click
 import numpy
 
-from . import ChernoCommandType, cherno_parser
+from .. import ChernoCommandType, cherno_parser
 
 
 __all__ = ["get_scale"]

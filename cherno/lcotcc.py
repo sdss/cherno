@@ -16,15 +16,17 @@ from cherno.exceptions import ChernoError
 
 
 if TYPE_CHECKING:
-    from cherno.acquisition import AxesPID
+    from clu.command import FakeCommand
+
     from cherno.actor import ChernoCommandType
+    from cherno.guider import AxesPID
 
 
 __all__ = ["apply_correction_lco"]
 
 
 async def apply_correction_lco(
-    command: ChernoCommandType,
+    command: ChernoCommandType | FakeCommand,
     pids: AxesPID,
     delta_radec: tuple[float, float] | numpy.ndarray | None = None,
     delta_rot: float | None = None,
@@ -46,7 +48,6 @@ async def apply_correction_lco(
     corr_focus: float = 0.0
 
     if delta_rot is not None and "rot" in enabled_axes:
-
         if full:
             corr_rot = -delta_rot
         else:
@@ -64,7 +65,6 @@ async def apply_correction_lco(
         corr_rot /= 3600
 
     if corr_rot == 0.0 and delta_radec is not None:
-
         for ax_idx, ax in enumerate(["ra", "dec"]):
             if ax not in enabled_axes:
                 continue
@@ -87,7 +87,6 @@ async def apply_correction_lco(
             corr_radec[ax_idx] = corr_ax / 3600
 
     if delta_focus is not None and "focus" in enabled_axes:
-
         if full:
             corr_focus = -delta_focus
         else:

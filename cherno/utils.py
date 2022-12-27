@@ -149,7 +149,6 @@ def focus_fit(
     fwhm_fit = a * x_min**2 + x_min * b + c
 
     if plot is not None:
-
         if isinstance(plot, (str, pathlib.Path)):
             outpath = pathlib.Path(plot)
         else:
