@@ -665,6 +665,9 @@ class Guider:
         # We use all detections, even invalid ones here.
         xyls_df = regions.loc[:, ["x1", "y1", "flux"]].copy()
 
+        # Rename columns to the names astrometry.net expects.
+        xyls_df.rename(columns={"x1": "x", "y1": "y"}, inplace=True)
+
         gfa_xyls = Table.from_pandas(xyls_df)
         gfa_xyls_path = outfile_root.with_suffix(".xyls")
         gfa_xyls.write(str(gfa_xyls_path), format="fits", overwrite=True)
