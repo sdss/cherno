@@ -89,7 +89,7 @@ guider:
 
 extraction:
   output_dir: ./extraction
-  method: sextractor
+  method: marginal
   plot: false
   rejection_method: sigclip
   reject_sigma: 2.0
