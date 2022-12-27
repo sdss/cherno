@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from functools import partial
 from types import SimpleNamespace
 
@@ -20,6 +21,7 @@ from cherno import config
 from cherno.actor.exposer import Exposer
 from cherno.exceptions import ExposerError
 from cherno.guider import Guider
+from cherno.maskbits import GuiderStatus
 
 from .. import ChernoCommandType, cherno_parser
 
@@ -137,7 +139,7 @@ class GuideParams(SimpleNamespace):
     names: list[str] | None = None
 
 
-def check_params(params: GuideParams):
+async def check_params(params: GuideParams):
     """Checks the parameters. Fails the command if an error is found."""
 
     command = params.command
@@ -150,6 +152,9 @@ def check_params(params: GuideParams):
     if _exposure_loop is not None and not _exposure_loop.done():
         command.warning("An active Exposer loop was found. Cancelling it.")
         _exposure_loop.cancel()
+        with suppress(asyncio.CancelledError):
+            await _exposure_loop
+        command.actor.state.set_status(GuiderStatus.IDLE, mode="override")
 
     # Inplace update parameters.
 
@@ -210,7 +215,7 @@ async def _guide(
 
     command = params.command
 
-    if not check_params(params):
+    if not await check_params(params):
         # Already failed
         return
 
