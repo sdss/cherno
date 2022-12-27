@@ -72,5 +72,6 @@ async def acquire(
     return await _guide(
         params,
         stop_condition=stop_condition,
+        target_rms=target_rms,
         max_iterations=max_iterations,
     )

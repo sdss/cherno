@@ -146,6 +146,7 @@ class Guider:
         extractor: Extraction | None = None,
         astrometry: AstrometryNet | None = None,
         command: ChernoCommandType | None = None,
+        target_rms: float | None = None,
         astrometry_params: dict = {},
         extraction_params: dict = {},
     ):
@@ -174,6 +175,7 @@ class Guider:
         self.observatory = observatory.upper()
         self.fitter = GuiderFitter(self.observatory)
         self.command = command or FakeCommand(log)
+        self.target_rms = target_rms
         self.pids = AxesPID(command.actor if command is not None else None)
 
         # To cache Gaia sources.
@@ -293,6 +295,15 @@ class Guider:
             fit_all_detections=fit_all_detections,
             fit_focus=fit_focus,
         )
+
+        if (
+            self.target_rms is not None
+            and ast_solution.valid_solution
+            and ast_solution.rms > 0
+            and ast_solution.rms <= self.target_rms
+        ):
+            self.command.warning("RMS has been reached. Not applying correction.")
+            correct = False
 
         if correct and ast_solution.valid_solution is True:
             await self.correct(

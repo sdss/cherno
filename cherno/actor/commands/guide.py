@@ -177,10 +177,13 @@ def check_params(params: GuideParams):
     return True
 
 
-def get_callback(params: GuideParams):
+def get_callback(
+    params: GuideParams,
+    target_rms: float | None = None,
+):
     """Returns the Guide.process() callback."""
 
-    guider = Guider(config["observatory"])
+    guider = Guider(config["observatory"], target_rms=target_rms)
     params.command.actor.state._guider_obj = guider  # To update PID coeffs.
 
     return partial(
@@ -200,6 +203,7 @@ def get_callback(params: GuideParams):
 async def _guide(
     params: GuideParams,
     stop_condition: Callable[[], bool] | None = None,
+    target_rms: float | None = None,
     max_iterations: int | None = None,
 ):
     """Actually run the guide loop."""
@@ -210,7 +214,7 @@ async def _guide(
         # Already failed
         return
 
-    callback = get_callback(params)
+    callback = get_callback(params, target_rms=target_rms)
     exposer = Exposer(command, callback=callback)
 
     command.actor.state._exposure_loop = asyncio.create_task(
