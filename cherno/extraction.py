@@ -97,7 +97,7 @@ class Extraction:
                 f"Invalid star finder. Valid values are {self.__VALID_METHODS}."
             )
 
-    def process(self, image: PathLike) -> ExtractionData:
+    def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
 
         hdu = fits.open(image)
@@ -122,12 +122,15 @@ class Extraction:
             cam_no = 0
             exp_no = 0
 
+        if plot is None:
+            plot = config["extraction"]["plot"]
+
         if self.method == "sextractor":
-            regions = self._process_sextractor(data, path)[0]
+            regions = self._process_sextractor(data, path, plot=plot)[0]
         elif self.method == "daophot":
-            regions = self._process_daophot(data, path)
+            regions = self._process_daophot(data, path, plot=plot)
         elif self.method == "marginal":
-            regions = self._process_marginal(data, path)
+            regions = self._process_marginal(data, path, plot=plot)
         else:
             regions = pandas.DataFrame()
 

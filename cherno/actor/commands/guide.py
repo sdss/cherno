@@ -115,6 +115,11 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
             default=continuous,
             help="Run acquisition in continuous mode.",
         ),
+        click.Option(
+            ["--plot/--no-plot"],
+            default=None,
+            help="Produce plots during acquisition/guiding.",
+        ),
     ]
 
     return sorted(options, key=lambda opt: opt.name or "")
@@ -135,6 +140,7 @@ class GuideParams(SimpleNamespace):
     gaia_max_mag: float | None = None
     cross_match_blur: float | None = None
     fit_all_detections: bool = True
+    plot: bool | None = None
     mode_kwargs: dict[str, bool] = {}
     names: list[str] | None = None
 
@@ -201,6 +207,7 @@ def get_callback(
         gaia_phot_g_mean_mag_max=params.gaia_max_mag,
         gaia_cross_correlation_blur=params.cross_match_blur,
         fit_all_detections=params.fit_all_detections,
+        plot=params.plot,
         **params.mode_kwargs,
     )
 

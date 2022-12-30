@@ -211,6 +211,7 @@ class Guider:
         gaia_cross_correlation_blur: float | None = None,
         fit_all_detections: bool = True,
         fit_focus: bool = True,
+        plot: bool | None = None,
     ):
         """Performs extraction and astrometry."""
 
@@ -221,7 +222,12 @@ class Guider:
 
         ext_data = await asyncio.gather(
             *[
-                run_in_executor(self.extractor.process, im, executor="process")
+                run_in_executor(
+                    self.extractor.process,
+                    im,
+                    plot=plot,
+                    executor="process",
+                )
                 for im in images
             ]
         )
