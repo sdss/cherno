@@ -92,7 +92,7 @@ extraction:
   method: marginal
   plot: true
   rejection_method: sigclip
-  reject_sigma: 2.0
+  reject_sigma: 3.0
   nreject: [2, 3]
   max_stars: 50
   sextractor:

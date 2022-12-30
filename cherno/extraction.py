@@ -138,21 +138,18 @@ class Extraction:
         regions["mjd"] = mjd
         regions["exposure"] = exp_no
         regions["camera"] = cam_no
+
         regions["fwhm_valid"] = 1
+        regions.loc[regions.valid == 0, "fwhm_valid"] = 0
 
         if len(regions) > 0 and self.params["rejection_method"] is not None:
             self.reject(regions)
 
-        valid = regions.loc[regions.fwhm_valid == 1]
+        fwhm_valid = regions.loc[regions.fwhm_valid == 1]
 
-        if self.method == "marginal" and len(valid) > 0:
-            # If marginal, we use xrms as a metric of the goodness of fit.
-            fwhm_median = numpy.average(valid.fwhm, weights=1 / valid.xrms)
-            fwhm_median_round = float(numpy.round(fwhm_median, 3))
-        elif len(valid) > 0:
-            perc_50 = numpy.percentile(valid.fwhm, 50)
-            fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
-            fwhm_median_round = float(numpy.round(fwhm_median, 3))
+        if len(fwhm_valid) > 0:
+            perc_25 = numpy.percentile(fwhm_valid.fwhm, 25)
+            fwhm_median_round = float(numpy.round(perc_25, 3))
 
             # Prevent NaNs here since this is output to the headers.
             if numpy.isnan(fwhm_median_round):
@@ -389,7 +386,17 @@ class Extraction:
         output_root = self._get_output_path(path)
         plot_path = str(output_root) + "-marginal.pdf" if plot else None
 
-        default_columns = ["x1", "y1", "flux", "fwhm", "xstd", "ystd", "xrms", "yrms"]
+        default_columns = [
+            "x1",
+            "y1",
+            "flux",
+            "fwhm",
+            "xstd",
+            "ystd",
+            "xrms",
+            "yrms",
+            "valid",
+        ]
         regions = pandas.DataFrame([], columns=default_columns)
 
         try:
@@ -406,6 +413,11 @@ class Extraction:
             regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
             regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
             regions.loc[:, "valid"] = 1
+
+            # Reject detections with large RMS.
+            rms_25 = numpy.percentile(regions.loc[:, ["xrms", "yrms"]].mean(), 25)
+            bad_idx = (regions.loc[:, ["xrms", "yrms"]] > 1.5 * rms_25).any(axis=1)
+            regions.loc[bad_idx, "valid"] = 0
 
         return regions
 
