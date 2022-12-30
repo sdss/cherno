@@ -144,7 +144,11 @@ class Extraction:
 
         valid = regions.loc[regions.fwhm_valid == 1]
 
-        if len(valid) > 0:
+        if self.method == "marginal" and len(valid) > 0:
+            # If marginal, we use xrms as a metric of the goodness of fit.
+            fwhm_median = numpy.average(valid.fwhm, weights=1 / valid.xrms)
+            fwhm_median_round = float(numpy.round(fwhm_median, 3))
+        elif len(valid) > 0:
             perc_50 = numpy.percentile(valid.fwhm, 50)
             fwhm_median = valid.loc[valid.fwhm < perc_50].fwhm.median()
             fwhm_median_round = float(numpy.round(fwhm_median, 3))
