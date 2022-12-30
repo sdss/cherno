@@ -237,7 +237,7 @@ async def _guide(
     try:
         await command.actor.state._exposure_loop
     except ExposerError as err:
-        return command.fail(f"Guiding failed: {err}")
+        return command.fail(f"Guider failed: {err}")
 
     if stop_condition is not None and exposer.stop_reached:
         command.info("Stop condition has been reached.")

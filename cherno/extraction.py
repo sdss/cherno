@@ -388,10 +388,15 @@ class Extraction:
             plot=plot_path,
         )
 
-        regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
-        regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
-
-        regions.loc[:, "valid"] = 1
+        if len(regions) > 0:
+            regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
+            regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
+            regions.loc[:, "valid"] = 1
+        else:
+            regions = pandas.DataFrame(
+                [],
+                columns=["x1", "y1", "flux", "fwhm", "valid"],
+            )
 
         return regions
 
