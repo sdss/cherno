@@ -225,7 +225,6 @@ class Guider:
                 run_in_executor(
                     self.extractor.process,
                     im,
-                    command=self.command,
                     plot=plot,
                     executor="process",
                 )

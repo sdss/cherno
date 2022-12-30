@@ -15,7 +15,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy
@@ -32,11 +32,9 @@ from photutils.background import MedianBackground, StdBackgroundRMS
 from photutils.detection import DAOStarFinder
 from photutils.psf import BasicPSFPhotometry, DAOGroup, IntegratedGaussianPRF
 
-from clu.command import FakeCommand
 from coordio.extraction import extract_marginal
 
 from cherno import config
-from cherno.actor import ChernoCommandType
 
 
 __all__ = ["ExtractionData", "Extraction"]
@@ -45,7 +43,6 @@ seaborn.set_theme(style="white")
 
 
 PathLike = TypeVar("PathLike", pathlib.Path, str)
-CommandType = Union[ChernoCommandType, FakeCommand]
 
 
 @dataclass
@@ -93,8 +90,6 @@ class Extraction:
         self.params["daophot"].update(daophot_params)
         self.params["marginal"].update(marginal_params)
 
-        self.command: CommandType | None = None
-
         self.output_dir = pathlib.Path(self.params["output_dir"])
 
         self.method = method or self.params["method"]
@@ -103,15 +98,8 @@ class Extraction:
                 f"Invalid star finder. Valid values are {self.__VALID_METHODS}."
             )
 
-    def process(
-        self,
-        image: PathLike,
-        command: CommandType | None = None,
-        plot: bool | None = None,
-    ) -> ExtractionData:
+    def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
-
-        self.command = command
 
         hdu = fits.open(image)
         data = hdu[1].data
@@ -411,9 +399,8 @@ class Extraction:
                 sextractor_quick_options={"minarea": marginal_params["minarea"]},
                 plot=plot_path,
             )
-        except Exception:
-            if self.command and self.command.actor:
-                self.command.actor.log.exception("extract_marginal failed with error:")
+        except Exception as err:
+            warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)
 
         if len(regions) > 0:
             regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
