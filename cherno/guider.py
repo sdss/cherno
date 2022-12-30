@@ -771,6 +771,8 @@ class Guider:
         cam = guide_data.camera
 
         regions = guide_data.extraction_data.regions.copy()
+        regions = regions.loc[regions.valid == 1]
+
         xy_regions = regions.loc[:, ["x1", "y1", "flux"]].copy()
 
         if len(xy_regions) < 4:
