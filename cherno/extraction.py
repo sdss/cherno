@@ -15,7 +15,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Union
 
 import matplotlib.pyplot as plt
 import numpy
@@ -32,16 +32,20 @@ from photutils.background import MedianBackground, StdBackgroundRMS
 from photutils.detection import DAOStarFinder
 from photutils.psf import BasicPSFPhotometry, DAOGroup, IntegratedGaussianPRF
 
+from clu.command import FakeCommand
 from coordio.extraction import extract_marginal
 
 from cherno import config
-
-
-PathLike = TypeVar("PathLike", pathlib.Path, str)
-seaborn.set_theme(style="white")
+from cherno.actor import ChernoCommandType
 
 
 __all__ = ["ExtractionData", "Extraction"]
+
+seaborn.set_theme(style="white")
+
+
+PathLike = TypeVar("PathLike", pathlib.Path, str)
+CommandType = Union[ChernoCommandType, FakeCommand]
 
 
 @dataclass
@@ -89,6 +93,8 @@ class Extraction:
         self.params["daophot"].update(daophot_params)
         self.params["marginal"].update(marginal_params)
 
+        self.command: CommandType | None = None
+
         self.output_dir = pathlib.Path(self.params["output_dir"])
 
         self.method = method or self.params["method"]
@@ -97,8 +103,15 @@ class Extraction:
                 f"Invalid star finder. Valid values are {self.__VALID_METHODS}."
             )
 
-    def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
+    def process(
+        self,
+        image: PathLike,
+        command: CommandType | None = None,
+        plot: bool | None = None,
+    ) -> ExtractionData:
         """Process an image."""
+
+        self.command = command
 
         hdu = fits.open(image)
         data = hdu[1].data
@@ -388,22 +401,24 @@ class Extraction:
         output_root = self._get_output_path(path)
         plot_path = str(output_root) + "-marginal.pdf" if plot else None
 
-        regions = extract_marginal(
-            data,
-            marginal_params["background_sigma"],
-            sextractor_quick_options={"minarea": marginal_params["minarea"]},
-            plot=plot_path,
-        )
+        default_columns = ["x1", "y1", "flux", "fwhm", "xstd", "ystd", "xrms", "yrms"]
+        regions = pandas.DataFrame([], columns=default_columns)
+
+        try:
+            regions = extract_marginal(
+                data,
+                marginal_params["background_sigma"],
+                sextractor_quick_options={"minarea": marginal_params["minarea"]},
+                plot=plot_path,
+            )
+        except Exception:
+            if self.command and self.command.actor:
+                self.command.actor.log.exception("extract_marginal failed with error:")
 
         if len(regions) > 0:
             regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
             regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
             regions.loc[:, "valid"] = 1
-        else:
-            regions = pandas.DataFrame(
-                [],
-                columns=["x1", "y1", "flux", "fwhm", "valid"],
-            )
 
         return regions
 
