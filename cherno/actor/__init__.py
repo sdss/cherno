@@ -21,6 +21,7 @@ from .commands.acquire import *
 from .commands.config import *
 from .commands.guide import *
 from .commands.offset import *
+from .commands.reprocess import *
 from .commands.scale import *
 from .commands.set import *
 from .commands.show import *
