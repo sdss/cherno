@@ -12,11 +12,16 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.10']
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: cherno ${{ github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -32,7 +37,6 @@ jobs:
           pyproject-build -w
 
       - name: Build source
-        if: ${{ matrix.python-version == '3.10' }}
         run: |
           pyproject-build -s
 
@@ -42,41 +46,3 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.pypi_password }}
         run: |
           twine upload dist/*
-
-  build_on_linux:
-    name: Build for Linux and upload to PyPI
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: cherno ${{ github.ref_name }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.8
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel twine build
-
-      - name: Build wheels
-        uses: RalfG/python-wheels-manylinux-build@v0.6.0
-        with:
-          python-versions: 'cp39-cp39 cp310-cp310 cp310-cp310 cp311-cp311'
-
-      - name: List files
-        run: |
-          ls -la dist/
-
-      - name: Publish wheels to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.pypi_password }}
-        run: |
-          twine upload dist/*-manylinux*.whl
