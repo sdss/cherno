@@ -1,11 +1,12 @@
 # Changelog
 
-## Next version
+## 0.5.0 - January 2, 2023
 
 ### 🚀 New
 
 * [#10](https://github.com/sdss/cherno/issues/10) (COS-84) Added a `guide` command that replaces the current `acquire`. `acquire` is still there and does basically the same (they share the same code) but by default applies full corrections and is not continuous. `acquire` also accepts a `--target-rms` flag that will stop the acquisition process if that RMS is reached. In the future we may introduce more differences, with `acquire` aiming to quick acquisition, so some features may be disabled.
 * [#11](https://github.com/sdss/cherno/issues/11) The marginal distribution extraction now uses the code from `coordio.extraction.extract_marginal()`.
+* While the guide/acquire  loop is running, the guider status does not change to `IDLE`. If there is a delay between the loop iterations, the guider status will change to `WAITING`.
 
 
 ## 0.4.0 - December 20, 2022
