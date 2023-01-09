@@ -212,6 +212,7 @@ class Guider:
         fit_all_detections: bool = True,
         fit_focus: bool = True,
         plot: bool | None = None,
+        stop_at_target_rms: bool = False,
     ):
         """Performs extraction and astrometry."""
 
@@ -307,6 +308,7 @@ class Guider:
             and ast_solution.valid_solution
             and ast_solution.rms > 0
             and ast_solution.rms <= self.target_rms
+            and stop_at_target_rms
         ):
             self.command.warning("RMS has been reached. Not applying correction.")
             correct = False
