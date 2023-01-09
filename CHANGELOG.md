@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Add back sigma-clipping to the median scale calculation.
+
+
 ## 0.5.0 - January 2, 2023
 
 ### 🚀 New

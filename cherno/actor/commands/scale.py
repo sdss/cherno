@@ -12,6 +12,7 @@ import time
 
 import click
 import numpy
+from astropy.stats.sigma_clipping import SigmaClip
 
 from .. import ChernoCommandType, cherno_parser
 
@@ -69,6 +70,11 @@ async def get_scale(
     if len(valid[valid[:, 0] < 900]) > 10:
         valid = data[data[:, 0] < 900]
 
+    # Sigma-clip entries with scale outliers.
+    sc = SigmaClip(sigma)
+    mask = ~sc(valid[:, 1]).mask
+    valid = valid[mask]
+
     wmean = numpy.average(valid[:, 1], weights=1.0 / valid[:, 0])
 
     if wmean < 0.999 or wmean > 1.001:
@@ -78,4 +84,4 @@ async def get_scale(
         )
         return command.finish(scale_median=-999.0)
 
-    return command.finish(scale_median=numpy.round(numpy.median(wmean), 7))
+    return command.finish(scale_median=numpy.round(wmean, 7))
