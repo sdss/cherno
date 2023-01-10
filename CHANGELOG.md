@@ -2,6 +2,10 @@
 
 ## Next version
 
+### 🏷️ Changed
+
+* By default, apply one last correction after RMS reached.
+
 ### 🔧 Fixed
 
 * Add back sigma-clipping to the median scale calculation.
