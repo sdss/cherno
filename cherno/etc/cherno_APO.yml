@@ -98,11 +98,6 @@ extraction:
   sextractor:
     background_sigma: 3.0
     min_npix: 15
-  daophot:
-    background_sigma: 3.0
-    fixed_sigma: false
-    initial_psf_fwhm: 7.0
-    use_sep_finder: false
   marginal:
     background_sigma: 5.0
     minarea: 15

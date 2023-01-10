@@ -23,14 +23,9 @@ import pandas
 import seaborn
 import sep
 from astropy.io import fits
-from astropy.modeling.fitting import LevMarLSQFitter
 from astropy.stats import SigmaClip, gaussian_sigma_to_fwhm
-from astropy.table import Table
 from astropy.time import Time, TimeDelta
 from matplotlib.patches import Ellipse
-from photutils.background import MedianBackground, StdBackgroundRMS
-from photutils.detection import DAOStarFinder
-from photutils.psf import BasicPSFPhotometry, DAOGroup, IntegratedGaussianPRF
 
 from coordio.extraction import extract_marginal
 
@@ -71,14 +66,13 @@ class ExtractionData:
 class Extraction:
     """Extract centroids and PSF information from an image."""
 
-    __VALID_METHODS = ["daophot", "sextractor", "marginal"]
+    __VALID_METHODS = ["sextractor", "marginal"]
 
     def __init__(
         self,
         observatory: str,
         method: str | None = None,
         pixel_scale: float | None = None,
-        daophot_params={},
         marginal_params={},
         **params,
     ):
@@ -87,7 +81,6 @@ class Extraction:
 
         self.params = deepcopy(config["extraction"])
         self.params.update(params)
-        self.params["daophot"].update(daophot_params)
         self.params["marginal"].update(marginal_params)
 
         self.output_dir = pathlib.Path(self.params["output_dir"])
@@ -128,8 +121,6 @@ class Extraction:
 
         if self.method == "sextractor":
             regions = self._process_sextractor(data, path, plot=plot)[0]
-        elif self.method == "daophot":
-            regions = self._process_daophot(data, path, plot=plot)
         elif self.method == "marginal":
             regions = self._process_marginal(data, path, plot=plot)
         else:
@@ -277,90 +268,6 @@ class Extraction:
             )
 
         return regions, back
-
-    def _process_daophot(
-        self,
-        data: numpy.ndarray,
-        path: pathlib.Path,
-        plot: bool | None = None,
-    ) -> pandas.DataFrame:
-        """Process using iteratively subtracted PSF photometry."""
-
-        if plot is None:
-            plot = self.params.get("plot", False)
-
-        psf_fwhm = self.params["daophot"]["initial_psf_fwhm"]
-        psf_sigma = psf_fwhm / gaussian_sigma_to_fwhm
-
-        background_sigma = self.params["daophot"]["background_sigma"]
-        max_stars = self.params["daophot"].get("max_stars", None)
-
-        data = data.astype("float32")
-
-        bkgrms = StdBackgroundRMS()
-        std = bkgrms(data)
-
-        if self.params["daophot"].get("use_sep_finder", False):
-            sep_regions = self._process_sextractor(data, path, plot=False)[0]
-            initial_guesses = Table(
-                names=["x_0", "y_0"],
-                data=[sep_regions.x.iloc[0:max_stars], sep_regions.y.iloc[0:max_stars]],
-            )
-            finder = None
-        else:
-            initial_guesses = None
-            finder = DAOStarFinder(
-                threshold=background_sigma * std,
-                fwhm=psf_fwhm,
-                brightest=max_stars,
-            )
-
-        daogroup = DAOGroup(3.0 * psf_fwhm)
-
-        mmm_bkg = MedianBackground()
-
-        psf_model = IntegratedGaussianPRF(sigma=psf_sigma)
-        psf_model.sigma.fixed = self.params["daophot"].get("fixed_sigma", False)
-
-        fitter = LevMarLSQFitter()
-
-        photometry = BasicPSFPhotometry(
-            finder=finder,
-            group_maker=daogroup,
-            bkg_estimator=mmm_bkg,
-            psf_model=psf_model,
-            fitter=fitter,
-            fitshape=(15, 15),
-        )
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            regions = photometry(image=data, init_guesses=initial_guesses).to_pandas()
-
-        regions["fwhm"] = regions.sigma_fit * gaussian_sigma_to_fwhm * self.pixel_scale
-        regions["valid"] = 1
-
-        # Copy x,y columns as x1,y1. Guider expects those columns regardless of the
-        # extraction method.
-        regions[["x1", "y1", "flux"]] = regions.loc[:, ["x_0", "y_0", "flux_0"]]
-
-        if plot:
-            self.plot_regions(
-                regions,
-                data,
-                path=path,
-                vmin=data.mean() - std,
-                vmax=data.mean() + std,
-                factor=5.0,
-                xcen_col="x_0",
-                ycen_col="y_0",
-                a_col="sigma_fit",
-                b_col="sigma_fit",
-                theta_col=None,
-                title=path.parts[-1] + " (DAOphot)",
-            )
-
-        return regions
 
     def _process_marginal(
         self,

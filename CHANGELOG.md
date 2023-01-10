@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔥 Removed
+
+* Removed the DAOPhot method and `photutils` dependency.
+
+
 ## 0.5.1 - January 10, 2023
 
 ### 🏷️ Changed
