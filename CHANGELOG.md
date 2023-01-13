@@ -6,6 +6,12 @@
 
 * Removed the DAOPhot method and `photutils` dependency.
 
+### ✨ Improved
+
+* Upgraded the version of `coordio.extraction.extract_marginal()`.
+* Limited the maximum number of detections to 50, sorted by flux, to speed up extraction.
+* A few changes to source rejection.
+
 
 ## 0.5.1 - January 10, 2023
 
