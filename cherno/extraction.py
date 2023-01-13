@@ -326,11 +326,6 @@ class Extraction:
             regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
             regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
 
-            # Reject detections with large RMS.
-            rms_25 = numpy.percentile(regions.loc[:, ["xrms", "yrms"]].mean(), 25)
-            bad_idx = (regions.loc[:, ["xrms", "yrms"]] > 1.5 * rms_25).any(axis=1)
-            regions.loc[bad_idx, "valid"] = 0
-
         return regions
 
     def reject(self, regions: pandas.DataFrame):
