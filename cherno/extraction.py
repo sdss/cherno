@@ -318,9 +318,13 @@ class Extraction:
             warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)
 
         if len(regions) > 0:
+            # Reject detections in which any of the marginal fits failed.
+            valid = regions.loc[:, ["xfitvalid", "yfitvalid"]].all(1).astype(int)
+            regions["valid"] = valid
+
+            # Calculate FWHM
             regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
             regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
-            regions.loc[:, "valid"] = 1
 
             # Reject detections with large RMS.
             rms_25 = numpy.percentile(regions.loc[:, ["xrms", "yrms"]].mean(), 25)
