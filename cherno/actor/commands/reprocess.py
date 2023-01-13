@@ -27,7 +27,7 @@ __all__ = ["reprocess"]
 async def reprocess(command: ChernoCommandType, mjd: int, frame: int):
     """Reprocesses a frame (does not apply corrections."""
 
-    paths = list(pathlib.Path(f"/data/gcam/{mjd}/").glob(f"gimg-*{frame}.fits"))
+    paths = list(pathlib.Path(f"/data/gcam/{mjd}/").glob(f"gimg-*{frame:04d}.fits"))
     images = [str(pp) for pp in paths if pp.exists()]
 
     if len(images) == 0:
