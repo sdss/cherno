@@ -12,6 +12,10 @@
 * Limited the maximum number of detections to 50, sorted by flux, to speed up extraction.
 * A few changes to source rejection.
 
+### 🏷️ Changed
+
+* Use `--wait 15` by default at LCO when guiding/acquiring.
+
 
 ## 0.5.1 - January 10, 2023
 

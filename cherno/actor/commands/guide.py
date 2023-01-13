@@ -82,6 +82,8 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
         click.Option(
             ["--wait", "-w"],
             type=float,
+            default=15 if config["observatory"] == "LCO" else None,
+            show_default=True,
             help="Time to wait between iterations.",
         ),
         click.Option(
