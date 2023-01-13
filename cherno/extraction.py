@@ -311,6 +311,7 @@ class Extraction:
                 data,
                 marginal_params["background_sigma"],
                 sextractor_quick_options={"minarea": marginal_params["minarea"]},
+                max_detections=marginal_params.get("max_detections", None),
                 plot=plot_path,
             )
         except Exception as err:

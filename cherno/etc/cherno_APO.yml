@@ -101,6 +101,7 @@ extraction:
   marginal:
     background_sigma: 5.0
     minarea: 15
+    max_detections: 50
 
 default_offset: [0.0, -0.1, -432]
 

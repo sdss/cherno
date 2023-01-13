@@ -90,7 +90,7 @@ guider:
 extraction:
   output_dir: ./extraction
   method: marginal
-  plot: true
+  plot: false
   rejection_method: sigclip
   reject_sigma: 3.0
   nreject: [2, 3]
@@ -101,6 +101,7 @@ extraction:
   marginal:
     background_sigma: 5.0
     minarea: 15
+    max_detections: 50
 
 default_offset: [0, 0, -375]
 
