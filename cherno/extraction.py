@@ -289,6 +289,8 @@ class Extraction:
         output_root = self._get_output_path(path)
         plot_path = str(output_root) + "-marginal.pdf" if plot else None
 
+        # Build an empty DF with the expected  columns to return in case
+        # extract_marginal fails.
         default_columns = [
             "x1",
             "y1",
@@ -298,6 +300,8 @@ class Extraction:
             "ystd",
             "xrms",
             "yrms",
+            "xfitvalid",
+            "yfitvalid",
             "valid",
         ]
         regions = pandas.DataFrame([], columns=default_columns)
@@ -312,15 +316,15 @@ class Extraction:
             )
         except Exception as err:
             warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)
+            return regions
 
-        if len(regions) > 0:
-            # Reject detections in which any of the marginal fits failed.
-            valid = regions.loc[:, ["xfitvalid", "yfitvalid"]].all(1).astype(int)
-            regions["valid"] = valid
+        # Reject detections in which any of the marginal fits failed.
+        valid = regions.loc[:, ["xfitvalid", "yfitvalid"]].all(1).astype(int)
+        regions["valid"] = valid
 
-            # Calculate FWHM
-            regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
-            regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
+        # Calculate FWHM
+        regions["fwhm"] = regions.loc[:, ["xstd", "ystd"]].mean(axis=1)
+        regions["fwhm"] *= gaussian_sigma_to_fwhm * self.pixel_scale
 
         return regions
 
