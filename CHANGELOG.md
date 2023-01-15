@@ -17,6 +17,10 @@
 
 * Use `--wait 15` by default at LCO when guiding/acquiring.
 
+### 🔧 Fixed
+
+* Fixed a couple references to `_acquisition_obj` that should be `_guider_obj` in `cherno set`.
+
 
 ## 0.5.1 - January 10, 2023
 

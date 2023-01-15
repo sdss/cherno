@@ -67,9 +67,9 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
             }
         )
 
-        if command.actor.state._acquisition_obj:
+        if command.actor.state._guider_obj:
             # This is what actually changes the PID loop during an exposure.
-            pid_attr = getattr(command.actor.state._acquisition_obj.pids, axis)
+            pid_attr = getattr(command.actor.state._guider_obj.pids, axis)
             if term == "k":
                 pid_attr.Kp = value
             elif term == "ti":
