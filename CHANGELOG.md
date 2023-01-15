@@ -1,6 +1,6 @@
 # Changelog
 
-## Next version
+## 0.5.2 - January 15, 2023
 
 ### 🔥 Removed
 
@@ -8,7 +8,7 @@
 
 ### ✨ Improved
 
-* Upgraded the version of `coordio.extraction.extract_marginal()`.
+* Upgraded the version of `coordio.extraction.extract_marginal()` to `coordio` 1.6.1.
 * Limited the maximum number of detections to 50, sorted by flux, to speed up extraction.
 * A few changes to source rejection.
 * The FWHM returned with `astrometry_fit` now weights the offsets of the cameras so that cameras with large focus offsets count less towards the final value.
