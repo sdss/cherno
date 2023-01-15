@@ -353,7 +353,12 @@ class Guider:
             return ast_solution
 
         fwhm = [d.e_data.fwhm_median for d in data if d.e_data.fwhm_median > 0]
-        fwhm = numpy.average(fwhm)
+        fwhm_weights = [
+            1 / numpy.abs(d.e_data.focus_offset or 1.0)
+            for d in data
+            if d.e_data.fwhm_median > 0
+        ]
+        fwhm = numpy.average(fwhm, weights=fwhm_weights)
 
         camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
 

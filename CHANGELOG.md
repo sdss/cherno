@@ -11,6 +11,7 @@
 * Upgraded the version of `coordio.extraction.extract_marginal()`.
 * Limited the maximum number of detections to 50, sorted by flux, to speed up extraction.
 * A few changes to source rejection.
+* The FWHM returned with `astrometry_fit` now weights the offsets of the cameras so that cameras with large focus offsets count less towards the final value.
 
 ### 🏷️ Changed
 
