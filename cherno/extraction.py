@@ -291,20 +291,8 @@ class Extraction:
 
         # Build an empty DF with the expected  columns to return in case
         # extract_marginal fails.
-        default_columns = [
-            "x1",
-            "y1",
-            "flux",
-            "fwhm",
-            "xstd",
-            "ystd",
-            "xrms",
-            "yrms",
-            "xfitvalid",
-            "yfitvalid",
-            "valid",
-        ]
-        regions = pandas.DataFrame([], columns=default_columns)
+        default_columns = ["x1", "y1", "flux", "fwhm", "valid"]
+        mock_regions = pandas.DataFrame([], columns=default_columns)
 
         try:
             regions = extract_marginal(
@@ -316,7 +304,10 @@ class Extraction:
             )
         except Exception as err:
             warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)
-            return regions
+            return mock_regions
+
+        if len(regions) == 0:
+            return mock_regions
 
         # Reject detections in which any of the marginal fits failed.
         valid = regions.loc[:, ["xfitvalid", "yfitvalid"]].all(1).astype(int)
