@@ -124,7 +124,7 @@ class Extraction:
         elif self.method == "marginal":
             regions = self._process_marginal(data, path, plot=plot)
         else:
-            regions = pandas.DataFrame()
+            raise ValueError(f"Invalid extraction method {self.method}")
 
         regions["mjd"] = mjd
         regions["exposure"] = exp_no
