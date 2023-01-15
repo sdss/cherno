@@ -245,10 +245,6 @@ class Extraction:
             regions.dropna(subset=["flux"], inplace=True)
             regions.sort_values("flux", inplace=True, ascending=False)
 
-        if self.params["max_stars"]:
-            regions = regions.loc[regions.valid == 1, :]
-            regions = regions.head(self.params["max_stars"])
-
         regions = calculate_fwhm_from_ellipse(regions, self.pixel_scale)
 
         # Copy x,y columns as x1,y1. Guider expects those columns regardless of the

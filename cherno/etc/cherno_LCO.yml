@@ -94,7 +94,6 @@ extraction:
   rejection_method: sigclip
   reject_sigma: 3.0
   nreject: [2, 3]
-  max_stars: 50
   sextractor:
     background_sigma: 3.0
     min_npix: 15
