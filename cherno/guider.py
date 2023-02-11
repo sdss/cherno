@@ -440,7 +440,7 @@ class Guider:
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
             # Store RMS. This is used to determine acquisition convergence.
-            if rms > 0:
+            if rms > 0 and rms < 1:
                 self.command.actor.state.rms_history.append(rms)
 
         ast_solution.valid_solution = True

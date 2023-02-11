@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Only use measurements with RMS < 1 arcsec for the scale history.
+
+
 ## 0.5.2 - January 15, 2023
 
 ### 🔥 Removed
