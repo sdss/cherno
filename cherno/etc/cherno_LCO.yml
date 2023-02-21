@@ -60,7 +60,7 @@ guide_loop:
   rot:
     pid:
       k: 1
-    min_correction: 10
+    min_correction: 20
     max_correction: 7200
   focus:
     pid:

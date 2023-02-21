@@ -5,6 +5,7 @@
 ### 🏷️ Changed
 
 * Apply RA/Dec corrections at LCO at the same time as rotator corrections.
+* Changed rotation tolerace at LCO to 20 arcsec.
 
 ### 🔧 Fixed
 
