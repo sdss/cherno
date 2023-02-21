@@ -64,7 +64,7 @@ async def apply_correction_lco(
 
         corr_rot /= 3600
 
-    if corr_rot == 0.0 and delta_radec is not None:
+    if delta_radec is not None:
         for ax_idx, ax in enumerate(["ra", "dec"]):
             if ax not in enabled_axes:
                 continue

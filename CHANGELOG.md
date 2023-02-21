@@ -2,6 +2,10 @@
 
 ## Next version
 
+### 🏷️ Changed
+
+* Apply RA/Dec corrections at LCO at the same time as rotator corrections.
+
 ### 🔧 Fixed
 
 * Only use measurements with RMS < 1 arcsec for the scale history.
