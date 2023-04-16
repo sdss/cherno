@@ -196,7 +196,11 @@ def get_callback(
 ):
     """Returns the Guide.process() callback."""
 
-    guider = Guider(config["observatory"], target_rms=target_rms)
+    guider = Guider(
+        config["observatory"],
+        target_rms=target_rms,
+        command=params.command,
+    )
     params.command.actor.state._guider_obj = guider  # To update PID coeffs.
 
     return partial(
