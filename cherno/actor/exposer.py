@@ -13,11 +13,10 @@ import os
 import re
 from glob import glob
 
-from typing import Any, Callable, Union
-
-from astropy.time import Time
+from typing import Any, Callable, NoReturn, Union
 
 from clu import Command
+from sdsstools.time import get_sjd
 
 from cherno import config
 from cherno.exceptions import ExposerError
@@ -63,7 +62,7 @@ class Exposer:
 
         self._blocking = blocking
 
-    def fail(self, message=""):
+    def fail(self, message="") -> NoReturn:
         """Sets the guider status to failed and raises an exception."""
 
         self.actor_state.set_status(GuiderStatus.FAILED | GuiderStatus.IDLE)
@@ -251,10 +250,8 @@ class Exposer:
     def _get_num(self, names: list[str]) -> int:
         """Returns the next sequence number."""
 
-        date = Time.now()
-        mjd = int(date.mjd)
-
-        dirpath = os.path.join(config["cameras"]["path"], str(mjd))
+        sjd = get_sjd()
+        dirpath = os.path.join(config["cameras"]["path"], str(sjd))
         if not os.path.exists(dirpath):
             return 1
 
