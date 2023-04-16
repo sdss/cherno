@@ -517,6 +517,8 @@ class Guider:
             delta_scale > 0
             and self.command.actor
             and fwhm < 2.5
+            and rms > 0
+            and rms <= 1
             and guider_fit
             and not guider_fit.only_radec
         ):
