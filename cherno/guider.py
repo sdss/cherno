@@ -638,15 +638,19 @@ class Guider:
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
 
-        applied_corrections: Any = await apply_correction_lco(
-            self.command,
-            self.pids,
-            delta_radec=(data.delta_ra, data.delta_dec),
-            delta_rot=data.delta_rot if data.fit_mode == "full" else None,
-            delta_focus=data.delta_focus if do_focus else None,
-            full=full,
-            wait_for_correction=wait_for_correction,
-        )
+        try:
+            applied_corrections: Any = await apply_correction_lco(
+                self.command,
+                self.pids,
+                delta_radec=(data.delta_ra, data.delta_dec),
+                delta_rot=data.delta_rot if data.fit_mode == "full" else None,
+                delta_focus=data.delta_focus if do_focus else None,
+                full=full,
+                wait_for_correction=wait_for_correction,
+            )
+        except ChernoError as err:
+            self.command.warning(f"Failed applying correction: {err}")
+            applied_corrections = [0.0, 0.0, 0.0, 0.0, 0.0]
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="remove")
 
