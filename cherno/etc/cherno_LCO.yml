@@ -86,6 +86,7 @@ guider:
   gaia_cross_correlation_min_error: 0.6
   gaia_distance_upper_bound: 100
   fit_all_detections: true
+  fit_rms_sigma: 2.5
 
 extraction:
   output_dir: ./extraction

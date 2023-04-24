@@ -39,6 +39,24 @@
         { "title": "n_valid", "type": "integer" }
       ]
     },
+    "fit_rms_camera": {
+      "type": "array",
+      "items": [
+        { "title": "fit_rms", "type": "number" },
+        { "title": "camera1_rms", "type": "number" },
+        { "title": "camera1_fit", "type": "boolean" },
+        { "title": "camera2_rms", "type": "number" },
+        { "title": "camera2_fit", "type": "boolean" },
+        { "title": "camera3_rms", "type": "number" },
+        { "title": "camera3_fit", "type": "boolean" },
+        { "title": "camera4_rms", "type": "number" },
+        { "title": "camera4_fit", "type": "boolean" },
+        { "title": "camera5_rms", "type": "number" },
+        { "title": "camera5_fit", "type": "boolean" },
+        { "title": "camera6_rms", "type": "number" },
+        { "title": "camera6_fit", "type": "boolean" }
+      ]
+    },
     "astrometry_fit": {
       "type": "array",
       "items": [
