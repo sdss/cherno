@@ -434,16 +434,26 @@ class Guider:
                 cameras=fit_cameras,
             )
 
-            if fit_rms_sigma <= 0 or tmp_guider_fit is False or len(fit_cameras) <= 3:
+            # If we already had a solution and this fit failed or the fit RMS is bad,
+            # just use the previous fit.
+            if guider_fit is not None and (fit_rms_sigma <= 0 or not tmp_guider_fit):
                 break
 
+            # Update the fit with the previous one.
             guider_fit = tmp_guider_fit
+
+            # If only 3 cameras remain we exit. We don't want to reject any more.
+            if len(fit_cameras) <= 3:
+                break
 
             sc = SigmaClip(fit_rms_sigma)
             rms_clip = sc(guider_fit.fit_rms.loc[fit_cameras, "rms"])
+
+            # All the camera fit RMS are within X sigma. Exit.
             if rms_clip.mask.sum() == 0:
                 break
 
+            # Find the camera with the largest fit RMS and remove it. Redo the fit.
             cam_max_rms = int(guider_fit.fit_rms.loc[fit_cameras, "rms"].idxmax())
 
             self.command.warning(
