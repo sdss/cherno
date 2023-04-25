@@ -48,7 +48,7 @@ async def apply_axes_correction(
         corr_radec = [0.0, 0.0]
 
         for ax_idx, ax in enumerate(["ra", "dec"]):
-            if ax not in enabled_axes:
+            if ax not in enabled_axes or float(delta_radec[ax_idx]) == -999.0:
                 continue
 
             if full:
@@ -81,7 +81,7 @@ async def apply_axes_correction(
             correction_applied[0] = float(numpy.round(corr_radec[0] * 3600.0, 3))
             correction_applied[1] = float(numpy.round(corr_radec[1] * 3600.0, 3))
 
-    if delta_rot is not None and "rot" in enabled_axes:
+    if delta_rot is not None and "rot" in enabled_axes and delta_rot != -999.0:
         if full:
             corr_rot = -delta_rot
         else:
@@ -130,7 +130,7 @@ async def apply_focus_correction(
     min_corr = guide_loop["focus"]["min_correction"]
     max_corr = guide_loop["focus"]["max_correction"]
 
-    if "focus" not in enabled_axes:
+    if "focus" not in enabled_axes or delta_focus == -999.0:
         return 0.0
 
     corr_focus = pids.focus(delta_focus) or 0.0

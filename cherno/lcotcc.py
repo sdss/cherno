@@ -47,7 +47,7 @@ async def apply_correction_lco(
     corr_rot: float = 0.0
     corr_focus: float = 0.0
 
-    if delta_rot is not None and "rot" in enabled_axes:
+    if delta_rot is not None and "rot" in enabled_axes and delta_rot != -999.0:
         if full:
             corr_rot = -delta_rot
         else:
@@ -66,7 +66,7 @@ async def apply_correction_lco(
 
     if delta_radec is not None:
         for ax_idx, ax in enumerate(["ra", "dec"]):
-            if ax not in enabled_axes:
+            if ax not in enabled_axes or float(delta_radec[ax_idx]) == -999.0:
                 continue
 
             if full:
@@ -86,7 +86,7 @@ async def apply_correction_lco(
 
             corr_radec[ax_idx] = corr_ax / 3600
 
-    if delta_focus is not None and "focus" in enabled_axes:
+    if delta_focus is not None and "focus" in enabled_axes and delta_focus != -999.0:
         if full:
             corr_focus = -delta_focus
         else:

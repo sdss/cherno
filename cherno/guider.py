@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+import re
 import time
 import warnings
 from dataclasses import dataclass, field
@@ -20,11 +21,13 @@ from typing import TYPE_CHECKING, Any, Coroutine
 import numpy
 import pandas
 from astropy.io import fits
+from astropy.stats.sigma_clipping import SigmaClip
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
 from simple_pid.PID import PID
 
 from clu.command import FakeCommand
+from coordio import defaults
 from coordio.astrometry import AstrometryNet
 from coordio.guide import (
     GuiderFit,
@@ -82,6 +85,10 @@ class GuideData:
         self.field_dec = self.extraction_data.field_dec
         self.field_pa = self.extraction_data.field_pa
 
+        match = re.match(r".*([1-6]).*", self.camera)
+        if match:
+            self.camera_id = int(match.group(1))
+
     @property
     def e_data(self):
         """Shortcut for ``extraction_data``."""
@@ -96,6 +103,7 @@ class AstrometricSolution:
     valid_solution: bool
     guide_data: list[GuideData]
     guider_fit: GuiderFit | None = None
+    fitter: GuiderFitter | None = None
     delta_ra: float = -999.0
     delta_dec: float = -999.0
     delta_rot: float = -999.0
@@ -318,6 +326,7 @@ class Guider:
                 ast_solution,
                 full=full_correction,
                 wait_for_correction=wait_for_correction,
+                apply_focus=fit_focus,
             )
         else:
             self.command.info(
@@ -411,18 +420,54 @@ class Guider:
                 "and not corrected."
             )
 
-        guider_fit = self.fitter.fit(
-            field_ra,
-            field_dec,
-            field_pa,
-            offset=full_offset,
-            scale_rms=scale_rms,
-            only_radec=only_radec,
-        )
+        fit_cameras = [d.camera_id for d in solved]
+        fit_rms_sigma = config["guider"].get("fit_rms_sigma", 3)
+        guider_fit = None
+        while True:
+            tmp_guider_fit = self.fitter.fit(
+                field_ra,
+                field_dec,
+                field_pa,
+                offset=full_offset,
+                scale_rms=scale_rms,
+                only_radec=only_radec,
+                cameras=fit_cameras,
+            )
+
+            # If we already had a solution and this fit failed or the fit RMS is bad,
+            # just use the previous fit.
+            if guider_fit is not None and (fit_rms_sigma <= 0 or not tmp_guider_fit):
+                break
+
+            # Update the fit with the previous one.
+            guider_fit = tmp_guider_fit
+
+            # If only 3 cameras remain we exit. We don't want to reject any more.
+            if len(fit_cameras) <= 3:
+                break
+
+            sc = SigmaClip(fit_rms_sigma)
+            rms_clip = sc(guider_fit.fit_rms.loc[fit_cameras, "rms"])
+
+            # All the camera fit RMS are within X sigma. Exit.
+            if rms_clip.mask.sum() == 0:
+                break
+
+            # Find the camera with the largest fit RMS and remove it. Redo the fit.
+            cam_max_rms = int(guider_fit.fit_rms.loc[fit_cameras, "rms"].idxmax())
+
+            self.command.warning(
+                "Fit RMS found outlier detections. "
+                f"Refitting without camera {cam_max_rms}."
+            )
+            fit_cameras.remove(cam_max_rms)
+
+        plate_scale = defaults.PLATE_SCALE[self.observatory]
+        mm_to_arcsec = 1 / plate_scale * 3600
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if guider_fit is False:
+        if not guider_fit:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
             ast_solution.guider_fit = None
         else:
@@ -431,16 +476,17 @@ class Guider:
             delta_rot = guider_fit.delta_rot
             delta_scale = guider_fit.delta_scale
 
-            xrms = guider_fit.xrms
-            yrms = guider_fit.yrms
-            rms = guider_fit.rms
+            xrms = numpy.round(guider_fit.xrms * mm_to_arcsec, 3)
+            yrms = numpy.round(guider_fit.yrms * mm_to_arcsec, 3)
+            rms = numpy.round(guider_fit.rms * mm_to_arcsec, 3)
 
             ast_solution.guider_fit = guider_fit
+            ast_solution.fitter = self.fitter
 
             self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
 
             # Store RMS. This is used to determine acquisition convergence.
-            if rms > 0 and rms < 1:
+            if self.command.actor and rms > 0 and rms < 1:
                 self.command.actor.state.rms_history.append(rms)
 
         ast_solution.valid_solution = True
@@ -473,6 +519,17 @@ class Guider:
             except Exception as err:
                 self.command.warning(f"Failed fitting focus curve: {err}.")
 
+        if guider_fit:
+            fit_rms = guider_fit.fit_rms
+            fit_rms_camera = [numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4)]
+            for cid in range(1, 7):
+                rms_cam = fit_rms.loc[cid].rms if cid in fit_rms.index else -999.0
+                fit_rms_camera += [
+                    numpy.round(rms_cam * mm_to_arcsec, 4) if rms_cam != -999 else -999,
+                    cid in guider_fit.cameras,
+                ]
+            self.command.info(fit_rms_camera=fit_rms_camera)
+
         self.command.info(
             astrometry_fit=[
                 exp_no,
@@ -501,17 +558,18 @@ class Guider:
 
         self.command.debug(focus_data=focus_data)
 
-        self.command.info(
-            focus_fit=[
-                exp_no,
-                ast_solution.fwhm_fit,
-                float(f"{ast_solution.focus_coeff[0]:.3e}"),
-                float(f"{ast_solution.focus_coeff[1]:.3e}"),
-                float(f"{ast_solution.focus_coeff[2]:.3e}"),
-                ast_solution.focus_r2,
-                ast_solution.delta_focus,
-            ]
-        )
+        if fit_focus:
+            self.command.info(
+                focus_fit=[
+                    exp_no,
+                    ast_solution.fwhm_fit,
+                    float(f"{ast_solution.focus_coeff[0]:.3e}"),
+                    float(f"{ast_solution.focus_coeff[1]:.3e}"),
+                    float(f"{ast_solution.focus_coeff[2]:.3e}"),
+                    ast_solution.focus_r2,
+                    ast_solution.delta_focus,
+                ]
+            )
 
         if (
             delta_scale > 0
@@ -527,6 +585,15 @@ class Guider:
             # because we'll want to reject measurements that are too old.
             self.command.actor.state.scale_history.append((time.time(), delta_scale))
 
+        if config["guider"].get("plot_rms", False):
+            e_data_test = data[0].e_data
+            path = e_data_test.path.parent
+            mjd = e_data_test.mjd
+            seq = e_data_test.exposure_no
+            outpath = path / "fit" / f"fit_rms-{mjd}-{seq}.pdf"
+            outpath.parent.mkdir(exist_ok=True)
+            self.fitter.plot_fit(outpath)
+
         return ast_solution
 
     async def correct(
@@ -534,6 +601,7 @@ class Guider:
         data: AstrometricSolution,
         full: bool = False,
         wait_for_correction: bool = True,
+        apply_focus: bool = True,
     ):
         """Runs the astrometric fit"""
 
@@ -553,15 +621,21 @@ class Guider:
         self.command.info("Applying corrections.")
 
         if self.observatory == "APO":
-            await self._correct_apo(data, full=full)
+            await self._correct_apo(data, full=full, apply_focus=apply_focus)
         else:
             await self._correct_lco(
                 data,
                 full=full,
                 wait_for_correction=wait_for_correction,
+                apply_focus=apply_focus,
             )
 
-    async def _correct_apo(self, data: AstrometricSolution, full: bool = False):
+    async def _correct_apo(
+        self,
+        data: AstrometricSolution,
+        full: bool = False,
+        apply_focus: bool = True,
+    ):
         actor_state = self.command.actor.state
 
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
@@ -590,13 +664,14 @@ class Guider:
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
-            data.focus_r2 > config["guider"]["focus_r2_threshold"]
+            apply_focus
+            and data.focus_r2 > config["guider"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
         ):
             do_focus = True
             coro = apply_focus_correction(self.command, self.pids, data.delta_focus)
             correct_tasks.append(coro)
-        else:
+        elif apply_focus:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
@@ -620,6 +695,7 @@ class Guider:
         data: AstrometricSolution,
         full: bool = False,
         wait_for_correction: bool = True,
+        apply_focus: bool = True,
     ):
         do_focus: bool = False
 
@@ -628,12 +704,13 @@ class Guider:
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
-            data.focus_r2 > config["guider"]["focus_r2_threshold"]
+            apply_focus
+            and data.focus_r2 > config["guider"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
             and "focus" in enabled_axes
         ):
             do_focus = True
-        else:
+        elif apply_focus:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")

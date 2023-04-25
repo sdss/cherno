@@ -74,6 +74,7 @@ guider:
   astrometry_net_use_all_regions: false
   astrometry_dir: ./astrometry
   focus_r2_threshold: 0.2
+  fit_focus: false
   plot_focus: true
   auto_radec_min: 2
   use_astrometry_net: true
@@ -86,6 +87,8 @@ guider:
   gaia_cross_correlation_min_error: 0.6
   gaia_distance_upper_bound: 100
   fit_all_detections: true
+  fit_rms_sigma: 2
+  plot_rms: true
 
 extraction:
   output_dir: ./extraction

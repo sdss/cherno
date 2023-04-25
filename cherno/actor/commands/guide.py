@@ -214,6 +214,7 @@ def get_callback(
         gaia_cross_correlation_blur=params.cross_match_blur,
         fit_all_detections=params.fit_all_detections,
         plot=params.plot,
+        fit_focus=config["guider"].get("fit_focus", True),
         **params.mode_kwargs,
     )
 

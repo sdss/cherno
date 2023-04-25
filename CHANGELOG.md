@@ -2,15 +2,21 @@
 
 ## Next version
 
+### ✨ Improved
+
+* [#14](https://github.com/sdss/cherno/pull/14) Outputs fit RMS and rejects cameras with outlier fit RMS.
+
 ### 🏷️ Changed
 
 * Apply RA/Dec corrections at LCO at the same time as rotator corrections.
-* Changed rotation tolerance at LCO to 20 arcsec.
+* Changed rotation tolerance at LCO to 15 arcsec.
+* Set the focus offset of all LCO cameras to zero. This prevents bad FWHM measurements when GFA1 (which had nominal focus offset zero) had bad FWHM, for example because of a galaxy, while the other cameras measured consistent FWHMs.
 
 ### 🔧 Fixed
 
 * Only use measurements with RMS < 1 arcsec for the RMS and scale history.
 * Use `get_sjd()` in `Exposer()` when determining the next sequence number for GFA exposures. This may be behind the `"Guider failed: The keyword filename_bundle was not output."`.
+* Ignore corrections when delta is -999.0.
 
 
 ## 0.5.2 - January 15, 2023
