@@ -74,6 +74,7 @@ guider:
   astrometry_net_use_all_regions: false
   astrometry_dir: ./astrometry
   focus_r2_threshold: 0.2
+  fit_focus: false
   plot_focus: true
   auto_radec_min: 2
   use_astrometry_net: true

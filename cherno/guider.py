@@ -326,6 +326,7 @@ class Guider:
                 ast_solution,
                 full=full_correction,
                 wait_for_correction=wait_for_correction,
+                apply_focus=fit_focus,
             )
         else:
             self.command.info(
@@ -547,17 +548,18 @@ class Guider:
 
         self.command.debug(focus_data=focus_data)
 
-        self.command.info(
-            focus_fit=[
-                exp_no,
-                ast_solution.fwhm_fit,
-                float(f"{ast_solution.focus_coeff[0]:.3e}"),
-                float(f"{ast_solution.focus_coeff[1]:.3e}"),
-                float(f"{ast_solution.focus_coeff[2]:.3e}"),
-                ast_solution.focus_r2,
-                ast_solution.delta_focus,
-            ]
-        )
+        if fit_focus:
+            self.command.info(
+                focus_fit=[
+                    exp_no,
+                    ast_solution.fwhm_fit,
+                    float(f"{ast_solution.focus_coeff[0]:.3e}"),
+                    float(f"{ast_solution.focus_coeff[1]:.3e}"),
+                    float(f"{ast_solution.focus_coeff[2]:.3e}"),
+                    ast_solution.focus_r2,
+                    ast_solution.delta_focus,
+                ]
+            )
 
         if (
             delta_scale > 0
@@ -589,6 +591,7 @@ class Guider:
         data: AstrometricSolution,
         full: bool = False,
         wait_for_correction: bool = True,
+        apply_focus: bool = True,
     ):
         """Runs the astrometric fit"""
 
@@ -608,15 +611,21 @@ class Guider:
         self.command.info("Applying corrections.")
 
         if self.observatory == "APO":
-            await self._correct_apo(data, full=full)
+            await self._correct_apo(data, full=full, apply_focus=apply_focus)
         else:
             await self._correct_lco(
                 data,
                 full=full,
                 wait_for_correction=wait_for_correction,
+                apply_focus=apply_focus,
             )
 
-    async def _correct_apo(self, data: AstrometricSolution, full: bool = False):
+    async def _correct_apo(
+        self,
+        data: AstrometricSolution,
+        full: bool = False,
+        apply_focus: bool = True,
+    ):
         actor_state = self.command.actor.state
 
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
@@ -645,13 +654,14 @@ class Guider:
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
-            data.focus_r2 > config["guider"]["focus_r2_threshold"]
+            apply_focus
+            and data.focus_r2 > config["guider"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
         ):
             do_focus = True
             coro = apply_focus_correction(self.command, self.pids, data.delta_focus)
             correct_tasks.append(coro)
-        else:
+        elif apply_focus:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
@@ -675,6 +685,7 @@ class Guider:
         data: AstrometricSolution,
         full: bool = False,
         wait_for_correction: bool = True,
+        apply_focus: bool = True,
     ):
         do_focus: bool = False
 
@@ -683,12 +694,13 @@ class Guider:
         # Ignore focus correction when the r2 correlation is bad or when we got
         # an inverted parabola.
         if (
-            data.focus_r2 > config["guider"]["focus_r2_threshold"]
+            apply_focus
+            and data.focus_r2 > config["guider"]["focus_r2_threshold"]
             and data.focus_coeff[0] > 0
             and "focus" in enabled_axes
         ):
             do_focus = True
-        else:
+        elif apply_focus:
             self.command.warning("Focus fit poorly constrained. Not correcting focus.")
 
         self.command.actor.state.set_status(GuiderStatus.CORRECTING, mode="add")
