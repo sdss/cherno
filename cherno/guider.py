@@ -442,6 +442,10 @@ class Guider:
             # Update the fit with the previous one.
             guider_fit = tmp_guider_fit
 
+            # If the fit failed, exit.
+            if guider_fit is False:
+                break
+
             # If only 3 cameras remain we exit. We don't want to reject any more.
             if len(fit_cameras) <= 3:
                 break
