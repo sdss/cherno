@@ -1,5 +1,13 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Use `sdss-coordio>=1.7.2` to exclude rejected cameras from global fit RMS calculation.
+* Addressed a corner case in which if the guider fit was unsuccessful that could lead to an error.
+
+
 ## 0.6.0 - April 25, 2023
 
 ### ✨ Improved
