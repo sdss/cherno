@@ -2667,7 +2667,15 @@ category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
+    {file = "sdss-coordio-1.7.2.tar.gz", hash = "sha256:fcd895fd985b02b306c866f13de401728dab31eb968b263a21f47d52b72cfe6a"},
+    {file = "sdss_coordio-1.7.2-cp310-cp310-macosx_11_0_x86_64.whl", hash = "sha256:f69063a6cffb15abcb17c7110846b68834cb73de2f55dbd7313d1196e1455c8e"},
+    {file = "sdss_coordio-1.7.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d8f9fa2ab76088322fb985915d4807502d34341aaa5ee4137104c76043fa8a02"},
+    {file = "sdss_coordio-1.7.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:b27293bf73e0e910638b9263946471048ecb7711cc0bfc26574382485d5cebb0"},
+    {file = "sdss_coordio-1.7.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a8da8d1693448c276dbc63cc3d3297f051873c553fe6420d31c825e9a5168c09"},
     {file = "sdss_coordio-1.7.2-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:bc2db1c02f2fb9ac87d898068bbd751b152983716a94176ff2b63f16d09dc077"},
+    {file = "sdss_coordio-1.7.2-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2f3bfe081570632e7c18dbeb1acb85101caf1388041e418028528f15fd03d88b"},
+    {file = "sdss_coordio-1.7.2-cp39-cp39-macosx_11_0_x86_64.whl", hash = "sha256:afdae449aa9a6164c9f8a5337ba855a979a35d2e9428a3420b1deaf9c313c9ff"},
+    {file = "sdss_coordio-1.7.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:65370d713f5e58d888c9333faab4691529c68495e91f8b9d970391a6f9a0e75f"},
 ]
 
 [package.dependencies]
