@@ -1,13 +1,13 @@
 # Changelog
 
-## Next version
+## 0.6.2 - April 28, 2023
 
 ### 🔧 Fixed
 
 * Use `sdss-coordio>=1.7.3` to exclude rejected cameras also for (normal) global RMS calculation.
 
 
-## 0.6.1 - April 25, 2023
+## 0.6.1 - April 27, 2023
 
 ### 🔧 Fixed
 
