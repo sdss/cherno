@@ -6,6 +6,10 @@
 
 * Add a couple checks to reject fits where either all the cameras have bad fit RMS (controlled by the `guider.max_fit_rms` parameters) or the delta scale value is too large (`guider.max_delta_scale_ppm`).
 
+### 🏷️ Changed
+
+* Changed default rotation offset to -420 arcsec at APO and -365 arcsec at LCO.
+
 
 ## 0.6.2 - April 28, 2023
 
