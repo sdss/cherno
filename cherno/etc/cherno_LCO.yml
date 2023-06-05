@@ -89,6 +89,8 @@ guider:
   fit_all_detections: true
   fit_rms_sigma: 2
   plot_rms: true
+  max_delta_scale_ppm: 1000
+  max_fit_rms: 2
 
 extraction:
   output_dir: ./extraction

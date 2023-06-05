@@ -422,7 +422,7 @@ class Guider:
 
         fit_cameras = [d.camera_id for d in solved]
         fit_rms_sigma = config["guider"].get("fit_rms_sigma", 3)
-        guider_fit = None
+        guider_fit = False
         while True:
             tmp_guider_fit = self.fitter.fit(
                 field_ra,
@@ -436,7 +436,7 @@ class Guider:
 
             # If we already had a solution and this fit failed or the fit RMS is bad,
             # just use the previous fit.
-            if guider_fit is not None and (fit_rms_sigma <= 0 or not tmp_guider_fit):
+            if guider_fit is not False and (fit_rms_sigma <= 0 or not tmp_guider_fit):
                 break
 
             # Update the fit with the previous one.
@@ -466,10 +466,29 @@ class Guider:
             )
             fit_cameras.remove(cam_max_rms)
 
+        # One final check. If the fit_rms of all the fit cameras is greater than
+        # a certain threshold, reject the fit. This can happen in cases when
+        # the telescope is moving during an exposure.
+        max_fit_rms = config["guider"]["max_fit_rms"]
+        fit_rms = guider_fit.fit_rms.loc[fit_cameras, "rms"] if guider_fit else None
+        if fit_rms is not None and numpy.all(fit_rms > max_fit_rms):
+            self.command.warning(
+                "The fit RMS of all the cameras exceeds "
+                "threshold values. Rejecting fit."
+            )
+            guider_fit = False
+
         plate_scale = defaults.PLATE_SCALE[self.observatory]
         mm_to_arcsec = 1 / plate_scale * 3600
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
+
+        # Check the delta_scale. If the change is too large, this is probably
+        # a misfit. Reject the fit.
+        max_delta_scale_ppm = config["guider"]["max_delta_scale_ppm"]
+        if guider_fit and abs(1 - guider_fit.delta_scale) > max_delta_scale_ppm * 1e6:
+            self.command.warning("Scale delta exceeds expected limits. Rejecting fit.")
+            guider_fit = False
 
         if not guider_fit:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
@@ -493,7 +512,7 @@ class Guider:
             if self.command.actor and rms > 0 and rms < 1:
                 self.command.actor.state.rms_history.append(rms)
 
-        ast_solution.valid_solution = True
+            ast_solution.valid_solution = True
 
         ast_solution.delta_ra = float(delta_ra)
         ast_solution.delta_dec = float(delta_dec)
