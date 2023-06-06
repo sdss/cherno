@@ -466,34 +466,19 @@ class Guider:
             )
             fit_cameras.remove(cam_max_rms)
 
-        # One final check. If the fit_rms of all the fit cameras is greater than
-        # a certain threshold, reject the fit. This can happen in cases when
-        # the telescope is moving during an exposure.
-        max_fit_rms = config["guider"]["max_fit_rms"]
-        fit_rms = guider_fit.fit_rms.loc[fit_cameras, "rms"] if guider_fit else None
-        if fit_rms is not None and numpy.all(fit_rms > max_fit_rms):
-            self.command.warning(
-                "The fit RMS of all the cameras exceeds "
-                "threshold values. Rejecting fit."
-            )
-            guider_fit = False
-
         plate_scale = defaults.PLATE_SCALE[self.observatory]
         mm_to_arcsec = 1 / plate_scale * 3600
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        # Check the delta_scale. If the change is too large, this is probably
-        # a misfit. Reject the fit.
-        max_delta_scale_ppm = config["guider"]["max_delta_scale_ppm"]
-        if guider_fit and abs(1 - guider_fit.delta_scale) > max_delta_scale_ppm * 1e6:
-            self.command.warning("Scale delta exceeds expected limits. Rejecting fit.")
-            guider_fit = False
+        if guider_fit:
+            # If we have a guider_fit != False, the fit produced a good astrometric
+            # solution.
+            ast_solution.valid_solution = True
 
-        if not guider_fit:
-            rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
-            ast_solution.guider_fit = None
-        else:
+            # Now unpack fit information. We do this even if we reject the
+            # fit below because we want the fit data in the headers, but
+            # won't apply the correction.
             delta_ra = guider_fit.delta_ra
             delta_dec = guider_fit.delta_dec
             delta_rot = guider_fit.delta_rot
@@ -512,16 +497,54 @@ class Guider:
             if self.command.actor and rms > 0 and rms < 1:
                 self.command.actor.state.rms_history.append(rms)
 
-            ast_solution.valid_solution = True
+            if guider_fit.only_radec:
+                ast_solution.fit_mode = "radec"
 
+            # Report fit RMS. First value is the global fit RMS, then one for
+            # each camera. If a camera was rejected the fitRMS is set to -999.
+            fit_rms = guider_fit.fit_rms
+            fit_rms_camera = [numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4)]
+            for cid in range(1, 7):
+                if cid in fit_rms.index:
+                    this_fit_rms = numpy.round(fit_rms.loc[cid].rms * mm_to_arcsec, 4)
+                    fit_rms_camera.append(this_fit_rms)
+                else:
+                    fit_rms_camera.append(-999.0)
+
+            self.command.info(fit_rms_camera=fit_rms_camera)
+
+            # If the fit_rms of all the fit cameras is greater than a certain
+            # threshold, reject the fit. This can happen in cases when the
+            # telescope is moving during an exposure.
+            max_fit_rms = config["guider"]["max_fit_rms"]  # In arcsec
+            if guider_fit:
+                fit_rms = guider_fit.fit_rms.loc[fit_cameras, "rms"] * mm_to_arcsec
+                if numpy.all(fit_rms > max_fit_rms):
+                    self.command.warning(
+                        "The fit RMS of all the cameras exceeds "
+                        "threshold values. Rejecting fit."
+                    )
+                    ast_solution.valid_solution = False
+
+            # Check the delta_scale. If the change is too large, this is probably
+            # a misfit. Reject the fit.
+            max_delta_scale_ppm = config["guider"]["max_delta_scale_ppm"]
+            delta_scale_ppm = abs(1 - guider_fit.delta_scale) * 1e6  # Parts per million
+            if delta_scale_ppm > max_delta_scale_ppm:
+                self.command.warning("Scale change exceeds limits. Rejecting fit.")
+                ast_solution.valid_solution = False
+
+        else:
+            rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
+            ast_solution.guider_fit = None
+            ast_solution.valid_solution = False
+
+        # Update AstrometricSolution object.
         ast_solution.delta_ra = float(delta_ra)
         ast_solution.delta_dec = float(delta_dec)
         ast_solution.delta_rot = float(delta_rot)
         ast_solution.delta_scale = float(delta_scale)
         ast_solution.rms = float(rms)
-
-        if guider_fit and guider_fit.only_radec:
-            ast_solution.fit_mode = "radec"
 
         if fit_focus:
             try:
@@ -541,17 +564,6 @@ class Guider:
 
             except Exception as err:
                 self.command.warning(f"Failed fitting focus curve: {err}.")
-
-        if guider_fit:
-            fit_rms = guider_fit.fit_rms
-            fit_rms_camera = [numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4)]
-            for cid in range(1, 7):
-                rms_cam = fit_rms.loc[cid].rms if cid in fit_rms.index else -999.0
-                fit_rms_camera += [
-                    numpy.round(rms_cam * mm_to_arcsec, 4) if rms_cam != -999 else -999,
-                    cid in guider_fit.cameras,
-                ]
-            self.command.info(fit_rms_camera=fit_rms_camera)
 
         self.command.info(
             astrometry_fit=[
