@@ -1011,7 +1011,7 @@ class Guider:
     async def write_proc_image(
         self,
         guide_data: GuideData,
-        outpath: PathLike = None,
+        outpath: PathLike | None = None,
         overwrite: bool = False,
     ):
         """Writes the proc-gimg image."""
