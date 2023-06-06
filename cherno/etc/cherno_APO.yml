@@ -75,7 +75,7 @@ guider:
   astrometry_dir: ./astrometry
   focus_r2_threshold: 0.2
   fit_focus: true
-  plot_focus: true
+  plot_focus: false
   auto_radec_min: -1
   use_astrometry_net: true
   astrometry_net_odds: 9
@@ -88,7 +88,7 @@ guider:
   gaia_distance_upper_bound: 5
   fit_all_detections: true
   fit_rms_sigma: 2
-  plot_rms: true
+  plot_rms: false
   max_delta_scale_ppm: 1000
   max_fit_rms: 2
 
