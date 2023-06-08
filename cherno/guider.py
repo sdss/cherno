@@ -501,7 +501,8 @@ class Guider:
                 ast_solution.fit_mode = "radec"
 
             # Report fit RMS. First value is the global fit RMS, then one for
-            # each camera. If a camera was rejected the fitRMS is set to -999.
+            # each camera and a boolean indicating if that camera was used for the
+            # global fit. If a camera was rejected the fit RMS is set to -999.
             fit_rms = guider_fit.fit_rms
             fit_rms_camera = [numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4)]
             for cid in range(1, 7):
@@ -510,6 +511,7 @@ class Guider:
                     fit_rms_camera.append(this_fit_rms)
                 else:
                     fit_rms_camera.append(-999.0)
+                fit_rms_camera.append(cid in guider_fit.cameras)
 
             self.command.info(fit_rms_camera=fit_rms_camera)
 
