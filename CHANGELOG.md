@@ -9,6 +9,7 @@
 ### 🏷️ Changed
 
 * Changed default rotation offset to -420 arcsec at APO and -365 arcsec at LCO.
+* Changed default RA/Dec offsets to zero for APO.
 
 
 ## 0.6.2 - April 28, 2023
