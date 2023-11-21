@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### ✨ Improved
+
+* Add `GFACOORD` extension to `proc-` frames with the `gfaCoords` table used during guiding.
+
+
 ## 0.6.3
 
 ### ✨ Improved

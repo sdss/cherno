@@ -15,7 +15,6 @@ import time
 import warnings
 from dataclasses import dataclass, field
 from functools import partial
-
 from typing import TYPE_CHECKING, Any, Coroutine
 
 import numpy
@@ -24,10 +23,8 @@ from astropy.io import fits
 from astropy.stats.sigma_clipping import SigmaClip
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
-from simple_pid.PID import PID
-
 from clu.command import FakeCommand
-from coordio import defaults
+from coordio import calibration, defaults
 from coordio.astrometry import AstrometryNet
 from coordio.guide import (
     GuiderFit,
@@ -36,6 +33,7 @@ from coordio.guide import (
     gfa_to_radec,
     radec_to_gfa,
 )
+from simple_pid.PID import PID
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
@@ -44,7 +42,6 @@ from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
 from cherno.utils import focus_fit, run_in_executor
-
 
 if TYPE_CHECKING:
     from cherno.actor import ChernoActor, ChernoCommandType
@@ -1024,6 +1021,10 @@ class Guider:
 
         rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
         proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
+
+        gfa_coords = calibration.gfaCoords.reset_index()
+        gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
+        proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
 
         proc_hdu[1].header["SOLVED"] = guide_data.solved
         proc_hdu[1].header["SOLVMODE"] = (
