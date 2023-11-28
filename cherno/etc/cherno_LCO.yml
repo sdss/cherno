@@ -81,7 +81,7 @@ guider:
   astrometry_net_odds: 9
   gaia_connection_string: postgresql://sdss_user@sdss5-db/chernodb
   gaia_phot_g_mean_mag_max: 19
-  gaia_search_radius: 0.05
+  gaia_search_radius: 0.15
   gaia_use_cross_correlation_shift: true
   gaia_cross_correlation_blur: 1
   gaia_cross_correlation_min_error: 0.6
