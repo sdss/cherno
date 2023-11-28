@@ -59,17 +59,27 @@ ruff = ">=0.1.6"
 
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py312']
 fast = true
 
-[tool.isort]
-profile = "black"
-sections = ["FUTURE", "STDLIB", "TYPING", "THIRDPARTY", "SDSS", "FIRSTPARTY", "LOCALFOLDER"]
-default_section = "THIRDPARTY"
-known_first_party = "cherno"
-known_typing = ["typing"]
-known_sdss = ["clu", "sdsstools", "coordio", "fps_calibrations"]
-lines_after_imports = 2
+[tool.ruff]
+line-length = 88
+target-version = 'py312'
+select = ["E", "F", "I"]
+unfixable = ["F841"]
+exclude = []
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401", "F403", "E402"]
+
+[tool.ruff.isort]
+known-first-party = ["jaeger"]
+lines-after-imports = 2
+section-order = ["future", "standard-library", "typing", "third-party", "sdss", "first-party", "local-folder"]
+
+[tool.ruff.isort.sections]
+typing = ["typing"]
+sdss = ["clu", "sdsstools", "coordio", "fps_calibrations"]
 
 [tool.pytest.ini_options]
 addopts = "--cov cherno --cov-report xml --cov-report html --cov-report term"

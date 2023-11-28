@@ -15,6 +15,7 @@ import time
 import warnings
 from dataclasses import dataclass, field
 from functools import partial
+
 from typing import TYPE_CHECKING, Any, Coroutine
 
 import numpy
@@ -23,6 +24,8 @@ from astropy.io import fits
 from astropy.stats.sigma_clipping import SigmaClip
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
+from simple_pid.PID import PID
+
 from clu.command import FakeCommand
 from coordio import calibration, defaults
 from coordio.astrometry import AstrometryNet
@@ -33,7 +36,6 @@ from coordio.guide import (
     gfa_to_radec,
     radec_to_gfa,
 )
-from simple_pid.PID import PID
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
@@ -42,6 +44,7 @@ from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
 from cherno.utils import focus_fit, run_in_executor
+
 
 if TYPE_CHECKING:
     from cherno.actor import ChernoActor, ChernoCommandType
