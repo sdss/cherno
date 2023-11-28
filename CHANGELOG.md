@@ -6,6 +6,12 @@
 
 * Add `GFACOORD` extension to `proc-` frames with the `gfaCoords` table used during guiding.
 
+### ⚙️ Engineering
+
+* Stop supporting Python 3.9. Support for 3.12.
+* Lint with `ruff`.
+* Updated workflows for testing and releasing.
+
 
 ## 0.6.3
 
