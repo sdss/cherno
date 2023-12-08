@@ -1,6 +1,6 @@
 # Changelog
 
-## Next version
+## 0.6.4 - December 7, 2023
 
 ### ✨ Improved
 
@@ -13,7 +13,7 @@
 * Updated workflows for testing and releasing.
 
 
-## 0.6.3
+## 0.6.3 - July 28, 2023
 
 ### ✨ Improved
 
