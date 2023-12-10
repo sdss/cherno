@@ -1,5 +1,16 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Bump `sdsstools` to 1.5.5 to prevent an issue when pickling the `Guider` object in multiprocessing.
+
+### ⚙️ Engineering
+
+* Upgrade `astropy` to 6.0.0.
+
+
 ## 0.6.4 - December 7, 2023
 
 ### ✨ Improved
