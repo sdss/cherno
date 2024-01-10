@@ -1,0 +1,15 @@
+coverage:
+  range: 80...95
+  round: up
+  precision: 1
+  status:
+    project:
+      default:
+        target: auto # Require that we increase the coverage wrt the base commit
+        informational: false
+        only_pulls: true # Only require coverage on pull requests
+    patch:
+      default:
+        target: 90% # Require to cover at least 90% of the new code
+        informational: false
+        only_pulls: true # Only require coverage on pull requests
