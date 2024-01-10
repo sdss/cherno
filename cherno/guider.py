@@ -385,6 +385,9 @@ class Guider:
             else:
                 offset = list(config.get("offset", [0.0, 0.0, 0.0]))
 
+        if not numpy.allclose(offset, [0.0, 0.0, 0.0]):
+            self.command.warning("Using non-zero offsets for astrometric fit.")
+
         self.fitter.reset()
         for d in solved:
             if fit_all_detections:

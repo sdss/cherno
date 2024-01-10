@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### ✨ Improved
+
+* Added a warning when a non-zero offset is used.
+
+
 ## 0.6.5 - December 10, 2023
 
 ### 🔧 Fixed
