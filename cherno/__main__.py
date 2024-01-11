@@ -16,8 +16,7 @@ from contextlib import suppress
 import click
 from click_default_group import DefaultGroup
 
-from clu.tools import cli_coro
-from sdsstools.daemonizer import DaemonGroup
+from sdsstools.daemonizer import DaemonGroup, cli_coro
 
 from cherno.actor.actor import ChernoActor
 
@@ -54,7 +53,7 @@ def cherno(ctx, verbose: bool = False, observatory: str | None = None):
 
 @cherno.group(cls=DaemonGroup, prog="cherno_actor", workdir=os.getcwd())
 @click.pass_context
-@cli_coro
+@cli_coro()
 async def actor(ctx):
     """Runs the actor."""
 
