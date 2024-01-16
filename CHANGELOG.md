@@ -1,12 +1,12 @@
 # Changelog
 
-## Next version
+## 0.6.6 - January 15, 2024
 
 ### ✨ Improved
 
 * Added a warning when a non-zero offset is used.
 * Updated Pandas to 2.x.
-* Bump `coordio` to 1.9.1b1 to use new `sdss-sep` package.
+* Bump `coordio` to 1.9.2 to use new `sdss-sep` package.
 
 
 ## 0.6.5 - December 10, 2023
