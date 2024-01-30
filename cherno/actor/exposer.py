@@ -172,7 +172,7 @@ class Exposer:
                         "fliswarm",
                         f"talk -n {names_comma} status",
                     ),
-                    3,
+                    10,
                 )
             except asyncio.TimeoutError:
                 self.fail("Timed out updating camera status.")
