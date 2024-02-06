@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### ✨ Improved
+
+* Allow to select what cameras to use for guiding or focusing by invoking `cherno set cameras [guide|focus] gfa2 gfa3 ...` (same as `cherno set cameras` but only affects guiding or focusing).
+
+
 ## 0.6.6 - January 15, 2024
 
 ### ✨ Improved
