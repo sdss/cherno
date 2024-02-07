@@ -82,6 +82,8 @@ class ChernoState:
     exposure_time: float = 15.0
     guide_loop: dict = field(default_factory=dict)
     enabled_cameras: list = field(default_factory=list)
+    guide_cameras: list = field(default_factory=list)
+    focus_cameras: list = field(default_factory=list)
     enabled_axes: list = field(default_factory=list)
     scale_history: list = field(default_factory=list)
     rms_history: deque = field(default_factory=deque)
@@ -92,7 +94,9 @@ class ChernoState:
 
     def __post_init__(self):
         self.observatory = self.actor.observatory
-        self.enabled_cameras = config["cameras"]["names"].copy()
+        self.enabled_cameras = config["cameras"]["enabled"].copy()
+        self.guide_cameras = config["cameras"]["guide"].copy()
+        self.focus_cameras = config["cameras"]["focus"].copy()
         self.enabled_axes = config["enabled_axes"].copy()
         self.astrometry_net_odds = config["guider"]["astrometry_net_odds"]
         self.rms_history = deque(maxlen=10)

@@ -423,7 +423,8 @@ class Guider:
                 "and not corrected."
             )
 
-        fit_cameras = [d.camera_id for d in solved]
+        guide_cameras = self.command.actor.state.guide_cameras
+        fit_cameras = [d.camera_id for d in solved if d.camera in guide_cameras]
         fit_rms_sigma = config["guider"].get("fit_rms_sigma", 3)
         guider_fit = False
         while True:
@@ -552,9 +553,10 @@ class Guider:
         ast_solution.rms = float(rms)
 
         if fit_focus:
+            focus_cameras = self.command.actor.state.focus_cameras
             try:
                 fwhm_fit, x_min, a, b, c, r2 = focus_fit(
-                    [d.e_data for d in data],
+                    [d.e_data for d in data if d.camera.lower() in focus_cameras],
                     plot=config["guider"]["plot_focus"],
                 )
 

@@ -25,7 +25,7 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         exposure-time [EXPTIME]
         pid ra|dec|rot|focus k|ti|td [VALUE]
         axes [ra dec rot off]
-        cameras CAMERAS
+        cameras [guide|focus] CAMERAS
         odds 1-10
 
     """
@@ -91,8 +91,17 @@ async def set(command: ChernoCommandType, options: tuple[str, ...]):
         if len(options) < 2:
             return command.fail("Invalid number of parameters")
 
-        cameras = options[1:]
-        command.actor.state.enabled_cameras = list(cameras)
+        if options[1] == "guide":
+            if len(options) < 3:
+                return command.fail("Invalid number of parameters")
+            command.actor.state.guide_cameras = list(options[2:])
+
+        if options[1] == "focus":
+            if len(options) < 3:
+                return command.fail("Invalid number of parameters")
+            command.actor.state.focus_cameras = list(options[2:])
+
+        command.actor.state.enabled_cameras = list(options[1:])
 
     elif options[0] == "odds":
         if len(options) != 2:
