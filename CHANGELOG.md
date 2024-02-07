@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 - February 7, 2024
+## 0.6.7 - February 7, 2024
 
 ### ✨ Improved
 
