@@ -18,7 +18,7 @@ cameras:
   path: /data/gcam/
   names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   enabled: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
-  guide: [gfa1, gfa2, gfa3, gfa4, gfa5]
+  guide: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   focus: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   focus_offset:
     gfa1: -35.5
