@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Upgraded SQLAlchemy to `^2.0.0`. It seems that Pandas now requires `>=2.0` to run `read_sql` using a connection URI.
+
+
 ## 0.6.7 - February 7, 2024
 
 ### ✨ Improved
