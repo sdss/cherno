@@ -77,7 +77,7 @@ async def get_scale(
 
     wmean = numpy.average(valid[:, 1], weights=1.0 / valid[:, 0])
 
-    if wmean < 0.999 or wmean > 1.001:
+    if wmean < 0.995 or wmean > 1.005:
         command.warning(
             f"Unexpectedly large/small scale factor {wmean:.6f}. "
             "This is unexpected. If you are sure, use this value manually."
