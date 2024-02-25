@@ -92,7 +92,7 @@ guider:
   fit_all_detections: true
   fit_rms_sigma: 2
   plot_rms: false
-  max_delta_scale_ppm: 1000
+  max_delta_scale_ppm: 3000
   max_fit_rms: 2
 
 extraction:
