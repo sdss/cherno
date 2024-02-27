@@ -6,6 +6,7 @@
 
 * Upgraded SQLAlchemy to `^2.0.0`. It seems that Pandas now requires `>=2.0` to run `read_sql` using a connection URI.
 * Increased scale factor tolerance and `max_delta_scale_ppm` for LCO to account for the new IMB position and plate scale.
+* Fixed docs building.
 
 
 ## 0.6.7 - February 7, 2024
