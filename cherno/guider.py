@@ -35,6 +35,7 @@ from coordio.guide import (
     cross_match,
     gfa_to_radec,
     radec_to_gfa,
+    SolvePointing
 )
 
 from cherno import config, log
@@ -271,6 +272,18 @@ class Guider:
         else:
             guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
 
+
+        # check for astrometry.net solutions for cameras actively used
+        # for guide corrections
+        _guide_cameras = self.command.actor.state.guide_cameras
+        _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in guide_cameras]
+        if len(_astronet_solved) > 1:
+            # if 2 or more cameras have astonet solns, use "coordio"
+            for gd in guide_data:
+                gd.solved = True
+                gd.solve_method = "coordio"
+
+
         # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
         not_solved = [ad for ad in guide_data if ad.solved is False]
         if use_gaia and len(not_solved) > 0:
@@ -301,15 +314,28 @@ class Guider:
                 *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
 
-        ast_solution = await self.fit(
-            list(guide_data),
-            offset=offset,
-            scale_rms=scale_rms,
-            only_radec=only_radec,
-            auto_radec_min=auto_radec_min,
-            fit_all_detections=fit_all_detections,
-            fit_focus=fit_focus,
-        )
+
+        if len(_astronet_solved) > 1:
+            ast_solution = await self.fit_SP(
+                list(guide_data),
+                astronet_solved=_astronet_solved,
+                offset=offset,
+                scale_rms=scale_rms,
+                only_radec=only_radec,
+                auto_radec_min=auto_radec_min,
+                fit_all_detections=fit_all_detections,
+                fit_focus=fit_focus
+            )
+        else:
+            ast_solution = await self.fit(
+                list(guide_data),
+                offset=offset,
+                scale_rms=scale_rms,
+                only_radec=only_radec,
+                auto_radec_min=auto_radec_min,
+                fit_all_detections=fit_all_detections,
+                fit_focus=fit_focus,
+            )
 
         if (
             self.target_rms is not None
@@ -339,6 +365,7 @@ class Guider:
             update_proc_headers(ast_solution, self.command.actor.state)
 
         return ast_solution
+
 
     async def fit(
         self,
@@ -544,6 +571,275 @@ class Guider:
             rms = delta_ra = delta_dec = delta_rot = delta_scale = -999.0
             ast_solution.guider_fit = None
             ast_solution.valid_solution = False
+
+        # Update AstrometricSolution object.
+        ast_solution.delta_ra = float(delta_ra)
+        ast_solution.delta_dec = float(delta_dec)
+        ast_solution.delta_rot = float(delta_rot)
+        ast_solution.delta_scale = float(delta_scale)
+        ast_solution.rms = float(rms)
+
+        if fit_focus:
+            focus_cameras = self.command.actor.state.focus_cameras
+            try:
+                fwhm_fit, x_min, a, b, c, r2 = focus_fit(
+                    [d.e_data for d in data if d.camera.lower() in focus_cameras],
+                    plot=config["guider"]["plot_focus"],
+                )
+
+                # Relationship between M2 move and focal plane. See
+                # http://www.loptics.com/ATM/mirror_making/cass_info/cass_info.html
+                focus_sensitivity = config["focus_sensitivity"]
+
+                ast_solution.fwhm_fit = round(fwhm_fit, 3)
+                ast_solution.delta_focus = round(-x_min / focus_sensitivity, 1)
+                ast_solution.focus_coeff = [a, b, c]
+                ast_solution.focus_r2 = round(r2, 3)
+
+            except Exception as err:
+                self.command.warning(f"Failed fitting focus curve: {err}.")
+
+        self.command.info(
+            astrometry_fit=[
+                exp_no,
+                len(solved),
+                -999.0,
+                -999.0,
+                numpy.round(fwhm, 2),
+                -999,
+                numpy.round(camera_rotation, 3),
+                delta_ra,
+                delta_dec,
+                delta_rot,
+                delta_scale,
+            ]
+        )
+
+        # Output focus data in a single keyword, mostly for Boson's benefit.
+        focus_data = [int(exp_no)]
+        for d in ast_solution.guide_data:
+            if d.extraction_data.fwhm_median > 0 and d.extraction_data.nvalid > 0:
+                focus_data += [
+                    int(d.camera[-1]),
+                    d.extraction_data.fwhm_median,
+                    d.extraction_data.focus_offset,
+                ]
+
+        self.command.debug(focus_data=focus_data)
+
+        if fit_focus:
+            self.command.info(
+                focus_fit=[
+                    exp_no,
+                    ast_solution.fwhm_fit,
+                    float(f"{ast_solution.focus_coeff[0]:.3e}"),
+                    float(f"{ast_solution.focus_coeff[1]:.3e}"),
+                    float(f"{ast_solution.focus_coeff[2]:.3e}"),
+                    ast_solution.focus_r2,
+                    ast_solution.delta_focus,
+                ]
+            )
+
+        if (
+            delta_scale > 0
+            and self.command.actor
+            and fwhm < 2.5
+            and rms > 0
+            and rms <= 1
+            and guider_fit
+            and not guider_fit.only_radec
+        ):
+            # If we measured the scale, add it to the actor state. This is later
+            # used to compute the average scale over a period. We also add the time
+            # because we'll want to reject measurements that are too old.
+            self.command.actor.state.scale_history.append((time.time(), delta_scale))
+
+        if config["guider"].get("plot_rms", False):
+            e_data_test = data[0].e_data
+            path = e_data_test.path.parent
+            mjd = e_data_test.mjd
+            seq = e_data_test.exposure_no
+            outpath = path / "fit" / f"fit_rms-{mjd}-{seq}.pdf"
+            outpath.parent.mkdir(exist_ok=True)
+            self.fitter.plot_fit(outpath)
+
+        return ast_solution
+
+
+    async def fit_SP(
+        self,
+        data: list[GuideData],
+        astronet_solved: list[str],
+        offset: list[float] | None = None,
+        scale_rms: bool = False,
+        fit_focus: bool = True,
+        only_radec: bool = False,
+        auto_radec_min: int = 2,
+        fit_all_detections: bool = True,
+    ):
+        """Calculate the astrometric solution."""
+
+        ast_solution = AstrometricSolution(False, data)
+
+        solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
+        weights = [s.extraction_data.nvalid for s in solved]
+
+        if len(solved) == 0:
+            self.command.error(acquisition_valid=False, did_correct=False)
+            return ast_solution
+
+        fwhm = [d.e_data.fwhm_median for d in data if d.e_data.fwhm_median > 0]
+        fwhm_weights = [
+            1 / numpy.abs(d.e_data.focus_offset or 1.0)
+            for d in data
+            if d.e_data.fwhm_median > 0
+        ]
+        fwhm = numpy.average(fwhm, weights=fwhm_weights)
+
+        camera_rotation = numpy.average([d.rotation for d in solved], weights=weights)
+
+        ast_solution.fwhm_median = numpy.round(float(fwhm), 3)
+        ast_solution.camera_rotation = numpy.round(float(camera_rotation), 2)
+
+        if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
+            self.command.error(acquisition_valid=False, did_correct=False)
+            self.command.error("Field not defined. Cannot run astrometric fit.")
+            return ast_solution
+
+        if offset is None:
+            if self.command.actor:
+                offset = list(self.command.actor.state.offset)
+            else:
+                offset = list(config.get("offset", [0.0, 0.0, 0.0]))
+
+        if not numpy.allclose(offset, [0.0, 0.0, 0.0]):
+            self.command.warning("Using non-zero offsets for astrometric fit.")
+
+
+        field_ra = solved[0].field_ra
+        field_dec = solved[0].field_dec
+        field_pa = solved[0].field_pa
+
+        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+        full_offset = numpy.array(offset) + numpy.array(default_offset)
+
+        guide_cameras = self.command.actor.state.guide_cameras
+
+        fitter = SolvePointing(
+            raCen=field_ra,
+            decCen=field_dec,
+            paCen=field_pa,
+            offset_ra=full_offset[0],
+            offset_dec=full_offset[1],
+            offset_pa=full_offset[2],
+            db_conn_st=config["guider"]["gaia_connection_string"],
+            db_tab_name="catalogdb.gaia_dr2_source_g19"
+        )
+        for d in data:
+            if d.camera not in guide_cameras:
+                continue
+            if d.extraction_data.nregions == 0:
+                continue
+            wcs = None
+            if d.camera in astronet_solved:
+                wcs = d.wcs
+                fitter.add_gimg(d.path, wcs)
+
+        fitter.solve()
+
+        self.command.debug(default_offset=default_offset)
+        if any(offset):
+            self.command.warning(offset=offset)
+        else:
+            self.command.debug(offset=offset)
+
+        if only_radec is True:
+            self.command.warning(
+                "Only fitting RA/Dec. The rotation and scale offsets "
+                "are informational-only and not corrected."
+            )
+        elif auto_radec_min >= 0 and len(solved) <= auto_radec_min:
+            only_radec = True
+            self.command.warning(
+                f"Only {len(solved)} cameras solved. Only fitting RA/Dec. "
+                "The rotation and scale offsets are informational-only "
+                "and not corrected."
+            )
+
+
+
+        guider_fit = True
+
+        plate_scale = defaults.PLATE_SCALE[self.observatory]
+        mm_to_arcsec = 1 / plate_scale * 3600
+
+        exp_no = solved[0].exposure_no  # Should be the same for all.
+
+
+        # If we have a guider_fit != False, the fit produced a good astrometric
+        # solution.
+        ast_solution.valid_solution = True
+
+        # Now unpack fit information. We do this even if we reject the
+        # fit below because we want the fit data in the headers, but
+        # won't apply the correction.
+        delta_ra = guider_fit.delta_ra
+        delta_dec = guider_fit.delta_dec
+        delta_rot = guider_fit.delta_rot
+        delta_scale = guider_fit.delta_scale
+
+        xrms = numpy.round(guider_fit.xrms * mm_to_arcsec, 3)
+        yrms = numpy.round(guider_fit.yrms * mm_to_arcsec, 3)
+        rms = numpy.round(guider_fit.rms * mm_to_arcsec, 3)
+
+        ast_solution.guider_fit = guider_fit
+        ast_solution.fitter = self.fitter
+
+        self.command.info(guide_rms=[exp_no, xrms, yrms, rms])
+
+        # Store RMS. This is used to determine acquisition convergence.
+        if self.command.actor and rms > 0 and rms < 1:
+            self.command.actor.state.rms_history.append(rms)
+
+        if guider_fit.only_radec:
+            ast_solution.fit_mode = "radec"
+
+        # Report fit RMS. First value is the global fit RMS, then one for
+        # each camera and a boolean indicating if that camera was used for the
+        # global fit. If a camera was rejected the fit RMS is set to -999.
+        fit_rms = guider_fit.fit_rms
+        fit_rms_camera = [numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4)]
+        for cid in range(1, 7):
+            if cid in fit_rms.index:
+                this_fit_rms = numpy.round(fit_rms.loc[cid].rms * mm_to_arcsec, 4)
+                fit_rms_camera.append(this_fit_rms)
+            else:
+                fit_rms_camera.append(-999.0)
+            fit_rms_camera.append(cid in guider_fit.cameras)
+
+        self.command.info(fit_rms_camera=fit_rms_camera)
+
+        # If the fit_rms of all the fit cameras is greater than a certain
+        # threshold, reject the fit. This can happen in cases when the
+        # telescope is moving during an exposure.
+        max_fit_rms = config["guider"]["max_fit_rms"]  # In arcsec
+        if guider_fit:
+            fit_rms = guider_fit.fit_rms.loc[fit_cameras, "rms"] * mm_to_arcsec
+            if numpy.all(fit_rms > max_fit_rms):
+                self.command.warning(
+                    "The fit RMS of all the cameras exceeds "
+                    "threshold values. Rejecting fit."
+                )
+                ast_solution.valid_solution = False
+
+        # Check the delta_scale. If the change is too large, this is probably
+        # a misfit. Reject the fit.
+        max_delta_scale_ppm = config["guider"]["max_delta_scale_ppm"]
+        delta_scale_ppm = abs(1 - guider_fit.delta_scale) * 1e6  # Parts per million
+        if delta_scale_ppm > max_delta_scale_ppm:
+            self.command.warning("Scale change exceeds limits. Rejecting fit.")
+            ast_solution.valid_solution = False
+
 
         # Update AstrometricSolution object.
         ast_solution.delta_ra = float(delta_ra)
