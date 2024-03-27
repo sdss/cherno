@@ -159,6 +159,9 @@ class Guider:
         astrometry_params: dict = {},
         extraction_params: dict = {},
     ):
+        self._db_conn_str = config["guider"]["gaia_connection_string"]
+        self._db_table_str = "catalogdb.gaia_dr2_source_g19"
+
         self.extractor = extractor or Extraction(observatory, **extraction_params)
 
         if astrometry is not None:
@@ -276,24 +279,31 @@ class Guider:
         # check for astrometry.net solutions for cameras actively used
         # for guide corrections
         _guide_cameras = self.command.actor.state.guide_cameras
-        _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in guide_cameras]
-        if len(_astronet_solved) > 1:
-            # if 2 or more cameras have astonet solns, use "coordio"
-            for gd in guide_data:
-                gd.solved = True
-                gd.solve_method = "coordio"
+        _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in _guide_cameras]
+        print("astronet_solved", _astronet_solved)
+        # print("_astronet_solved", _astronet_solved)
+        # if len(_astronet_solved) > 1:
+        #     # if 2 or more cameras have astonet solns, use "coordio"
+        #     for gd in guide_data:
+        #         # print(gd.solved, gd.solve_method)
+        #         # gd.solved = True
+        #         gd.solve_method = "coordio"
 
+        # _astronet_solved = []
 
         # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
         not_solved = [ad for ad in guide_data if ad.solved is False]
         if use_gaia and len(not_solved) > 0:
             self.command.info("Running Gaia cross-match.")
+            print("running gaia cross-match")
             res = await asyncio.gather(
                 *[
                     self._gaia_cross_match_one(
                         ad,
                         gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
                         gaia_cross_correlation_blur=gaia_cross_correlation_blur,
+                        gaia_table_name=self._db_table_str,
+                        gaia_connection_string=self._db_conn_str
                     )
                     for ad in not_solved
                 ],
@@ -304,6 +314,13 @@ class Guider:
                     cam = not_solved[ii].camera
                     self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
 
+        # if len(_astronet_solved) > 1:
+        #     # if 2 or more cameras have astonet solns, use "coordio"
+        #     for gd in guide_data:
+        #         # print(gd.solved, gd.solve_method)
+        #         gd.solved = True
+        #         # gd.solve_method = "coordio"
+
         # Output all the camera_solution keywords at once.
         for ad in guide_data:
             self.output_camera_solution(ad)
@@ -313,7 +330,6 @@ class Guider:
             await asyncio.gather(
                 *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
-
 
         if len(_astronet_solved) > 1:
             ast_solution = await self.fit_SP(
@@ -326,6 +342,11 @@ class Guider:
                 fit_all_detections=fit_all_detections,
                 fit_focus=fit_focus
             )
+            import pickle
+            _img = int(images[0].split("-")[-1].strip("*.fits"))
+            _output = open("ast_%i_%s_coordio.pkl"%(_img, self.observatory), "wb")
+            pickle.dump(ast_solution, _output)
+            _output.close()
         else:
             ast_solution = await self.fit(
                 list(guide_data),
@@ -336,7 +357,11 @@ class Guider:
                 fit_all_detections=fit_all_detections,
                 fit_focus=fit_focus,
             )
-
+            import pickle
+            _img = int(images[0].split("-")[-1].strip("*.fits"))
+            _output = open("ast_%i_%s_orig.pkl"%(_img, self.observatory), "wb")
+            pickle.dump(ast_solution, _output)
+            _output.close()
         if (
             self.target_rms is not None
             and ast_solution.valid_solution
@@ -464,6 +489,7 @@ class Guider:
                 only_radec=only_radec,
                 cameras=fit_cameras,
             )
+
 
             # If we already had a solution and this fit failed or the fit RMS is bad,
             # just use the previous fit.
@@ -665,7 +691,6 @@ class Guider:
 
         return ast_solution
 
-
     async def fit_SP(
         self,
         data: list[GuideData],
@@ -715,7 +740,6 @@ class Guider:
         if not numpy.allclose(offset, [0.0, 0.0, 0.0]):
             self.command.warning("Using non-zero offsets for astrometric fit.")
 
-
         field_ra = solved[0].field_ra
         field_dec = solved[0].field_dec
         field_pa = solved[0].field_pa
@@ -732,8 +756,8 @@ class Guider:
             offset_ra=full_offset[0],
             offset_dec=full_offset[1],
             offset_pa=full_offset[2],
-            db_conn_st=config["guider"]["gaia_connection_string"],
-            db_tab_name="catalogdb.gaia_dr2_source_g19"
+            db_conn_st=self._db_conn_str,
+            db_tab_name=self._db_table_str
         )
         for d in data:
             if d.camera not in guide_cameras:
@@ -743,9 +767,9 @@ class Guider:
             wcs = None
             if d.camera in astronet_solved:
                 wcs = d.wcs
-                fitter.add_gimg(d.path, wcs)
+            fitter.add_gimg(d.path, d.extraction_data.regions.copy(), wcs)
 
-        fitter.solve()
+        guider_fit = fitter.solve()
 
         self.command.debug(default_offset=default_offset)
         if any(offset):
@@ -766,9 +790,6 @@ class Guider:
                 "and not corrected."
             )
 
-
-
-        guider_fit = True
 
         plate_scale = defaults.PLATE_SCALE[self.observatory]
         mm_to_arcsec = 1 / plate_scale * 3600
@@ -824,7 +845,8 @@ class Guider:
         # telescope is moving during an exposure.
         max_fit_rms = config["guider"]["max_fit_rms"]  # In arcsec
         if guider_fit:
-            fit_rms = guider_fit.fit_rms.loc[fit_cameras, "rms"] * mm_to_arcsec
+            fit_rms = guider_fit.fit_rms.loc[guider_fit.cameras, "rms"] * mm_to_arcsec
+            print("fit_rms", fit_rms)
             if numpy.all(fit_rms > max_fit_rms):
                 self.command.warning(
                     "The fit RMS of all the cameras exceeds "
@@ -1187,12 +1209,24 @@ class Guider:
                 guide_data.solve_method,
             ]
         )
+        print(  guide_data.camera,
+                guide_data.exposure_no,
+                guide_data.solved,
+                guide_data.camera_racen,
+                guide_data.camera_deccen,
+                guide_data.xrot,
+                guide_data.yrot,
+                guide_data.rotation,
+                guide_data.solve_method
+        )
 
     async def _gaia_cross_match_one(
         self,
         guide_data: GuideData,
         gaia_phot_g_mean_mag_max: float | None = None,
         gaia_cross_correlation_blur: float | None = None,
+        gaia_table_name: str = "catalogdb.gaia_dr2_source_g19",
+        gaia_connection_string: str = config["guider"]["gaia_connection_string"]
     ):
         """Solves a field cross-matching to Gaia."""
 
@@ -1251,11 +1285,11 @@ class Guider:
 
         else:
             gaia_stars = pandas.read_sql(
-                "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
+                f"SELECT * {gaia_table_name} "
                 "WHERE q3c_radial_query(ra, dec, "
                 f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
                 f"phot_g_mean_mag < {g_mag}",
-                config["guider"]["gaia_connection_string"],
+                gaia_connection_string,
             )
             self._gaia_sources[(fid, cam_id)] = gaia_stars
 
