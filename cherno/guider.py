@@ -190,6 +190,9 @@ class Guider:
         self.target_rms = target_rms
         self.pids = AxesPID(command.actor if command is not None else None)
 
+        # reference to solve pointing instance, initialize to None
+        self.solve_pointing = None
+
         # To cache Gaia sources.
         self._gaia_sources: dict = {}
 
@@ -260,6 +263,12 @@ class Guider:
                 )
 
         guide_data: list[GuideData]
+
+        # check if the previous frame was solved via solve_pointing
+        # there is a potential shortcut
+        if self.solve_pointing is not None:
+
+
 
         use_astrometry_net = (
             use_astrometry_net
@@ -749,7 +758,7 @@ class Guider:
 
         guide_cameras = self.command.actor.state.guide_cameras
 
-        fitter = SolvePointing(
+        self.solve_pointing = SolvePointing(
             raCen=field_ra,
             decCen=field_dec,
             paCen=field_pa,
@@ -767,9 +776,9 @@ class Guider:
             wcs = None
             if d.camera in astronet_solved:
                 wcs = d.wcs
-            fitter.add_gimg(d.path, d.extraction_data.regions.copy(), wcs)
+            self.solve_pointing.add_gimg(d.path, d.extraction_data.regions.copy(), wcs)
 
-        guider_fit = fitter.solve()
+        guider_fit = self.solve_pointing.solve()
 
         self.command.debug(default_offset=default_offset)
         if any(offset):
