@@ -207,6 +207,51 @@ class Guider:
 
         self.command = command
 
+    def check_convergence(self, ex_data, offset):
+        if self.solve_pointing is None:
+            return False
+
+        nSources = numpy.sum([len(ex.regions) for ex in ex_data])
+        if nSources < 6:
+            return False
+
+        ex = ex_data[0]
+
+        if ex.exposure_no != self.solve_pointing.imgNum + 1:
+            return False
+
+        if self.solve_pointing.guide_rms_sky > 1:
+            return False
+
+        if self.solve_pointing._raCen != ex.field_ra:
+            return False
+
+        if self.solve_pointing._decCen != ex.field_dec:
+            return False
+
+        if self.solve_pointing._paCen != ex.field_pa:
+            return False
+
+        if offset is None:
+            if self.command.actor:
+                offset = list(self.command.actor.state.offset)
+            else:
+                offset = list(config.get("offset", [0.0, 0.0, 0.0]))
+
+        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+        full_offset = numpy.array(offset) + numpy.array(default_offset)
+
+        if self.solve_pointing.offset_ra != full_offset[0]:
+            return False
+
+        if self.solve_pointing.offset_dec != full_offset[1]:
+            return False
+
+        if self.solve_pointing.offset_pa != full_offset[2]:
+            return False
+
+        return True
+
     async def process(
         self,
         command: ChernoCommandType | None,
@@ -262,73 +307,90 @@ class Guider:
                     ]
                 )
 
-        guide_data: list[GuideData]
+        guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
 
-        # check if the previous frame was solved via solve_pointing
-        # there is a potential shortcut
-        if self.solve_pointing is not None:
+        sp_guider_fit = None
+        _astronet_solved = []
+        converged = self.check_convergence(ext_data, offset)
+        if converged:
+            # try a rapid field resolve
+            print("\n------------\nrunnin rapid solve\n-------------\n")
+            dfList = []
+            for ex in ext_data:
+                regions = ex.regions.copy().reset_index(drop=True)
+                gfaNum = int(ex.camera.strip("gfa"))
+                regions["gfaNum"] = gfaNum
+                dfList.append(regions)
+            df = pandas.concat(dfList).reset_index(drop=True)
 
-
-
-        use_astrometry_net = (
-            use_astrometry_net
-            if use_astrometry_net is not None
-            else config["guider"].get("use_astrometry_net", True)
-        )
-
-        if use_astrometry_net:
-            self.command.info("Running astrometry.net.")
-            guide_data = await asyncio.gather(
-                *[self._astrometry_one(d) for d in ext_data]
+            sp_guider_fit = self.solve_pointing.reSolve(
+                ex.exposure_no, ex.obstime, df
             )
+
+            for gd in guide_data:
+                gfaNum = int(ex.camera.strip("gfa"))
+                gd.solved = True
+                wcs = self.solve_pointing.fitWCS(gfaNum)
+                gd.wcs = wcs
+                gd.solve_method = "coordio-fast"
+
+
+
+
         else:
-            guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
-
-
-        # check for astrometry.net solutions for cameras actively used
-        # for guide corrections
-        _guide_cameras = self.command.actor.state.guide_cameras
-        _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in _guide_cameras]
-        print("astronet_solved", _astronet_solved)
-        # print("_astronet_solved", _astronet_solved)
-        # if len(_astronet_solved) > 1:
-        #     # if 2 or more cameras have astonet solns, use "coordio"
-        #     for gd in guide_data:
-        #         # print(gd.solved, gd.solve_method)
-        #         # gd.solved = True
-        #         gd.solve_method = "coordio"
-
-        # _astronet_solved = []
-
-        # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
-        not_solved = [ad for ad in guide_data if ad.solved is False]
-        if use_gaia and len(not_solved) > 0:
-            self.command.info("Running Gaia cross-match.")
-            print("running gaia cross-match")
-            res = await asyncio.gather(
-                *[
-                    self._gaia_cross_match_one(
-                        ad,
-                        gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
-                        gaia_cross_correlation_blur=gaia_cross_correlation_blur,
-                        gaia_table_name=self._db_table_str,
-                        gaia_connection_string=self._db_conn_str
-                    )
-                    for ad in not_solved
-                ],
-                return_exceptions=True,
+            # not converged get astronet solutions
+            print("\n------------\nrunnin slow solve\n-------------\n")
+            use_astrometry_net = (
+                use_astrometry_net
+                if use_astrometry_net is not None
+                else config["guider"].get("use_astrometry_net", True)
             )
-            for ii, rr in enumerate(res):
-                if isinstance(rr, Exception):
-                    cam = not_solved[ii].camera
-                    self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
 
-        # if len(_astronet_solved) > 1:
-        #     # if 2 or more cameras have astonet solns, use "coordio"
-        #     for gd in guide_data:
-        #         # print(gd.solved, gd.solve_method)
-        #         gd.solved = True
-        #         # gd.solve_method = "coordio"
+            if use_astrometry_net:
+                self.command.info("Running astrometry.net.")
+                guide_data = await asyncio.gather(
+                    *[self._astrometry_one(d) for d in ext_data]
+                )
+
+
+            # check for astrometry.net solutions for cameras actively used
+            # for guide corrections
+            _guide_cameras = self.command.actor.state.guide_cameras
+            _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in _guide_cameras]
+            print("astronet_solved", _astronet_solved)
+            # print("_astronet_solved", _astronet_solved)
+            if len(_astronet_solved) > 1:
+                # if 2 or more cameras have astonet solns, use "coordio"
+                for gd in guide_data:
+                    # print(gd.solved, gd.solve_method)
+                    gd.solved = True
+                    gd.solve_method = "coordio"
+
+            # _astronet_solved = []
+
+            # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
+            not_solved = [ad for ad in guide_data if ad.solved is False]
+            if use_gaia and len(not_solved) > 0:
+                self.command.info("Running Gaia cross-match.")
+                print("running gaia cross-match")
+                res = await asyncio.gather(
+                    *[
+                        self._gaia_cross_match_one(
+                            ad,
+                            gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
+                            gaia_cross_correlation_blur=gaia_cross_correlation_blur,
+                            gaia_table_name=self._db_table_str,
+                            gaia_connection_string=self._db_conn_str
+                        )
+                        for ad in not_solved
+                    ],
+                    return_exceptions=True,
+                )
+                for ii, rr in enumerate(res):
+                    if isinstance(rr, Exception):
+                        cam = not_solved[ii].camera
+                        self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
+
 
         # Output all the camera_solution keywords at once.
         for ad in guide_data:
@@ -340,7 +402,7 @@ class Guider:
                 *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
 
-        if len(_astronet_solved) > 1:
+        if converged or len(_astronet_solved) > 1:
             ast_solution = await self.fit_SP(
                 list(guide_data),
                 astronet_solved=_astronet_solved,
@@ -349,7 +411,8 @@ class Guider:
                 only_radec=only_radec,
                 auto_radec_min=auto_radec_min,
                 fit_all_detections=fit_all_detections,
-                fit_focus=fit_focus
+                fit_focus=fit_focus,
+                guider_fit=sp_guider_fit,
             )
             import pickle
             _img = int(images[0].split("-")[-1].strip("*.fits"))
@@ -710,6 +773,7 @@ class Guider:
         only_radec: bool = False,
         auto_radec_min: int = 2,
         fit_all_detections: bool = True,
+        guider_fit: GuiderFit | None = None,
     ):
         """Calculate the astrometric solution."""
 
@@ -758,27 +822,28 @@ class Guider:
 
         guide_cameras = self.command.actor.state.guide_cameras
 
-        self.solve_pointing = SolvePointing(
-            raCen=field_ra,
-            decCen=field_dec,
-            paCen=field_pa,
-            offset_ra=full_offset[0],
-            offset_dec=full_offset[1],
-            offset_pa=full_offset[2],
-            db_conn_st=self._db_conn_str,
-            db_tab_name=self._db_table_str
-        )
-        for d in data:
-            if d.camera not in guide_cameras:
-                continue
-            if d.extraction_data.nregions == 0:
-                continue
-            wcs = None
-            if d.camera in astronet_solved:
-                wcs = d.wcs
-            self.solve_pointing.add_gimg(d.path, d.extraction_data.regions.copy(), wcs)
+        if guider_fit is None:
+            self.solve_pointing = SolvePointing(
+                raCen=field_ra,
+                decCen=field_dec,
+                paCen=field_pa,
+                offset_ra=full_offset[0],
+                offset_dec=full_offset[1],
+                offset_pa=full_offset[2],
+                db_conn_st=self._db_conn_str,
+                db_tab_name=self._db_table_str
+            )
+            for d in data:
+                if d.camera not in guide_cameras:
+                    continue
+                if d.extraction_data.nregions == 0:
+                    continue
+                wcs = None
+                if d.camera in astronet_solved:
+                    wcs = d.wcs
+                self.solve_pointing.add_gimg(d.path, d.extraction_data.regions.copy(), wcs)
 
-        guider_fit = self.solve_pointing.solve()
+            guider_fit = self.solve_pointing.solve()
 
         self.command.debug(default_offset=default_offset)
         if any(offset):
@@ -1180,7 +1245,7 @@ class Guider:
 
         wcs = guide_data.wcs
 
-        if wcs and guide_data.solved:
+        if wcs and hasattr(wcs.wcs, "cd") and guide_data.solved:
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
             guide_data.camera_racen = float(numpy.round(racen, 6))
             guide_data.camera_deccen = float(numpy.round(deccen, 6))
@@ -1402,7 +1467,8 @@ class Guider:
         proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
         proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
 
-        proc_hdu[1].header.update(guide_data.wcs.to_header())
+        if guide_data.wcs is not None:
+            proc_hdu[1].header.update(guide_data.wcs.to_header())
 
         proc_path: pathlib.Path
         if outpath is not None:
