@@ -314,7 +314,7 @@ class Guider:
         converged = self.check_convergence(ext_data, offset)
         if converged:
             # try a rapid field resolve
-            print("\n------------\nrunnin rapid solve\n-------------\n")
+            # print("\n------------\nrunnin rapid solve\n-------------\n")
             dfList = []
             for ex in ext_data:
                 regions = ex.regions.copy().reset_index(drop=True)
@@ -344,7 +344,7 @@ class Guider:
 
         if sp_guider_fit is None:
             # not converged get astronet solutions
-            print("\n------------\nrunnin slow solve\n-------------\n")
+            # print("\n------------\nrunnin slow solve\n-------------\n")
             use_astrometry_net = (
                 use_astrometry_net
                 if use_astrometry_net is not None
@@ -362,7 +362,7 @@ class Guider:
             # for guide corrections
             _guide_cameras = self.command.actor.state.guide_cameras
             _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in _guide_cameras]
-            print("astronet_solved", _astronet_solved)
+            # print("astronet_solved", _astronet_solved)
             # print("_astronet_solved", _astronet_solved)
             if len(_astronet_solved) > 1:
                 # if 2 or more cameras have astonet solns, use "coordio"
@@ -377,7 +377,7 @@ class Guider:
             not_solved = [ad for ad in guide_data if ad.solved is False]
             if use_gaia and len(not_solved) > 0:
                 self.command.info("Running Gaia cross-match.")
-                print("running gaia cross-match")
+                # print("running gaia cross-match")
                 res = await asyncio.gather(
                     *[
                         self._gaia_cross_match_one(
@@ -924,7 +924,7 @@ class Guider:
         max_fit_rms = config["guider"]["max_fit_rms"]  # In arcsec
         if guider_fit:
             fit_rms = guider_fit.fit_rms.loc[guider_fit.cameras, "rms"] * mm_to_arcsec
-            print("fit_rms", fit_rms)
+            # print("fit_rms", fit_rms)
             if numpy.all(fit_rms > max_fit_rms):
                 self.command.warning(
                     "The fit RMS of all the cameras exceeds "
@@ -1287,16 +1287,16 @@ class Guider:
                 guide_data.solve_method,
             ]
         )
-        print(  guide_data.camera,
-                guide_data.exposure_no,
-                guide_data.solved,
-                guide_data.camera_racen,
-                guide_data.camera_deccen,
-                guide_data.xrot,
-                guide_data.yrot,
-                guide_data.rotation,
-                guide_data.solve_method
-        )
+        # print(  guide_data.camera,
+        #         guide_data.exposure_no,
+        #         guide_data.solved,
+        #         guide_data.camera_racen,
+        #         guide_data.camera_deccen,
+        #         guide_data.xrot,
+        #         guide_data.yrot,
+        #         guide_data.rotation,
+        #         guide_data.solve_method
+        # )
 
     async def _gaia_cross_match_one(
         self,
