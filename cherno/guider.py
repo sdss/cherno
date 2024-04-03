@@ -331,6 +331,7 @@ class Guider:
                 # guider probably jumped safer to revert to
                 # slow solve
                 sp_guider_fit = None
+                self.solve_pointing = None
             else:
                 for gd in guide_data:
                     gfaNum = int(ex.camera.strip("gfa"))
