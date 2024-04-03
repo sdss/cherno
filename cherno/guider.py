@@ -1363,7 +1363,7 @@ class Guider:
 
         else:
             gaia_stars = pandas.read_sql(
-                f"SELECT * {gaia_table_name} "
+                f"SELECT * FROM {gaia_table_name} "
                 "WHERE q3c_radial_query(ra, dec, "
                 f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
                 f"phot_g_mean_mag < {g_mag}",
