@@ -327,17 +327,22 @@ class Guider:
                 ex.exposure_no, ex.obstime, df
             )
 
-            for gd in guide_data:
-                gfaNum = int(ex.camera.strip("gfa"))
-                gd.solved = True
-                wcs = self.solve_pointing.fitWCS(gfaNum)
-                gd.wcs = wcs
-                gd.solve_method = "coordio-fast"
+            if self.solve_pointing.guide_rms_sky > 1:
+                # guider probably jumped safer to revert to
+                # slow solve
+                sp_guider_fit = None
+            else:
+                for gd in guide_data:
+                    gfaNum = int(ex.camera.strip("gfa"))
+                    gd.solved = True
+                    wcs = self.solve_pointing.fitWCS(gfaNum)
+                    gd.wcs = wcs
+                    gd.solve_method = "coordio-fast"
 
 
 
 
-        else:
+        if sp_guider_fit is None:
             # not converged get astronet solutions
             print("\n------------\nrunnin slow solve\n-------------\n")
             use_astrometry_net = (
@@ -402,7 +407,7 @@ class Guider:
                 *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
 
-        if converged or len(_astronet_solved) > 1:
+        if sp_guider_fit != None or len(_astronet_solved) > 1:
             ast_solution = await self.fit_SP(
                 list(guide_data),
                 astronet_solved=_astronet_solved,
@@ -414,11 +419,11 @@ class Guider:
                 fit_focus=fit_focus,
                 guider_fit=sp_guider_fit,
             )
-            import pickle
-            _img = int(images[0].split("-")[-1].strip("*.fits"))
-            _output = open("ast_%i_%s_coordio.pkl"%(_img, self.observatory), "wb")
-            pickle.dump(ast_solution, _output)
-            _output.close()
+            # import pickle
+            # _img = int(images[0].split("-")[-1].strip("*.fits"))
+            # _output = open("ast_%i_%s_coordio.pkl"%(_img, self.observatory), "wb")
+            # pickle.dump(ast_solution, _output)
+            # _output.close()
         else:
             ast_solution = await self.fit(
                 list(guide_data),
@@ -429,11 +434,11 @@ class Guider:
                 fit_all_detections=fit_all_detections,
                 fit_focus=fit_focus,
             )
-            import pickle
-            _img = int(images[0].split("-")[-1].strip("*.fits"))
-            _output = open("ast_%i_%s_orig.pkl"%(_img, self.observatory), "wb")
-            pickle.dump(ast_solution, _output)
-            _output.close()
+            # import pickle
+            # _img = int(images[0].split("-")[-1].strip("*.fits"))
+            # _output = open("ast_%i_%s_orig.pkl"%(_img, self.observatory), "wb")
+            # pickle.dump(ast_solution, _output)
+            # _output.close()
         if (
             self.target_rms is not None
             and ast_solution.valid_solution
@@ -462,7 +467,6 @@ class Guider:
             update_proc_headers(ast_solution, self.command.actor.state)
 
         return ast_solution
-
 
     async def fit(
         self,
