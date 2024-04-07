@@ -40,7 +40,7 @@ from coordio.guide import (
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
-from cherno.extraction import Extraction, ExtractionData, PathLike
+from cherno.extraction import Extraction, ExtractionData, PathLike, apply_calibs
 from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
@@ -159,8 +159,9 @@ class Guider:
         astrometry_params: dict = {},
         extraction_params: dict = {},
     ):
-        self._db_conn_str = config["guider"]["gaia_connection_string"]
-        self._db_table_str = "catalogdb.gaia_dr2_source_g19"
+        # self._db_conn_str = config["guider"]["gaia_connection_string"]
+        # self._db_table_str = config["guider"]["gaia_connection_table"] #"catalogdb.gaia_dr2_source_g19"
+        # print("config calib", config["calib"]["gfa1"]["dark"])
 
         self.extractor = extractor or Extraction(observatory, **extraction_params)
 
@@ -323,8 +324,11 @@ class Guider:
                 dfList.append(regions)
             df = pandas.concat(dfList).reset_index(drop=True)
 
+            exptime = fits.open(str(ex.path))[1].header["EXPTIMEN"]
+            print("exptime", exptime)
+            # import pdb; pdb.set_trace()
             sp_guider_fit = self.solve_pointing.reSolve(
-                ex.exposure_no, ex.obstime, df
+                ex.exposure_no, ex.obstime, exptime, df
             )
 
             if self.solve_pointing.guide_rms_sky > 1:
@@ -385,8 +389,8 @@ class Guider:
                             ad,
                             gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
                             gaia_cross_correlation_blur=gaia_cross_correlation_blur,
-                            gaia_table_name=self._db_table_str,
-                            gaia_connection_string=self._db_conn_str
+                            gaia_table_name=config["guider"]["gaia_connection_table"],
+                            gaia_connection_string=config["guider"]["gaia_connection_string"]
                         )
                         for ad in not_solved
                     ],
@@ -835,8 +839,8 @@ class Guider:
                 offset_ra=full_offset[0],
                 offset_dec=full_offset[1],
                 offset_pa=full_offset[2],
-                db_conn_st=self._db_conn_str,
-                db_tab_name=self._db_table_str
+                db_conn_st=config["guider"]["gaia_connection_string"],
+                db_tab_name=config["guider"]["gaia_connection_table"]
             )
             for d in data:
                 if d.camera not in guide_cameras:
@@ -1435,6 +1439,29 @@ class Guider:
         ext_data = guide_data.extraction_data
 
         proc_hdu = fits.open(str(guide_data.path)).copy()
+
+        # import pdb; pdb.set_trace()
+        calibs = config["calib"][guide_data.camera]
+        # apply calibs again for writing the processed
+        # image data (done in extraction phase too, but data not saved)
+        bias_path = calibs["bias"]
+        dark_path = calibs["dark"]
+        flat_path = calibs["flat"]
+        _calib_data = apply_calibs(
+            data=proc_hdu[1].data,
+            bias_path=bias_path,
+            dark_path=dark_path,
+            flat_path=flat_path,
+            gain=calibs["gain"],
+            exptime=proc_hdu[1].header["EXPTIMEN"]
+        )
+        proc_hdu[1].data = _calib_data
+        proc_hdu[1].header["BIASFILE"] = bias_path
+        proc_hdu[1].header["FLATFILE"] = flat_path
+        proc_hdu[1].header["DARKFILE"] = dark_path
+
+        # df = guide_data.extraction_data.regions
+        # import pdb; pdb.set_trace()
 
         rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
         proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))

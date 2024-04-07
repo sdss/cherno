@@ -40,6 +40,17 @@ seaborn.set_theme(style="white")
 PathLike = TypeVar("PathLike", pathlib.Path, str)
 
 
+def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
+    # takes about a second on mako...
+    bias = fits.open(bias_path)[0].data
+    dark = fits.open(dark_path)[0].data
+    flat = fits.open(flat_path)[0].data
+    data = (data - bias) * gain
+    data = data - dark * exptime
+    data = data / flat
+    return data
+
+
 @dataclass
 class ExtractionData:
     """Data from extraction."""
@@ -115,6 +126,18 @@ class Extraction:
         else:
             cam_no = 0
             exp_no = 0
+
+        cam_name = "gfa%i" % cam_no
+        calib = config["calib"][cam_name]
+        data = apply_calibs(
+            data=data,
+            bias_path=calib["bias"],
+            flat_path=calib["flat"],
+            dark_path=calib["dark"],
+            gain=calib["gain"],
+            exptime=header["EXPTIME"]
+        )
+        # print("calib", calib)
 
         if plot is None:
             plot = config["extraction"]["plot"]
@@ -294,6 +317,11 @@ class Extraction:
         default_columns = ["x1", "y1", "flux", "fwhm", "valid"]
         mock_regions = pandas.DataFrame([], columns=default_columns)
 
+        # calculate a 5 arcsecond radius in pixels
+        # for aperture photometry
+        aper_radius = 5.0 / config["pixel_scale"]
+        # aper_radius = None
+
         try:
             regions = extract_marginal(
                 data,
@@ -301,10 +329,14 @@ class Extraction:
                 sextractor_quick_options={"minarea": marginal_params["minarea"]},
                 max_detections=marginal_params.get("max_detections", None),
                 plot=plot_path,
+                aper_radius=aper_radius
             )
         except Exception as err:
             warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)
             return mock_regions
+
+        # print(regions)
+        # import pdb; pdb.set_trace()
 
         if len(regions) == 0:
             return mock_regions
