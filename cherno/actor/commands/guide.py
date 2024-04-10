@@ -258,7 +258,11 @@ def get_callback(
                 # rotator blocks until done, which means the RA/Dec corrections
                 # will probably have converged as well.
                 pass
-            elif params.wait is not None and params.wait > 0.0:
+            elif (
+                any(ast_solution.correction_applied)
+                and params.wait is not None
+                and params.wait > 0.0
+            ):
                 command.debug(f"Waiting {params.wait:.1f} s for corrections.")
                 await asyncio.sleep(params.wait)
 
