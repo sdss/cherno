@@ -236,10 +236,16 @@ def get_callback(
         if params.dynamic_exposure_time:
             max_exposure_time = params.max_exposure_time or 30.0
             current_exposure_time = command.actor.state.exposure_time
-            if not ast_solution.valid_solution:
+            if current_exposure_time >= max_exposure_time:
+                # This should only happen if the observer manually set the
+                # exposure time, in which case we accept it.
+                new_exposure_time = current_exposure_time
+            elif not ast_solution.valid_solution:
                 new_exposure_time = min(current_exposure_time * 2, max_exposure_time)
             elif ast_solution.n_solved < 4:
                 new_exposure_time = max(current_exposure_time * 1.5, max_exposure_time)
+            else:
+                new_exposure_time = current_exposure_time
 
             if new_exposure_time != round(current_exposure_time, 1):
                 command.actor.state.exposure_time = new_exposure_time
