@@ -319,22 +319,22 @@ class Guider:
             # print("\n------------\nrunnin rapid solve\n-------------\n")
             dfList = []
             for ex in ext_data:
+                # import pdb; pdb.set_trace()
                 regions = ex.regions.copy().reset_index(drop=True)
                 gfaNum = int(ex.camera.strip("gfa"))
                 regions["gfaNum"] = gfaNum
-                gain = config["calib"][ex.camera]["gain"]
+                gain = ex.gain #config["calib"][ex.camera]["gain"]
                 regions["gain"] = gain
                 dfList.append(regions)
             df = pandas.concat(dfList).reset_index(drop=True)
 
-            exptime = fits.open(str(ex.path))[1].header["EXPTIMEN"]
-            print("exptime", exptime)
+            #exptime = fits.open(str(ex.path))[1].header["EXPTIMEN"]
+            #print("exptime", exptime)
             # import pdb; pdb.set_trace()j
-            import time; tstart = time.time()
+
             sp_guider_fit = self.solve_pointing.reSolve(
-                ex.exposure_no, ex.obstime, exptime, df
+                ex.exposure_no, ex.obstime, ex.exptime, df
             )
-            print("fast fit took %.1f"%(time.time()-tstart))
             if self.solve_pointing.guide_rms_sky > 1:
                 # guider probably jumped safer to revert to
                 # slow solve
@@ -347,7 +347,6 @@ class Guider:
                     wcs = self.solve_pointing.fitWCS(gfaNum)
                     gd.wcs = wcs
                     gd.solve_method = "coordio-fast"
-
 
 
 
@@ -412,15 +411,14 @@ class Guider:
             self.output_camera_solution(ad)
 
         self.command.debug("Saving proc- file.")
-        import time; tstart = time.time()
+
         if write_proc:
             await asyncio.gather(
                 *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
-        print("file writes took %.1f"%(time.time()-tstart))
 
         if sp_guider_fit != None or len(_astronet_solved) > 1:
-            import time; tstart = time.time()
+
             ast_solution = await self.fit_SP(
                 list(guide_data),
                 astronet_solved=_astronet_solved,
@@ -432,14 +430,13 @@ class Guider:
                 fit_focus=fit_focus,
                 guider_fit=sp_guider_fit,
             )
-            print("sp solve took %.1f"%(time.time()-tstart))
             # import pickle
             # _img = int(images[0].split("-")[-1].strip("*.fits"))
             # _output = open("ast_%i_%s_coordio.pkl"%(_img, self.observatory), "wb")
             # pickle.dump(ast_solution, _output)
             # _output.close()
         else:
-            import time; tstart = time.time()
+
             ast_solution = await self.fit(
                 list(guide_data),
                 offset=offset,
@@ -449,7 +446,6 @@ class Guider:
                 fit_all_detections=fit_all_detections,
                 fit_focus=fit_focus,
             )
-            print("old solve took %.1f"%(time.time()-tstart))
             # import pickle
             # _img = int(images[0].split("-")[-1].strip("*.fits"))
             # _output = open("ast_%i_%s_orig.pkl"%(_img, self.observatory), "wb")
@@ -479,10 +475,9 @@ class Guider:
                 correction_applied=ast_solution.correction_applied,
             )
 
-        import time; tstart = time.time()
+
         if self.command.actor:
             update_proc_headers(ast_solution, self.command.actor.state)
-        print("header update took %.1f"%(time.time()-tstart))
         return ast_solution
 
     async def fit(

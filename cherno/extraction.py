@@ -74,6 +74,8 @@ class ExtractionData:
     nvalid: int = 0
     fwhm_median: float = -999.0
     focus_offset: float = 0.0
+    gain: float = 1
+    exptime: float = 15
 
 
 class Extraction:
@@ -160,7 +162,7 @@ class Extraction:
             data=data,
             camera=camera,
             gain=header["GAIN"],
-            exptime=header["EXPTIME"]
+            exptime=header["EXPTIMEN"]
         )
 
 
@@ -214,6 +216,8 @@ class Extraction:
             nvalid=sum(regions.valid == 1),
             fwhm_median=fwhm_median_round,
             focus_offset=config["cameras"]["focus_offset"][camera],
+            gain=header["GAIN"],
+            exptime=header["EXPTIMEN"]
         )
 
         output_file = self._get_output_path(path).with_suffix(".csv")
