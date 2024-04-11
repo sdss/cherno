@@ -40,15 +40,17 @@ seaborn.set_theme(style="white")
 PathLike = TypeVar("PathLike", pathlib.Path, str)
 
 
-def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
-    # takes about a second on mako...
-    bias = fits.open(bias_path)[0].data
-    dark = fits.open(dark_path)[0].data
-    flat = fits.open(flat_path)[0].data
-    data = (data - bias) * gain
-    data = data - dark * exptime
-    data = data / flat
-    return data
+# def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
+#     # takes about a second on mako...
+#     # dark files are in units of electrons
+#     # convert them back to ADU
+#     bias = fits.open(bias_path)[0].data
+#     dark = fits.open(dark_path)[0].data / gain
+#     flat = fits.open(flat_path)[0].data
+#     data = (data - bias)
+#     data = data - dark * exptime
+#     data = data / flat
+#     return data
 
 
 @dataclass
@@ -102,6 +104,33 @@ class Extraction:
                 f"Invalid star finder. Valid values are {self.__VALID_METHODS}."
             )
 
+        # load calibration files into memory (3 per camera)
+        self.bias_data = {}
+        self.dark_data = {}
+        self.flat_data = {}
+        # self.reduced_data = {} # stores the last reduced frame per camera
+        for camera in ["gfa1", "gfa2", "gfa3", "gfa4", "gfa5", "gfa6"]:
+            bias_file = config["calib"][camera]["bias"]
+            dark_file = config["calib"][camera]["dark"]
+            flat_file = config["calib"][camera]["flat"]
+
+            self.bias_data[camera] = fits.open(bias_file)[0].data
+            self.dark_data[camera] = fits.open(dark_file)[0].data
+            self.flat_data[camera] = fits.open(flat_file)[0].data
+            # self.reduced_data[camera] = None
+
+        # print(self.reduced_data)
+
+    def apply_calibs(self, data, camera, gain, exptime):
+        bias = self.bias_data[camera]
+        dark = self.dark_data[camera] / gain  # Toms superdarks are in e per sec
+        flat = self.flat_data[camera]
+
+        data = data - bias
+        data = data - dark * exptime
+        data = data / flat
+        return data
+
     def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
 
@@ -127,17 +156,13 @@ class Extraction:
             cam_no = 0
             exp_no = 0
 
-        cam_name = "gfa%i" % cam_no
-        calib = config["calib"][cam_name]
-        data = apply_calibs(
+        data = self.apply_calibs(
             data=data,
-            bias_path=calib["bias"],
-            flat_path=calib["flat"],
-            dark_path=calib["dark"],
-            gain=calib["gain"],
+            camera=camera,
+            gain=header["GAIN"],
             exptime=header["EXPTIME"]
         )
-        # print("calib", calib)
+
 
         if plot is None:
             plot = config["extraction"]["plot"]

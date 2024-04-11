@@ -40,7 +40,7 @@ from coordio.guide import (
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
-from cherno.extraction import Extraction, ExtractionData, PathLike, apply_calibs
+from cherno.extraction import Extraction, ExtractionData, PathLike #, apply_calibs
 from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
@@ -203,6 +203,7 @@ class Guider:
 
         self._database_lock = asyncio.Lock()
 
+
     def set_command(self, command: ChernoCommandType):
         """Sets the command."""
 
@@ -321,16 +322,19 @@ class Guider:
                 regions = ex.regions.copy().reset_index(drop=True)
                 gfaNum = int(ex.camera.strip("gfa"))
                 regions["gfaNum"] = gfaNum
+                gain = config["calib"][ex.camera]["gain"]
+                regions["gain"] = gain
                 dfList.append(regions)
             df = pandas.concat(dfList).reset_index(drop=True)
 
             exptime = fits.open(str(ex.path))[1].header["EXPTIMEN"]
             print("exptime", exptime)
-            # import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()j
+            import time; tstart = time.time()
             sp_guider_fit = self.solve_pointing.reSolve(
                 ex.exposure_no, ex.obstime, exptime, df
             )
-
+            print("fast fit took %.1f"%(time.time()-tstart))
             if self.solve_pointing.guide_rms_sky > 1:
                 # guider probably jumped safer to revert to
                 # slow solve
@@ -369,6 +373,7 @@ class Guider:
             _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in _guide_cameras]
             # print("astronet_solved", _astronet_solved)
             # print("_astronet_solved", _astronet_solved)
+            # _astronet_solved = []
             if len(_astronet_solved) > 1:
                 # if 2 or more cameras have astonet solns, use "coordio"
                 for gd in guide_data:
@@ -407,12 +412,15 @@ class Guider:
             self.output_camera_solution(ad)
 
         self.command.debug("Saving proc- file.")
+        import time; tstart = time.time()
         if write_proc:
             await asyncio.gather(
                 *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
             )
+        print("file writes took %.1f"%(time.time()-tstart))
 
         if sp_guider_fit != None or len(_astronet_solved) > 1:
+            import time; tstart = time.time()
             ast_solution = await self.fit_SP(
                 list(guide_data),
                 astronet_solved=_astronet_solved,
@@ -424,12 +432,14 @@ class Guider:
                 fit_focus=fit_focus,
                 guider_fit=sp_guider_fit,
             )
+            print("sp solve took %.1f"%(time.time()-tstart))
             # import pickle
             # _img = int(images[0].split("-")[-1].strip("*.fits"))
             # _output = open("ast_%i_%s_coordio.pkl"%(_img, self.observatory), "wb")
             # pickle.dump(ast_solution, _output)
             # _output.close()
         else:
+            import time; tstart = time.time()
             ast_solution = await self.fit(
                 list(guide_data),
                 offset=offset,
@@ -439,6 +449,7 @@ class Guider:
                 fit_all_detections=fit_all_detections,
                 fit_focus=fit_focus,
             )
+            print("old solve took %.1f"%(time.time()-tstart))
             # import pickle
             # _img = int(images[0].split("-")[-1].strip("*.fits"))
             # _output = open("ast_%i_%s_orig.pkl"%(_img, self.observatory), "wb")
@@ -468,9 +479,10 @@ class Guider:
                 correction_applied=ast_solution.correction_applied,
             )
 
+        import time; tstart = time.time()
         if self.command.actor:
             update_proc_headers(ast_solution, self.command.actor.state)
-
+        print("header update took %.1f"%(time.time()-tstart))
         return ast_solution
 
     async def fit(
@@ -850,7 +862,10 @@ class Guider:
                 wcs = None
                 if d.camera in astronet_solved:
                     wcs = d.wcs
-                self.solve_pointing.add_gimg(d.path, d.extraction_data.regions.copy(), wcs)
+                gain = config["calib"][d.camera]["gain"]
+                self.solve_pointing.add_gimg(
+                    d.path, d.extraction_data.regions.copy(), wcs, gain
+                )
 
             guider_fit = self.solve_pointing.solve()
 
@@ -1036,6 +1051,23 @@ class Guider:
             outpath = path / "fit" / f"fit_rms-{mjd}-{seq}.pdf"
             outpath.parent.mkdir(exist_ok=True)
             self.fitter.plot_fit(outpath)
+
+        # update proc-fits file with solve-pointing
+        # specific data
+
+        for a_data in ast_solution.guide_data:
+            if a_data.proc_image is not None:
+                hdus = fits.open(str(a_data.proc_image), mode="update")
+                header = hdus[1].header
+                for kw, val, comment in self.solve_pointing.getMetadata():
+                    header[kw] = (val, comment)
+                # import pdb; pdb.set_trace()
+                gfaNum = int(a_data.camera.strip("gfa"))
+                header["R_ZPT"] = (self.solve_pointing.median_zeropoint(gfaNum), "median measured zeropoint of gaia sources")
+                # print(header)
+                rec = Table.from_pandas(self.solve_pointing.matchedSources).as_array()
+                hdus.append(fits.BinTableHDU(rec, name="GAIAMATCH"))
+                hdus.close()
 
         return ast_solution
 
@@ -1447,18 +1479,20 @@ class Guider:
         bias_path = calibs["bias"]
         dark_path = calibs["dark"]
         flat_path = calibs["flat"]
-        _calib_data = apply_calibs(
+        _calib_data = self.extractor.apply_calibs(
             data=proc_hdu[1].data,
-            bias_path=bias_path,
-            dark_path=dark_path,
-            flat_path=flat_path,
-            gain=calibs["gain"],
+            camera=guide_data.camera,
+            gain=proc_hdu[1].header["GAIN"],
             exptime=proc_hdu[1].header["EXPTIMEN"]
         )
         proc_hdu[1].data = _calib_data
         proc_hdu[1].header["BIASFILE"] = bias_path
         proc_hdu[1].header["FLATFILE"] = flat_path
         proc_hdu[1].header["DARKFILE"] = dark_path
+        # proc_hdu[1].header["GAIN"] = calibs["gain"]
+        proc_hdu[1].header["BKG_ADU"] = (
+            numpy.median(_calib_data), "background (median counts in calibrated frame"
+        )
 
         # df = guide_data.extraction_data.regions
         # import pdb; pdb.set_trace()
@@ -1480,11 +1514,17 @@ class Guider:
             "Time to solve the field or fail",
         )
 
+        bossExposing = False
+        bossExpNum = -999
+        offsets = [-999.0] * 3
         if self.command.actor is not None:
             offsets = self.command.actor.state.offset
-        else:
-            offsets = [-999.0] * 3
+            if hasattr(self.command.actor, "_boss_exp_state"):
+                bossExposing, bossExpNum = self.command.actor._boss_exp_state()
 
+
+        proc_hdu[1].header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
+        proc_hdu[1].header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
         proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
         proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
         proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")

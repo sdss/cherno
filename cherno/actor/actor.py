@@ -33,7 +33,13 @@ class ChernoActor(clu.LegacyActor):
     def __init__(self, *args, **kwargs):
         self.observatory: str = config["observatory"].upper()
 
-        models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
+        _models = ["fliswarm"]
+        if self.observatory == "APO":
+            _models.append("boss")
+        elif self.observatory == "LCO":
+            _models.append("yao")
+
+        models = list(set(kwargs.pop("models", []) + _models))
 
         schema = kwargs.pop("schema", None)
         if schema is not None and os.path.isabs(schema) is False:
@@ -50,6 +56,7 @@ class ChernoActor(clu.LegacyActor):
         self.state = ChernoState(self)
 
         self.models["fliswarm"].register_callback(self._process_fliswarm_status)
+
 
     async def _process_fliswarm_status(self, model: dict, key: TronKey):
         """Updates FLISwarm messages."""
@@ -69,6 +76,26 @@ class ChernoActor(clu.LegacyActor):
             camera_state[camera_name].temperature = temperature
         else:
             pass
+
+    def _process_boss_status(self, model: dict, key: TronKey):
+        exposing = False
+        expNum = -999
+
+        if self.observatory == "APO":
+            values = self.models["boss"]["exposureState"].value
+            print("expState val", values)
+            if len(values) > 0 and values[0] == "INTEGRATING":
+                exposing = True
+                # get the current exposure number
+                expNum = int(self.models["boss"]["exposureId"].value[0]) + 1
+        else:
+            values = self.models["yao"]["sp2_status_names"].value
+            print("expState val", values)
+            if len(values) > 0 and "EXPOSING" in values:
+                exposing = True
+                expNum = int(self.models["yao"]["next_exposure_no"])
+
+        return exposing, expNum
 
 
 @dataclass
@@ -141,3 +168,9 @@ class CameraState:
     name: str
     temperature: float | None = None
     status: CameraStatus = CameraStatus("unknown")
+
+# @dataclass
+# class BossState:
+#     """Stores the state of a camera."""
+#     exposing: bool = False
+#     expNum: int = -999
