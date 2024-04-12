@@ -40,17 +40,22 @@ seaborn.set_theme(style="white")
 PathLike = TypeVar("PathLike", pathlib.Path, str)
 
 
-# def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
-#     # takes about a second on mako...
-#     # dark files are in units of electrons
-#     # convert them back to ADU
-#     bias = fits.open(bias_path)[0].data
-#     dark = fits.open(dark_path)[0].data / gain
-#     flat = fits.open(flat_path)[0].data
-#     data = (data - bias)
-#     data = data - dark * exptime
-#     data = data / flat
-#     return data
+def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
+    # takes about a second on mako...
+    # dark files are in units of electrons
+    # convert them back to ADU
+    # (this one is slower but used in proc-gimg file writing which should
+    # not block)
+    with fits.open(bias_path) as ff:
+        bias = ff[0].data
+    with fits.open(dark_path) as ff:
+        dark = ff[0].data / gain
+    with fits.open(flat_path) as ff:
+        flat = ff[0].data
+    data = (data - bias)
+    data = data - dark * exptime
+    data = data / flat
+    return data
 
 
 @dataclass
@@ -116,9 +121,12 @@ class Extraction:
             dark_file = config["calib"][camera]["dark"]
             flat_file = config["calib"][camera]["flat"]
 
-            self.bias_data[camera] = fits.open(bias_file)[0].data
-            self.dark_data[camera] = fits.open(dark_file)[0].data
-            self.flat_data[camera] = fits.open(flat_file)[0].data
+            with fits.open(bias_file) as ff:
+                self.bias_data[camera] = ff[0].data
+            with fits.open(dark_file) as ff:
+                self.dark_data[camera] = ff[0].data
+            with fits.open(flat_file) as ff:
+                self.flat_data[camera] = ff[0].data
             # self.reduced_data[camera] = None
 
         # print(self.reduced_data)
