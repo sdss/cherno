@@ -280,7 +280,7 @@ class Guider:
         stop_at_target_rms: bool = False,
     ):
         """Performs extraction and astrometry."""
-        print("process begins!!!")
+        # print("process begins!!!")
         if command is not None:
             self.set_command(command)
 
@@ -293,7 +293,7 @@ class Guider:
 
         self.command.info("Extracting sources.")
 
-        print("extracting")
+        # print("extracting")
         ext_data = await asyncio.gather(
             *[
                 run_in_executor(
@@ -305,7 +305,7 @@ class Guider:
                 for im in images
             ]
         )
-        print("extraction done")
+        # print("extraction done")
         for d in ext_data:
             if d.nvalid == 0:
                 self.command.warning(f"Camera {d.camera}: not enough sources.")
@@ -327,7 +327,7 @@ class Guider:
         converged = self.check_convergence(ext_data, offset)
         if converged:
             # try a rapid field resolve
-            # print("\n------------\nrunnin rapid solve\n-------------\n")
+            print("\n------------\nrunnin rapid solve\n-------------\n")
             dfList = []
             for ex in ext_data:
                 # import pdb; pdb.set_trace()
@@ -491,8 +491,7 @@ class Guider:
         #     update_proc_headers(ast_solution, self.command.actor.state)
 
         # write files in the background and move on
-        import time; tstart = time.time()
-        print("before pending writes", len(self.write_background_tasks))
+        # print("before pending writes", len(self.write_background_tasks))
         if write_proc and self.command.actor:
             for d in guide_data:
                 sp_metadata = None
@@ -532,8 +531,6 @@ class Guider:
                 self.write_background_tasks.add(task)
                 task.add_done_callback(self.write_background_tasks.discard)
 
-        print("after pending writes", len(self.write_background_tasks))
-        print("time took", time.time()-tstart)
 
         return ast_solution
 
@@ -1309,7 +1306,7 @@ class Guider:
             ext_data.field_dec,
             position_angle=ext_data.field_pa,
         )
-
+        # print("ra/dec cen", camera_id, ext_data.field_ra, ext_data.field_dec, radec_centre)
         if self.command.actor and self.command.actor.state:
             odds_to_solve = 10**self.command.actor.state.astrometry_net_odds
         else:
@@ -1322,6 +1319,7 @@ class Guider:
             ra=radec_centre[0],
             dec=radec_centre[1],
             odds_to_solve=odds_to_solve,
+            radius=1
         )
 
         guide_data = GuideData(ext_data.camera, ext_data, solve_time=proc.elapsed)
