@@ -143,7 +143,7 @@ class Extraction:
 
     def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
-
+        import time; tstart = time.time()
         hdu = fits.open(image)
         data = hdu[1].data
         header = hdu[1].header
@@ -172,7 +172,6 @@ class Extraction:
             gain=header["GAIN"],
             exptime=header["EXPTIMEN"]
         )
-
 
         if plot is None:
             plot = config["extraction"]["plot"]
@@ -232,7 +231,7 @@ class Extraction:
         output_file.unlink(missing_ok=True)
 
         regions.to_csv(str(output_file))
-
+        print("process took", time.time()-tstart)
         return extraction_data
 
     def multiprocess(

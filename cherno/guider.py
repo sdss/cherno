@@ -285,6 +285,7 @@ class Guider:
             self.set_command(command)
 
         # get the state of the boss spectrograph up front
+        print("getting boss state")
         bossExposing = False
         bossExpNum = -999
         if self.command.actor is not None:
@@ -293,7 +294,8 @@ class Guider:
 
         self.command.info("Extracting sources.")
 
-        # print("extracting")
+        print("extracting")
+        import time; tstart=time.time()
         ext_data = await asyncio.gather(
             *[
                 run_in_executor(
@@ -305,7 +307,8 @@ class Guider:
                 for im in images
             ]
         )
-        # print("extraction done")
+
+        print("extraction done in", time.time()-tstart)
         for d in ext_data:
             if d.nvalid == 0:
                 self.command.warning(f"Camera {d.camera}: not enough sources.")
@@ -429,7 +432,7 @@ class Guider:
         #     )
 
         if sp_guider_fit != None or len(_astronet_solved) > 1:
-
+            print("callig fit_sp", sp_guider_fit != None, len(_astronet_solved))
             ast_solution = await self.fit_SP(
                 list(guide_data),
                 astronet_solved=_astronet_solved,
@@ -486,6 +489,9 @@ class Guider:
                 correction_applied=ast_solution.correction_applied,
             )
 
+
+        if True:
+            return ast_solution
 
         # if self.command.actor:
         #     update_proc_headers(ast_solution, self.command.actor.state)
