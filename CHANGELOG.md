@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🏷️ Changed
+
+* Set integral term for RA and Dec at APO to 0.01.
+
+
 ## 0.6.8 - February 27, 2024
 
 ### 🔧 Fixed
