@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import pathlib
 import re
 import time
@@ -281,6 +282,7 @@ class Guider:
     ):
         """Performs extraction and astrometry."""
         # print("process begins!!!")
+        import time; flp = time.time()
         if command is not None:
             self.set_command(command)
 
@@ -296,17 +298,20 @@ class Guider:
 
         print("extracting")
         import time; tstart=time.time()
-        ext_data = await asyncio.gather(
-            *[
-                run_in_executor(
-                    self.extractor.process,
-                    im,
-                    plot=plot,
-                    executor="process",
-                )
-                for im in images
-            ]
-        )
+        # ext_data = await asyncio.gather(
+        #     *[
+        #         run_in_executor(
+        #             self.extractor.process,
+        #             im,
+        #             plot=plot,
+        #             executor="process",
+        #         )
+        #         for im in images
+        #     ]
+        # )
+        # await asyncio.sleep(0.01)
+
+        ext_data = [self.extractor.process(im, plot=plot) for im in images]
 
         print("extraction done in", time.time()-tstart)
         for d in ext_data:
@@ -444,11 +449,7 @@ class Guider:
                 fit_focus=fit_focus,
                 guider_fit=sp_guider_fit,
             )
-            # import pickle
-            # _img = int(images[0].split("-")[-1].strip("*.fits"))
-            # _output = open("ast_%i_%s_coordio.pkl"%(_img, self.observatory), "wb")
-            # pickle.dump(ast_solution, _output)
-            # _output.close()
+
         else:
 
             ast_solution = await self.fit(
@@ -460,11 +461,7 @@ class Guider:
                 fit_all_detections=fit_all_detections,
                 fit_focus=fit_focus,
             )
-            # import pickle
-            # _img = int(images[0].split("-")[-1].strip("*.fits"))
-            # _output = open("ast_%i_%s_orig.pkl"%(_img, self.observatory), "wb")
-            # pickle.dump(ast_solution, _output)
-            # _output.close()
+
         if (
             self.target_rms is not None
             and ast_solution.valid_solution
@@ -490,52 +487,44 @@ class Guider:
             )
 
 
-        if True:
-            return ast_solution
-
-        # if self.command.actor:
-        #     update_proc_headers(ast_solution, self.command.actor.state)
-
+        print('\n\n\nwrite queue length %i\n\n\n'%len(self.write_background_tasks))
         # write files in the background and move on
         # print("before pending writes", len(self.write_background_tasks))
         if write_proc and self.command.actor:
-            for d in guide_data:
-                sp_metadata = None
-                gaia_matches = None
-                if self.solve_pointing is not None:
-                    zp = self.solve_pointing.median_zeropoint(d.camera_id)
-                    sp_metadata = self.solve_pointing.getMetadata()
-                    zptTuple = (
-                        "R_ZPT", zp, "median measured zeropoint of gaia sources"
+            with concurrent.futures.ProcessPoolExecutor() as process_pool:
+                loop = asyncio.get_event_loop()
+                for d in guide_data:
+                    header_updates = get_proc_headers(
+                        ast_solution, self.command.actor.state, d
                     )
-                    sp_metadata.append(zptTuple)
-                    gaia_matches = self.solve_pointing.matchedSources.copy()
+                    gaia_matches = None
+                    if self.solve_pointing is not None:
+                        header_updates += self.solve_pointing.getMetadata()
+                        zp = self.solve_pointing.median_zeropoint(d.camera_id)
+                        zptTuple = (
+                            "R_ZPT", zp, "median measured zeropoint of gaia sources"
+                        )
+                        header_updates.append(zptTuple)
+                        gaia_matches = self.solve_pointing.matchedSources.copy()
 
-                # write_proc_image(
-                #     ast_solution,
-                #     self.command.actor.state,
-                #     d,
-                #     overwrite=overwrite,
-                #     bossExposing=bossExposing,
-                #     bossExpNum=bossExpNum,
-                #     sp_metadata=sp_metadata,
-                #     gaia_matches=gaia_matches
-                # )
-
-                task = asyncio.create_task(
-                    write_proc_image(
-                        ast_solution,
-                        self.command.actor.state,
+                    func = partial(
+                        write_proc_image,
+                        # ast_solution,
+                        # self.command.actor.state,
                         d,
                         overwrite=overwrite,
                         bossExposing=bossExposing,
                         bossExpNum=bossExpNum,
-                        sp_metadata=sp_metadata,
+                        header_updates=header_updates,
                         gaia_matches=gaia_matches
                     )
-                )
-                self.write_background_tasks.add(task)
-                task.add_done_callback(self.write_background_tasks.discard)
+
+                    task = loop.run_in_executor(process_pool, func)
+
+                    self.write_background_tasks.add(task)
+                    task.add_done_callback(self.write_background_tasks.discard)
+
+        print("\n\nfull loop time %.1f"%(time.time()-flp))
 
 
         return ast_solution
@@ -1717,93 +1706,13 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
             hdus.close()
 
 
-async def write_proc_image(
-    data: AstrometricSolution,
-    guider_state: ChernoState,
-    guide_data: GuideData,
-    overwrite: bool = False,
-    bossExposing: bool = False,
-    bossExpNum: int = -999,
-    sp_metadata: list | None = None,
-    gaia_matches: pandas.DataFrame | None = None
+def get_proc_headers(
+    data: AstrometricSolution, guider_state: ChernoState, guide_data: GuideData
 ):
-
-    # mostly coppied from write_proc_image method on guider
-    ext_data = guide_data.extraction_data
-
-    proc_hdu = fits.open(str(guide_data.path)).copy()
-
-    # import pdb; pdb.set_trace()
-    calibs = config["calib"][guide_data.camera]
-    # apply calibs again for writing the processed
-    # image data (done in extraction phase too, but data not saved)
-    bias_path = calibs["bias"]
-    dark_path = calibs["dark"]
-    flat_path = calibs["flat"]
-
-    # flat/bias/dark adjust the raw image
-    _calib_data = apply_calibs(
-        data=proc_hdu[1].data,
-        bias_path=bias_path,
-        dark_path=dark_path,
-        flat_path=flat_path,
-        gain=proc_hdu[1].header["GAIN"],
-        exptime=proc_hdu[1].header["EXPTIMEN"]
-    )
-    proc_hdu[1].data = _calib_data
-    proc_hdu[1].header["BKG_ADU"] = (
-        numpy.median(_calib_data), "background (median) counts in calibrated frame"
-    )
-
-    proc_hdu[1].header["BIASFILE"] = bias_path
-    proc_hdu[1].header["FLATFILE"] = flat_path
-    proc_hdu[1].header["DARKFILE"] = dark_path
-    # proc_hdu[1].header["GAIN"] = calibs["gain"]
-
-    # df = guide_data.extraction_data.regions
-    # import pdb; pdb.set_trace()
-
-    rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
-    proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
-
-    gfa_coords = calibration.gfaCoords.reset_index()
-    gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
-    proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
-
-    proc_hdu[1].header["SOLVED"] = guide_data.solved
-    proc_hdu[1].header["SOLVMODE"] = (
-        guide_data.solve_method,
-        "Method used to solve the field",
-    )
-    proc_hdu[1].header["SOLVTIME"] = (
-        guide_data.solve_time,
-        "Time to solve the field or fail",
-    )
-    offsets = guider_state.offset
-    proc_hdu[1].header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
-    proc_hdu[1].header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
-    proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
-    proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
-    proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")
-
-    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
-    aoffset = (
-        default_offset[0] + offsets[0],
-        default_offset[1] + offsets[1],
-        default_offset[2] + offsets[2],
-    )
-    proc_hdu[1].header["AOFFRA"] = (aoffset[0], "Absolute offset in RA [arcsec]")
-    proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
-    proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
-
-    if guide_data.wcs is not None:
-        proc_hdu[1].header.update(guide_data.wcs.to_header())
-
-    proc_path: pathlib.Path
-
-    proc_path = ext_data.path.parent / ("proc-" + ext_data.path.name)
-
-    # mostly copied from update_proc_headers
+    # largely modified from update_proc_headers
+    # returns a list of headers to be updated in a separate
+    # process (guider_state can't be offloaded to ProcessPool)
+    # but a list can
     guide_loop = guider_state.guide_loop
 
     enabled_axes = guider_state.enabled_axes
@@ -1846,63 +1755,277 @@ async def write_proc_image(
     delta_scale = data.delta_scale
     delta_focus = data.delta_focus
 
+    cra, cdec, crot, cscl, cfoc = data.correction_applied
+
+    # generate heder list
+    header = []
+
+    header.append(("SOLVED", guide_data.solved, "field was solved"))
+    header.append((
+        "SOLVMODE",
+        guide_data.solve_method,
+        "Method used to solve the field",
+    ))
+    header.append((
+        "SOLVTIME",
+        guide_data.solve_time,
+        "Time to solve the field or fail",
+    ))
+
+    offsets = guider_state.offset
+    header.append(("OFFRA", offsets[0], "Relative offset in RA [arcsec]"))
+    header.append(("OFFDEC", offsets[1], "Relative offset in Dec [arcsec]"))
+    header.append(("OFFPA", offsets[2], "Relative offset in PA [arcsec]"))
+
+    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+    aoffset = (
+        default_offset[0] + offsets[0],
+        default_offset[1] + offsets[1],
+        default_offset[2] + offsets[2],
+    )
+    header.append(("AOFFRA", aoffset[0], "Absolute offset in RA [arcsec]"))
+    header.append(("AOFFDEC", aoffset[1], "Absolute offset in Dec [arcsec]"))
+    header.append(("AOFFPA", aoffset[2], "Absolute offset in PA [arcsec]"))
+
+    header.append(("EXTMETH", guide_data.e_data.algorithm, "Algorithm for star finding"))
+
+    header.append(("RAK", ra_pid_k, "PID K term for RA"))
+    header.append(("RATD", ra_pid_td, "PID Td term for RA"))
+    header.append(("RATI", ra_pid_ti, "PID Ti term for RA"))
+
+    header.append(("DECK", dec_pid_k, "PID K term for Dec"))
+    header.append(("DECTD", dec_pid_td, "PID Td term for Dec"))
+    header.append(("DECTI", dec_pid_ti, "PID Ti term for Dec"))
+
+    header.append(("ROTK", rot_pid_k, "PID K term for Rot."))
+    header.append(("ROTTD", rot_pid_td, "PID Td term for Rot."))
+    header.append(("ROTTI", rot_pid_ti, "PID Ti term for Rot."))
+
+    header.append(("SCLK", scale_pid_k, "PID K term for Scale"))
+    header.append(("SCLTD", scale_pid_td, "PID Td term for Scale"))
+    header.append(("SCLTI", scale_pid_ti, "PID Ti term for Scale"))
+
+    header.append(("FOCUSK", focus_pid_k, "PID K term for Focus"))
+    header.append(("FOCUSTD", focus_pid_td, "PID Td term for Focus"))
+    header.append(("FOCUSTI", focus_pid_ti, "PID Ti term for Focus"))
+
+    header.append(("FWHM", guide_data.e_data.fwhm_median, "Mesured FWHM [arcsec]"))
+    header.append(("FWHMFIT", data.fwhm_fit, "Fitted FWHM [arcsec]"))
+
+    header.append(("RMS", rms, "Guide RMS [arcsec]"))
+    header.append(("FITMODE", data.fit_mode, "Fit mode (full or RA/Dec)"))
+
+    header.append(("E_RA", enabled_ra, "RA corrections enabled?"))
+    header.append(("E_DEC", enabled_dec, "Dec corrections enabled?"))
+    header.append(("E_ROT", enabled_rot, "Rotator corrections enabled?"))
+    header.append(("E_FOCUS", enabled_focus, "Focus corrections enabled?"))
+    header.append(("E_SCL", False, "Scale corrections enabled?"))
+
+    header.append(("DELTARA", delta_ra, "RA measured delta [arcsec]"))
+    header.append(("DELTADEC", delta_dec, "Dec measured delta [arcsec]"))
+    header.append(("DELTAROT", delta_rot, "Rotator measured delta [arcsec]"))
+    header.append(("DELTASCL", delta_scale, "Scale measured factor"))
+    header.append(("DELTAFOC", delta_focus, "Focus delta [microns]"))
+
+    header.append(("CORR_RA", cra, "RA applied correction [arcsec]"))
+    header.append(("CORR_DEC", cdec, "Dec applied correction [arcsec]"))
+    header.append(("CORR_ROT", crot, "Rotator applied correction [arcsec]"))
+    header.append(("CORR_SCL", cscl, "Scale applied correction"))
+    header.append(("CORR_FOC", cfoc, "Focus applied correction [microns]"))
+
+    return header
+
+
+def write_proc_image(
+    # data: AstrometricSolution,
+    # guider_state: ChernoState,
+    guide_data: GuideData,
+    overwrite: bool = False,
+    bossExposing: bool = False,
+    bossExpNum: int = -999,
+    header_updates: list | None = None,
+    gaia_matches: pandas.DataFrame | None = None
+):
+    # mostly coppied from write_proc_image method on guider
+    ext_data = guide_data.extraction_data
+
+    proc_hdu = fits.open(str(guide_data.path)).copy()
     header = proc_hdu[1].header
 
-    header["EXTMETH"] = (guide_data.e_data.algorithm, "Algorithm for star finding")
+    # import pdb; pdb.set_trace()
+    calibs = config["calib"][guide_data.camera]
+    # apply calibs again for writing the processed
+    # image data (done in extraction phase too, but data not saved)
+    bias_path = calibs["bias"]
+    dark_path = calibs["dark"]
+    flat_path = calibs["flat"]
 
-    header["RAK"] = (ra_pid_k, "PID K term for RA")
-    header["RATD"] = (ra_pid_td, "PID Td term for RA")
-    header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
+    # flat/bias/dark adjust the raw image
+    _calib_data = apply_calibs(
+        data=proc_hdu[1].data,
+        bias_path=bias_path,
+        dark_path=dark_path,
+        flat_path=flat_path,
+        gain=proc_hdu[1].header["GAIN"],
+        exptime=proc_hdu[1].header["EXPTIMEN"]
+    )
+    proc_hdu[1].data = _calib_data
+    header["BKG_ADU"] = (
+        numpy.median(_calib_data), "background (median) counts in calibrated frame"
+    )
 
-    header["DECK"] = (dec_pid_k, "PID K term for Dec")
-    header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
-    header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
+    header["BIASFILE"] = bias_path
+    header["FLATFILE"] = flat_path
+    header["DARKFILE"] = dark_path
 
-    header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
-    header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
-    header["ROTTI"] = (rot_pid_ti, "PID Ti term for Rot.")
 
-    header["SCLK"] = (scale_pid_k, "PID K term for Scale")
-    header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
-    header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
+    # proc_hdu[1].header["GAIN"] = calibs["gain"]
 
-    header["FOCUSK"] = (focus_pid_k, "PID K term for Focus")
-    header["FOCUSTD"] = (focus_pid_td, "PID Td term for Focus")
-    header["FOCUSTI"] = (focus_pid_ti, "PID Ti term for Focus")
+    # df = guide_data.extraction_data.regions
+    # import pdb; pdb.set_trace()
 
-    header["FWHM"] = (guide_data.e_data.fwhm_median, "Mesured FWHM [arcsec]")
-    header["FWHMFIT"] = (data.fwhm_fit, "Fitted FWHM [arcsec]")
+    rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
+    proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
 
-    header["RMS"] = (rms, "Guide RMS [arcsec]")
-    header["FITMODE"] = (data.fit_mode, "Fit mode (full or RA/Dec)")
+    gfa_coords = calibration.gfaCoords.reset_index()
+    gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
+    proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
 
-    header["E_RA"] = (enabled_ra, "RA corrections enabled?")
-    header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
-    header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
-    header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
-    header["E_SCL"] = (False, "Scale corrections enabled?")
+    # proc_hdu[1].header["SOLVED"] = guide_data.solved
+    # proc_hdu[1].header["SOLVMODE"] = (
+    #     guide_data.solve_method,
+    #     "Method used to solve the field",
+    # )
+    # proc_hdu[1].header["SOLVTIME"] = (
+    #     guide_data.solve_time,
+    #     "Time to solve the field or fail",
+    # )
+    # offsets = guider_state.offset
+    # proc_hdu[1].header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
+    # proc_hdu[1].header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
+    # proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
+    # proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
+    # proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")
 
-    header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
-    header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
-    header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
-    header["DELTASCL"] = (delta_scale, "Scale measured factor")
-    header["DELTAFOC"] = (delta_focus, "Focus delta [microns]")
+    # default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+    # aoffset = (
+    #     default_offset[0] + offsets[0],
+    #     default_offset[1] + offsets[1],
+    #     default_offset[2] + offsets[2],
+    # )
+    # proc_hdu[1].header["AOFFRA"] = (aoffset[0], "Absolute offset in RA [arcsec]")
+    # proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
+    # proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
 
-    header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
-    header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
-    header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
-    header["CORR_SCL"] = (cscl, "Scale applied correction")
-    header["CORR_FOC"] = (cfoc, "Focus applied correction [microns]")
+    if guide_data.wcs is not None:
+        header.update(guide_data.wcs.to_header())
+
+    proc_path: pathlib.Path
+
+    proc_path = ext_data.path.parent / ("proc-" + ext_data.path.name)
+
+    # mostly copied from update_proc_headers
+    # guide_loop = guider_state.guide_loop
+
+    # enabled_axes = guider_state.enabled_axes
+    # enabled_ra = "ra" in enabled_axes
+    # enabled_dec = "dec" in enabled_axes
+    # enabled_rot = "rot" in enabled_axes
+    # enabled_focus = "focus" in enabled_axes
+
+    # cra, cdec, crot, cscl, cfoc = data.correction_applied
+
+    # ra_pid_k = guide_loop["ra"]["pid"]["k"]
+    # ra_pid_td = guide_loop["ra"]["pid"].get("td", 0.0)
+    # ra_pid_ti = guide_loop["ra"]["pid"].get("ti", 0.0)
+
+    # dec_pid_k = guide_loop["dec"]["pid"]["k"]
+    # dec_pid_td = guide_loop["dec"]["pid"].get("td", 0.0)
+    # dec_pid_ti = guide_loop["dec"]["pid"].get("ti", 0.0)
+
+    # rot_pid_k = guide_loop["rot"]["pid"]["k"]
+    # rot_pid_td = guide_loop["rot"]["pid"].get("td", 0.0)
+    # rot_pid_ti = guide_loop["rot"]["pid"].get("ti", 0.0)
+
+    # focus_pid_k = guide_loop["focus"]["pid"]["k"]
+    # focus_pid_td = guide_loop["focus"]["pid"].get("td", 0.0)
+    # focus_pid_ti = guide_loop["focus"]["pid"].get("ti", 0.0)
+
+    # if "scale" in guide_loop:
+    #     scale_pid_k = guide_loop["scale"]["pid"]["k"]
+    #     scale_pid_td = guide_loop["scale"]["pid"].get("td", 0.0)
+    #     scale_pid_ti = guide_loop["scale"]["pid"].get("ti", 0.0)
+    # else:
+    #     scale_pid_k = 0.0
+    #     scale_pid_td = 0.0
+    #     scale_pid_ti = 0.0
+
+    # rms = data.rms
+    # delta_ra = data.delta_ra
+    # delta_dec = data.delta_dec
+    # delta_rot = data.delta_rot
+    # delta_scale = data.delta_scale
+    # delta_focus = data.delta_focus
+
+    # header = proc_hdu[1].header
+
+    # header["EXTMETH"] = (guide_data.e_data.algorithm, "Algorithm for star finding")
+
+    # # header["RAK"] = (ra_pid_k, "PID K term for RA")
+    # # header["RATD"] = (ra_pid_td, "PID Td term for RA")
+    # # header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
+
+    # # header["DECK"] = (dec_pid_k, "PID K term for Dec")
+    # # header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
+    # # header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
+
+    # # header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
+    # # header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
+    # # header["ROTTI"] = (rot_pid_ti, "PID Ti term for Rot.")
+
+    # # header["SCLK"] = (scale_pid_k, "PID K term for Scale")
+    # # header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
+    # # header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
+
+    # # header["FOCUSK"] = (focus_pid_k, "PID K term for Focus")
+    # # header["FOCUSTD"] = (focus_pid_td, "PID Td term for Focus")
+    # # header["FOCUSTI"] = (focus_pid_ti, "PID Ti term for Focus")
+
+    # header["FWHM"] = (guide_data.e_data.fwhm_median, "Mesured FWHM [arcsec]")
+    # header["FWHMFIT"] = (data.fwhm_fit, "Fitted FWHM [arcsec]")
+
+    # header["RMS"] = (rms, "Guide RMS [arcsec]")
+    # header["FITMODE"] = (data.fit_mode, "Fit mode (full or RA/Dec)")
+
+    # # header["E_RA"] = (enabled_ra, "RA corrections enabled?")
+    # # header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
+    # # header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
+    # # header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
+    # header["E_SCL"] = (False, "Scale corrections enabled?")
+
+    # header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
+    # header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
+    # header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
+    # header["DELTASCL"] = (delta_scale, "Scale measured factor")
+    # header["DELTAFOC"] = (delta_focus, "Focus delta [microns]")
+
+    # header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
+    # header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
+    # header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
+    # header["CORR_SCL"] = (cscl, "Scale applied correction")
+    # header["CORR_FOC"] = (cfoc, "Focus applied correction [microns]")
 
     # finally add extra info if solved via coordio or coordio-fast
 
-    if sp_metadata is not None:
-        for kw, val, comment in sp_metadata:
+    if header_updates is not None:
+        for kw, val, comment in header_updates:
             header[kw] = (val, comment)
         # import pdb; pdb.set_trace()
         rec = Table.from_pandas(gaia_matches).as_array()
         proc_hdu.append(fits.BinTableHDU(rec, name="GAIAMATCH"))
 
+    header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
+    header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
     # loop = asyncio.get_running_loop()
     # func = partial(
     #     proc_hdu.writeto,
@@ -1915,7 +2038,6 @@ async def write_proc_image(
     proc_hdu.writeto(proc_path, overwrite=overwrite, output_verify="silentfix")
     proc_hdu.close()
     # guide_data.proc_image = proc_path
-
 
 
 
