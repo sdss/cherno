@@ -41,11 +41,6 @@ PathLike = TypeVar("PathLike", pathlib.Path, str)
 
 
 def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
-    # takes about a second on mako...
-    # dark files are in units of electrons
-    # convert them back to ADU
-    # (this one is slower but used in proc-gimg file writing which should
-    # not block)
     with fits.open(bias_path) as ff:
         bias = ff[0].data
     with fits.open(dark_path) as ff:
@@ -112,38 +107,37 @@ class Extraction:
             )
 
         # load calibration files into memory (3 per camera)
-        self.bias_data = {}
-        self.dark_data = {}
-        self.flat_data = {}
-        # self.reduced_data = {} # stores the last reduced frame per camera
-        for camera in ["gfa1", "gfa2", "gfa3", "gfa4", "gfa5", "gfa6"]:
-            bias_file = config["calib"][camera]["bias"]
-            dark_file = config["calib"][camera]["dark"]
-            flat_file = config["calib"][camera]["flat"]
+        # self.bias_data = {}
+        # self.dark_data = {}
+        # self.flat_data = {}
+        # # self.reduced_data = {} # stores the last reduced frame per camera
+        # for camera in ["gfa1", "gfa2", "gfa3", "gfa4", "gfa5", "gfa6"]:
+        #     bias_file = config["calib"][camera]["bias"]
+        #     dark_file = config["calib"][camera]["dark"]
+        #     flat_file = config["calib"][camera]["flat"]
 
-            with fits.open(bias_file) as ff:
-                self.bias_data[camera] = ff[0].data
-            with fits.open(dark_file) as ff:
-                self.dark_data[camera] = ff[0].data
-            with fits.open(flat_file) as ff:
-                self.flat_data[camera] = ff[0].data
+        #     with fits.open(bias_file) as ff:
+        #         self.bias_data[camera] = ff[0].data
+        #     with fits.open(dark_file) as ff:
+        #         self.dark_data[camera] = ff[0].data
+        #     with fits.open(flat_file) as ff:
+        #         self.flat_data[camera] = ff[0].data
             # self.reduced_data[camera] = None
 
         # print(self.reduced_data)
 
-    def apply_calibs(self, data, camera, gain, exptime):
-        bias = self.bias_data[camera]
-        dark = self.dark_data[camera] / gain  # Toms superdarks are in e per sec
-        flat = self.flat_data[camera]
+    # def apply_calibs(self, data, camera, gain, exptime):
+    #     bias = self.bias_data[camera]
+    #     dark = self.dark_data[camera] / gain  # Toms superdarks are in e per sec
+    #     flat = self.flat_data[camera]
 
-        data = data - bias
-        data = data - dark * exptime
-        data = data / flat
-        return data
+    #     data = data - bias
+    #     data = data - dark * exptime
+    #     data = data / flat
+    #     return data
 
     def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
-        import time; tstart = time.time()
         hdu = fits.open(image)
         data = hdu[1].data
         header = hdu[1].header
@@ -166,12 +160,21 @@ class Extraction:
             cam_no = 0
             exp_no = 0
 
-        data = self.apply_calibs(
-            data=data,
-            camera=camera,
-            gain=header["GAIN"],
-            exptime=header["EXPTIMEN"]
+        data = apply_calibs(
+            data,
+            config["calib"][camera]["bias"],
+            config["calib"][camera]["dark"],
+            config["calib"][camera]["flat"],
+            header["GAIN"],
+            header["EXPTIMEN"]
         )
+
+        # data = self.apply_calibs(
+        #     data=data,
+        #     camera=camera,
+        #     gain=header["GAIN"],
+        #     exptime=header["EXPTIMEN"]
+        # )
 
         if plot is None:
             plot = config["extraction"]["plot"]
@@ -231,7 +234,6 @@ class Extraction:
         output_file.unlink(missing_ok=True)
 
         regions.to_csv(str(output_file))
-        print("process took", time.time()-tstart)
         return extraction_data
 
     def multiprocess(

@@ -55,6 +55,7 @@ if TYPE_CHECKING:
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
 warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
+warnings.filterwarnings("ignore", message="Card is too long, comment will be truncated.")
 
 
 __all__ = ["Guider", "GuideData", "AstrometricSolution", "AxesPID"]
@@ -298,20 +299,19 @@ class Guider:
 
         print("extracting")
         import time; tstart=time.time()
-        # ext_data = await asyncio.gather(
-        #     *[
-        #         run_in_executor(
-        #             self.extractor.process,
-        #             im,
-        #             plot=plot,
-        #             executor="process",
-        #         )
-        #         for im in images
-        #     ]
-        # )
-        # await asyncio.sleep(0.01)
+        ext_data = await asyncio.gather(
+            *[
+                run_in_executor(
+                    self.extractor.process,
+                    im,
+                    plot=plot,
+                    executor="process",
+                )
+                for im in images
+            ]
+        )
 
-        ext_data = [self.extractor.process(im, plot=plot) for im in images]
+        # ext_data = [self.extractor.process(im, plot=plot) for im in images]
 
         print("extraction done in", time.time()-tstart)
         for d in ext_data:
@@ -520,7 +520,8 @@ class Guider:
                     )
 
                     task = loop.run_in_executor(process_pool, func)
-
+                    # fire and forget (eg no checking that the fits was
+                    # actually written ok)
                     self.write_background_tasks.add(task)
                     task.add_done_callback(self.write_background_tasks.discard)
 
