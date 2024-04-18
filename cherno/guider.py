@@ -118,6 +118,12 @@ class AstrometricSolution:
     camera_rotation: float = -999.0
     correction_applied: list[float] = field(default_factory=lambda: [0.0] * 5)
 
+    @property
+    def n_solved(self):
+        """Returns the number of solved cameras."""
+
+        return len([gd for gd in self.guide_data if gd.solved])
+
 
 class AxesPID:
     """Store for the axis PID coefficient."""
@@ -508,11 +514,12 @@ class Guider:
             # each camera and a boolean indicating if that camera was used for the
             # global fit. If a camera was rejected the fit RMS is set to -999.
             fit_rms = guider_fit.fit_rms
-            fit_rms_camera = [numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4)]
+            fit_rms_global = float(numpy.round(fit_rms.loc[0].rms * mm_to_arcsec, 4))
+            fit_rms_camera: list[int | float] = [fit_rms_global]
             for cid in range(1, 7):
                 if cid in fit_rms.index:
                     this_fit_rms = numpy.round(fit_rms.loc[cid].rms * mm_to_arcsec, 4)
-                    fit_rms_camera.append(this_fit_rms)
+                    fit_rms_camera.append(float(this_fit_rms))
                 else:
                     fit_rms_camera.append(-999.0)
                 fit_rms_camera.append(cid in guider_fit.cameras)

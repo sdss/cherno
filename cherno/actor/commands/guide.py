@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from functools import partial
 from types import SimpleNamespace
 
 from typing import Callable
@@ -44,6 +43,17 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
             type=float,
             default=None,
             help="Cameras exposure time.",
+        ),
+        click.Option(
+            ["--max-exposure-time", "-T"],
+            type=float,
+            default=30,
+            help="Maximum exposure time.",
+        ),
+        click.Option(
+            ["--dynamic-exposure-time", "-d"],
+            is_flag=True,
+            help="Increases the exposure time dynamically if failed to solve.",
         ),
         click.Option(
             ["--cameras", "-m"],
@@ -84,7 +94,7 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
             type=float,
             default=15 if config["observatory"] == "LCO" else None,
             show_default=True,
-            help="Time to wait between iterations.",
+            help="Time to wait between iterations. Only applies to LCO.",
         ),
         click.Option(
             ["--mode"],
@@ -130,6 +140,8 @@ def get_guide_common_params(continuous: bool = True, full: bool = False):
 class GuideParams(SimpleNamespace):
     command: ChernoCommandType
     exposure_time: float | None = None
+    max_exposure_time: float = 30.0
+    dynamic_exposure_time: bool = False
     continuous: bool = False
     count: int | None = None
     apply: bool = True
@@ -203,20 +215,60 @@ def get_callback(
     )
     params.command.actor.state._guider_obj = guider  # To update PID coeffs.
 
-    return partial(
-        guider.process,
-        correct=params.apply,
-        full_correction=params.full,
-        wait_for_correction=(params.wait is None),
-        only_radec=params.only_radec,
-        auto_radec_min=params.auto_radec_min,
-        gaia_phot_g_mean_mag_max=params.gaia_max_mag,
-        gaia_cross_correlation_blur=params.cross_match_blur,
-        fit_all_detections=params.fit_all_detections,
-        plot=params.plot,
-        fit_focus=config["guider"].get("fit_focus", True),
-        **params.mode_kwargs,
-    )
+    async def process_callback(command: ChernoCommandType, images: list[str]):
+        ast_solution = await guider.process(
+            command,
+            images,
+            correct=params.apply,
+            full_correction=params.full,
+            offset=None,
+            wait_for_correction=False,  # This only applies to LCO.
+            only_radec=params.only_radec,
+            auto_radec_min=params.auto_radec_min,
+            gaia_phot_g_mean_mag_max=params.gaia_max_mag,
+            gaia_cross_correlation_blur=params.cross_match_blur,
+            fit_all_detections=params.fit_all_detections,
+            plot=params.plot,
+            fit_focus=config["guider"].get("fit_focus", True),
+            **params.mode_kwargs,
+        )
+
+        if params.dynamic_exposure_time:
+            max_exposure_time = params.max_exposure_time or 30.0
+            current_exposure_time = command.actor.state.exposure_time
+            if current_exposure_time >= max_exposure_time:
+                # This should only happen if the observer manually set the
+                # exposure time, in which case we accept it.
+                new_exposure_time = current_exposure_time
+            elif not ast_solution.valid_solution:
+                new_exposure_time = min(current_exposure_time * 2, max_exposure_time)
+            elif ast_solution.n_solved < 4:
+                new_exposure_time = max(current_exposure_time * 1.5, max_exposure_time)
+            else:
+                new_exposure_time = current_exposure_time
+
+            if new_exposure_time != round(current_exposure_time, 1):
+                command.actor.state.exposure_time = new_exposure_time
+                command.info(f"Exposure time updated to {new_exposure_time:.1f} s.")
+
+        if command.actor.observatory == "LCO":
+            rot_correction = ast_solution.correction_applied[2]
+            if abs(rot_correction) > 0:
+                # Do not add a delay if we applied a rotator correction. The
+                # rotator blocks until done, which means the RA/Dec corrections
+                # will probably have converged as well.
+                pass
+            elif (
+                any(ast_solution.correction_applied)
+                and params.wait is not None
+                and params.wait > 0.0
+            ):
+                command.debug(f"Waiting {params.wait:.1f} s for corrections.")
+                await asyncio.sleep(params.wait)
+
+        return ast_solution
+
+    return process_callback
 
 
 async def _guide(
@@ -243,7 +295,7 @@ async def _guide(
             max_iterations=max_iterations,
             timeout=25,
             names=params.names,
-            delay=params.wait or 0.0,
+            delay=0.0,
             stop_condition=stop_condition,
         )
     )
