@@ -1,5 +1,12 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Fix a case in which the exposure time could increase in an uncontrolled way.
+
+
 ## 0.6.9 - April 18, 2024
 
 ### ✨ Improved

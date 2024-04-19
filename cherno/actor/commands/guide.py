@@ -243,7 +243,7 @@ def get_callback(
             elif not ast_solution.valid_solution:
                 new_exposure_time = min(current_exposure_time * 2, max_exposure_time)
             elif ast_solution.n_solved < 4:
-                new_exposure_time = max(current_exposure_time * 1.5, max_exposure_time)
+                new_exposure_time = min(current_exposure_time * 1.5, max_exposure_time)
             else:
                 new_exposure_time = current_exposure_time
 
