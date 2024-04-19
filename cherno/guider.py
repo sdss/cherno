@@ -434,12 +434,6 @@ class Guider:
         for ad in guide_data:
             self.output_camera_solution(ad)
 
-        self.command.debug("Saving proc- file.")
-
-        # if write_proc:
-        #     await asyncio.gather(
-        #         *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
-        #     )
 
         if sp_guider_fit != None or len(_astronet_solved) > 1:
             print("callig fit_sp", sp_guider_fit != None, len(_astronet_solved))
@@ -496,6 +490,7 @@ class Guider:
         # write files in the background and move on
         # print("before pending writes", len(self.write_background_tasks))
         if write_proc and self.command.actor:
+            self.command.debug("Saving proc- files.")
             with concurrent.futures.ProcessPoolExecutor() as process_pool:
                 loop = asyncio.get_event_loop()
                 for d in guide_data:
@@ -514,8 +509,6 @@ class Guider:
 
                     func = partial(
                         write_proc_image,
-                        # ast_solution,
-                        # self.command.actor.state,
                         d,
                         overwrite=overwrite,
                         bossExposing=bossExposing,
@@ -1103,23 +1096,6 @@ class Guider:
             outpath.parent.mkdir(exist_ok=True)
             self.fitter.plot_fit(outpath)
 
-        # update proc-fits file with solve-pointing
-        # specific data
-
-        # for a_data in ast_solution.guide_data:
-        #     if a_data.proc_image is not None:
-        #         hdus = fits.open(str(a_data.proc_image), mode="update")
-        #         header = hdus[1].header
-        #         for kw, val, comment in self.solve_pointing.getMetadata():
-        #             header[kw] = (val, comment)
-        #         # import pdb; pdb.set_trace()
-        #         gfaNum = int(a_data.camera.strip("gfa"))
-        #         header["R_ZPT"] = (self.solve_pointing.median_zeropoint(gfaNum), "median measured zeropoint of gaia sources")
-        #         # print(header)
-        #         rec = Table.from_pandas(self.solve_pointing.matchedSources).as_array()
-        #         hdus.append(fits.BinTableHDU(rec, name="GAIAMATCH"))
-        #         hdus.close()
-
         return ast_solution
 
     async def correct(
@@ -1376,16 +1352,6 @@ class Guider:
                 guide_data.solve_method,
             ]
         )
-        # print(  guide_data.camera,
-        #         guide_data.exposure_no,
-        #         guide_data.solved,
-        #         guide_data.camera_racen,
-        #         guide_data.camera_deccen,
-        #         guide_data.xrot,
-        #         guide_data.yrot,
-        #         guide_data.rotation,
-        #         guide_data.solve_method
-        # )
 
     async def _gaia_cross_match_one(
         self,
@@ -1511,205 +1477,6 @@ class Guider:
             guide_data.solved = True
             guide_data.solve_method = "gaia"
             guide_data.wcs = wcs
-
-    async def write_proc_image(
-        self,
-        guide_data: GuideData,
-        outpath: PathLike | None = None,
-        overwrite: bool = False,
-    ):
-        """Writes the proc-gimg image."""
-
-        ext_data = guide_data.extraction_data
-
-        proc_hdu = fits.open(str(guide_data.path)).copy()
-
-        # import pdb; pdb.set_trace()
-        calibs = config["calib"][guide_data.camera]
-        # apply calibs again for writing the processed
-        # image data (done in extraction phase too, but data not saved)
-        bias_path = calibs["bias"]
-        dark_path = calibs["dark"]
-        flat_path = calibs["flat"]
-        _calib_data = self.extractor.apply_calibs(
-            data=proc_hdu[1].data,
-            camera=guide_data.camera,
-            gain=proc_hdu[1].header["GAIN"],
-            exptime=proc_hdu[1].header["EXPTIMEN"]
-        )
-        proc_hdu[1].data = _calib_data
-        proc_hdu[1].header["BIASFILE"] = bias_path
-        proc_hdu[1].header["FLATFILE"] = flat_path
-        proc_hdu[1].header["DARKFILE"] = dark_path
-        # proc_hdu[1].header["GAIN"] = calibs["gain"]
-        proc_hdu[1].header["BKG_ADU"] = (
-            numpy.median(_calib_data), "background (median counts in calibrated frame"
-        )
-
-        # df = guide_data.extraction_data.regions
-        # import pdb; pdb.set_trace()
-
-        rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
-        proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
-
-        gfa_coords = calibration.gfaCoords.reset_index()
-        gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
-        proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
-
-        proc_hdu[1].header["SOLVED"] = guide_data.solved
-        proc_hdu[1].header["SOLVMODE"] = (
-            guide_data.solve_method,
-            "Method used to solve the field",
-        )
-        proc_hdu[1].header["SOLVTIME"] = (
-            guide_data.solve_time,
-            "Time to solve the field or fail",
-        )
-
-        bossExposing = False
-        bossExpNum = -999
-        offsets = [-999.0] * 3
-        if self.command.actor is not None:
-            offsets = self.command.actor.state.offset
-            if hasattr(self.command.actor, "_boss_exp_state"):
-                bossExposing, bossExpNum = self.command.actor._boss_exp_state()
-
-
-        proc_hdu[1].header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
-        proc_hdu[1].header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
-        proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
-        proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
-        proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")
-
-        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
-        aoffset = (
-            default_offset[0] + offsets[0],
-            default_offset[1] + offsets[1],
-            default_offset[2] + offsets[2],
-        )
-        proc_hdu[1].header["AOFFRA"] = (aoffset[0], "Absolute offset in RA [arcsec]")
-        proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
-        proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
-
-        if guide_data.wcs is not None:
-            proc_hdu[1].header.update(guide_data.wcs.to_header())
-
-        proc_path: pathlib.Path
-        if outpath is not None:
-            proc_path = pathlib.Path(outpath)
-            if proc_path.is_dir():
-                proc_path = proc_path / ("proc-" + ext_data.path.name)
-        else:
-            proc_path = ext_data.path.parent / ("proc-" + ext_data.path.name)
-
-        loop = asyncio.get_running_loop()
-        func = partial(
-            proc_hdu.writeto,
-            proc_path,
-            overwrite=overwrite,
-            output_verify="silentfix",
-        )
-        await loop.run_in_executor(None, func)
-
-        guide_data.proc_image = proc_path
-
-
-def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
-    guide_loop = guider_state.guide_loop
-
-    enabled_axes = guider_state.enabled_axes
-    enabled_ra = "ra" in enabled_axes
-    enabled_dec = "dec" in enabled_axes
-    enabled_rot = "rot" in enabled_axes
-    enabled_focus = "focus" in enabled_axes
-
-    cra, cdec, crot, cscl, cfoc = data.correction_applied
-
-    ra_pid_k = guide_loop["ra"]["pid"]["k"]
-    ra_pid_td = guide_loop["ra"]["pid"].get("td", 0.0)
-    ra_pid_ti = guide_loop["ra"]["pid"].get("ti", 0.0)
-
-    dec_pid_k = guide_loop["dec"]["pid"]["k"]
-    dec_pid_td = guide_loop["dec"]["pid"].get("td", 0.0)
-    dec_pid_ti = guide_loop["dec"]["pid"].get("ti", 0.0)
-
-    rot_pid_k = guide_loop["rot"]["pid"]["k"]
-    rot_pid_td = guide_loop["rot"]["pid"].get("td", 0.0)
-    rot_pid_ti = guide_loop["rot"]["pid"].get("ti", 0.0)
-
-    focus_pid_k = guide_loop["focus"]["pid"]["k"]
-    focus_pid_td = guide_loop["focus"]["pid"].get("td", 0.0)
-    focus_pid_ti = guide_loop["focus"]["pid"].get("ti", 0.0)
-
-    if "scale" in guide_loop:
-        scale_pid_k = guide_loop["scale"]["pid"]["k"]
-        scale_pid_td = guide_loop["scale"]["pid"].get("td", 0.0)
-        scale_pid_ti = guide_loop["scale"]["pid"].get("ti", 0.0)
-    else:
-        scale_pid_k = 0.0
-        scale_pid_td = 0.0
-        scale_pid_ti = 0.0
-
-    rms = data.rms
-    delta_ra = data.delta_ra
-    delta_dec = data.delta_dec
-    delta_rot = data.delta_rot
-    delta_scale = data.delta_scale
-    delta_focus = data.delta_focus
-
-    # Update headers of proc images with deltas.
-    for a_data in data.guide_data:
-        if a_data.proc_image is not None:
-            hdus = fits.open(str(a_data.proc_image), mode="update")
-            header = hdus[1].header
-
-            header["EXTMETH"] = (a_data.e_data.algorithm, "Algorithm for star finding")
-
-            header["RAK"] = (ra_pid_k, "PID K term for RA")
-            header["RATD"] = (ra_pid_td, "PID Td term for RA")
-            header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
-
-            header["DECK"] = (dec_pid_k, "PID K term for Dec")
-            header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
-            header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
-
-            header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
-            header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
-            header["ROTTI"] = (rot_pid_ti, "PID Ti term for Rot.")
-
-            header["SCLK"] = (scale_pid_k, "PID K term for Scale")
-            header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
-            header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
-
-            header["FOCUSK"] = (focus_pid_k, "PID K term for Focus")
-            header["FOCUSTD"] = (focus_pid_td, "PID Td term for Focus")
-            header["FOCUSTI"] = (focus_pid_ti, "PID Ti term for Focus")
-
-            header["FWHM"] = (a_data.e_data.fwhm_median, "Mesured FWHM [arcsec]")
-            header["FWHMFIT"] = (data.fwhm_fit, "Fitted FWHM [arcsec]")
-
-            header["RMS"] = (rms, "Guide RMS [arcsec]")
-            header["FITMODE"] = (data.fit_mode, "Fit mode (full or RA/Dec)")
-
-            header["E_RA"] = (enabled_ra, "RA corrections enabled?")
-            header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
-            header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
-            header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
-            header["E_SCL"] = (False, "Scale corrections enabled?")
-
-            header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
-            header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
-            header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
-            header["DELTASCL"] = (delta_scale, "Scale measured factor")
-            header["DELTAFOC"] = (delta_focus, "Focus delta [microns]")
-
-            header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
-            header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
-            header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
-            header["CORR_SCL"] = (cscl, "Scale applied correction")
-            header["CORR_FOC"] = (cfoc, "Focus applied correction [microns]")
-
-            hdus.close()
 
 
 def get_proc_headers(
@@ -1885,10 +1652,6 @@ def write_proc_image(
     header["DARKFILE"] = dark_path
 
 
-    # proc_hdu[1].header["GAIN"] = calibs["gain"]
-
-    # df = guide_data.extraction_data.regions
-    # import pdb; pdb.set_trace()
 
     rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
     proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
@@ -1897,32 +1660,6 @@ def write_proc_image(
     gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
     proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
 
-    # proc_hdu[1].header["SOLVED"] = guide_data.solved
-    # proc_hdu[1].header["SOLVMODE"] = (
-    #     guide_data.solve_method,
-    #     "Method used to solve the field",
-    # )
-    # proc_hdu[1].header["SOLVTIME"] = (
-    #     guide_data.solve_time,
-    #     "Time to solve the field or fail",
-    # )
-    # offsets = guider_state.offset
-    # proc_hdu[1].header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
-    # proc_hdu[1].header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
-    # proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
-    # proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
-    # proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")
-
-    # default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
-    # aoffset = (
-    #     default_offset[0] + offsets[0],
-    #     default_offset[1] + offsets[1],
-    #     default_offset[2] + offsets[2],
-    # )
-    # proc_hdu[1].header["AOFFRA"] = (aoffset[0], "Absolute offset in RA [arcsec]")
-    # proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
-    # proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
-
     if guide_data.wcs is not None:
         header.update(guide_data.wcs.to_header())
 
@@ -1930,120 +1667,20 @@ def write_proc_image(
 
     proc_path = ext_data.path.parent / ("proc-" + ext_data.path.name)
 
-    # mostly copied from update_proc_headers
-    # guide_loop = guider_state.guide_loop
-
-    # enabled_axes = guider_state.enabled_axes
-    # enabled_ra = "ra" in enabled_axes
-    # enabled_dec = "dec" in enabled_axes
-    # enabled_rot = "rot" in enabled_axes
-    # enabled_focus = "focus" in enabled_axes
-
-    # cra, cdec, crot, cscl, cfoc = data.correction_applied
-
-    # ra_pid_k = guide_loop["ra"]["pid"]["k"]
-    # ra_pid_td = guide_loop["ra"]["pid"].get("td", 0.0)
-    # ra_pid_ti = guide_loop["ra"]["pid"].get("ti", 0.0)
-
-    # dec_pid_k = guide_loop["dec"]["pid"]["k"]
-    # dec_pid_td = guide_loop["dec"]["pid"].get("td", 0.0)
-    # dec_pid_ti = guide_loop["dec"]["pid"].get("ti", 0.0)
-
-    # rot_pid_k = guide_loop["rot"]["pid"]["k"]
-    # rot_pid_td = guide_loop["rot"]["pid"].get("td", 0.0)
-    # rot_pid_ti = guide_loop["rot"]["pid"].get("ti", 0.0)
-
-    # focus_pid_k = guide_loop["focus"]["pid"]["k"]
-    # focus_pid_td = guide_loop["focus"]["pid"].get("td", 0.0)
-    # focus_pid_ti = guide_loop["focus"]["pid"].get("ti", 0.0)
-
-    # if "scale" in guide_loop:
-    #     scale_pid_k = guide_loop["scale"]["pid"]["k"]
-    #     scale_pid_td = guide_loop["scale"]["pid"].get("td", 0.0)
-    #     scale_pid_ti = guide_loop["scale"]["pid"].get("ti", 0.0)
-    # else:
-    #     scale_pid_k = 0.0
-    #     scale_pid_td = 0.0
-    #     scale_pid_ti = 0.0
-
-    # rms = data.rms
-    # delta_ra = data.delta_ra
-    # delta_dec = data.delta_dec
-    # delta_rot = data.delta_rot
-    # delta_scale = data.delta_scale
-    # delta_focus = data.delta_focus
-
-    # header = proc_hdu[1].header
-
-    # header["EXTMETH"] = (guide_data.e_data.algorithm, "Algorithm for star finding")
-
-    # # header["RAK"] = (ra_pid_k, "PID K term for RA")
-    # # header["RATD"] = (ra_pid_td, "PID Td term for RA")
-    # # header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
-
-    # # header["DECK"] = (dec_pid_k, "PID K term for Dec")
-    # # header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
-    # # header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
-
-    # # header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
-    # # header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
-    # # header["ROTTI"] = (rot_pid_ti, "PID Ti term for Rot.")
-
-    # # header["SCLK"] = (scale_pid_k, "PID K term for Scale")
-    # # header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
-    # # header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
-
-    # # header["FOCUSK"] = (focus_pid_k, "PID K term for Focus")
-    # # header["FOCUSTD"] = (focus_pid_td, "PID Td term for Focus")
-    # # header["FOCUSTI"] = (focus_pid_ti, "PID Ti term for Focus")
-
-    # header["FWHM"] = (guide_data.e_data.fwhm_median, "Mesured FWHM [arcsec]")
-    # header["FWHMFIT"] = (data.fwhm_fit, "Fitted FWHM [arcsec]")
-
-    # header["RMS"] = (rms, "Guide RMS [arcsec]")
-    # header["FITMODE"] = (data.fit_mode, "Fit mode (full or RA/Dec)")
-
-    # # header["E_RA"] = (enabled_ra, "RA corrections enabled?")
-    # # header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
-    # # header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
-    # # header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
-    # header["E_SCL"] = (False, "Scale corrections enabled?")
-
-    # header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
-    # header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
-    # header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
-    # header["DELTASCL"] = (delta_scale, "Scale measured factor")
-    # header["DELTAFOC"] = (delta_focus, "Focus delta [microns]")
-
-    # header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
-    # header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
-    # header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
-    # header["CORR_SCL"] = (cscl, "Scale applied correction")
-    # header["CORR_FOC"] = (cfoc, "Focus applied correction [microns]")
-
-    # finally add extra info if solved via coordio or coordio-fast
-
     if header_updates is not None:
         for kw, val, comment in header_updates:
             header[kw] = (val, comment)
-        # import pdb; pdb.set_trace()
+    if gaia_matches is not None:
         rec = Table.from_pandas(gaia_matches).as_array()
         proc_hdu.append(fits.BinTableHDU(rec, name="GAIAMATCH"))
 
     header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
     header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
-    # loop = asyncio.get_running_loop()
-    # func = partial(
-    #     proc_hdu.writeto,
-    #     proc_path,
-    #     overwrite=overwrite,
-    #     output_verify="silentfix",
-    # )
-    # await loop.run_in_executor(None, func)
 
     proc_hdu.writeto(proc_path, overwrite=overwrite, output_verify="silentfix")
     proc_hdu.close()
-    # guide_data.proc_image = proc_path
+    # probably not necessary to add this to the guide_data anymore
+    guide_data.proc_image = proc_path
 
 
 

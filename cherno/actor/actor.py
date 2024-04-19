@@ -77,7 +77,7 @@ class ChernoActor(clu.LegacyActor):
         else:
             pass
 
-    def _process_boss_status(self): #, model: dict, key: TronKey):
+    def _process_boss_status(self):
         exposing = False
         expNum = -999
 
