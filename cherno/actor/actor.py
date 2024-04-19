@@ -77,13 +77,14 @@ class ChernoActor(clu.LegacyActor):
         else:
             pass
 
-    def _process_boss_status(self, model: dict, key: TronKey):
+    def _process_boss_status(self): #, model: dict, key: TronKey):
         exposing = False
         expNum = -999
 
         if self.observatory == "APO":
             values = self.models["boss"]["exposureState"].value
             print("expState val", values)
+            print("expNum val", self.models["boss"]["exposureId"].value[0])
             if len(values) > 0 and values[0] == "INTEGRATING":
                 exposing = True
                 # get the current exposure number

@@ -291,10 +291,15 @@ class Guider:
         print("getting boss state")
         bossExposing = False
         bossExpNum = -999
+        print("self.command.actor", self.command.actor)
+ 
+        print("hasattr", hasattr(self.command.actor, "_process_boss_status"))
+        print("dir actor", dir(self.command.actor))
+        print("boss status", self.command.actor._process_boss_status())
         if self.command.actor is not None:
-            if hasattr(self.command.actor, "_boss_exp_state"):
-                bossExposing, bossExpNum = self.command.actor._boss_exp_state()
-
+            if hasattr(self.command.actor, "_process_boss_status"):
+                bossExposing, bossExpNum = self.command.actor._process_boss_status()
+                print("boss state", bossExposing, bossExpNum)
         self.command.info("Extracting sources.")
 
         print("extracting")
