@@ -1,5 +1,25 @@
 # Changelog
 
+## Next version
+
+### 🔧 Fixed
+
+* Fix a case in which the exposure time could increase in an uncontrolled way.
+
+
+## 0.6.9 - April 18, 2024
+
+### ✨ Improved
+
+* [#18](https://github.com/sdss/cherno/pull/18) Two efficiency improvements:
+  * The `wait_time` is only used when a correction has actually applied. Otherwise the next iteration start immediately.
+  * Allow to specify a `--dynamic-exposure-time` that combined with `--max-exposure-time` can be used to set an initial short exposure time. If the field fails to solve the exposure time is automatically increased for the following iteration up to `--max-exposure-time`.
+
+### 🏷️ Changed
+
+* Set integral term for RA and Dec at APO to 0.01.
+
+
 ## 0.6.8 - February 27, 2024
 
 ### 🔧 Fixed
