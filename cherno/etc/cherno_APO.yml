@@ -76,11 +76,13 @@ guide_loop:
   ra:
     pid:
       k: 0.7
+      ti: 0.01
     min_correction: 0.05
     max_correction: 600
   dec:
     pid:
       k: 0.7
+      ti: 0.01
     min_correction: 0.05
     max_correction: 600
   rot:

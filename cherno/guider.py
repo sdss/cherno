@@ -16,6 +16,7 @@ import time
 import warnings
 from dataclasses import dataclass, field
 from functools import partial
+import os
 
 from typing import TYPE_CHECKING, Any, Coroutine
 
@@ -46,6 +47,7 @@ from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
 from cherno.utils import focus_fit, run_in_executor
+from concurrent.futures import ProcessPoolExecutor
 
 
 if TYPE_CHECKING:
@@ -205,6 +207,7 @@ class Guider:
 
         # setup task queue for writing proc-*.fits files
         self.write_background_tasks = set()
+        self.write_executor = ProcessPoolExecutor() #max_workers=1)
 
         self._database_lock = asyncio.Lock()
 
@@ -291,11 +294,11 @@ class Guider:
         print("getting boss state")
         bossExposing = False
         bossExpNum = -999
-        print("self.command.actor", self.command.actor)
+        # print("self.command.actor", self.command.actor)
  
-        print("hasattr", hasattr(self.command.actor, "_process_boss_status"))
-        print("dir actor", dir(self.command.actor))
-        print("boss status", self.command.actor._process_boss_status())
+        # print("hasattr", hasattr(self.command.actor, "_process_boss_status"))
+        # print("dir actor", dir(self.command.actor))
+        # print("boss status", self.command.actor._process_boss_status())
         if self.command.actor is not None:
             if hasattr(self.command.actor, "_process_boss_status"):
                 bossExposing, bossExpNum = self.command.actor._process_boss_status()
@@ -411,6 +414,7 @@ class Guider:
             if use_gaia and len(not_solved) > 0:
                 self.command.info("Running Gaia cross-match.")
                 # print("running gaia cross-match")
+                import time; tstart=time.time()
                 res = await asyncio.gather(
                     *[
                         self._gaia_cross_match_one(
@@ -424,6 +428,7 @@ class Guider:
                     ],
                     return_exceptions=True,
                 )
+                print("astronet took", time.time()-tstart)
                 for ii, rr in enumerate(res):
                     if isinstance(rr, Exception):
                         cam = not_solved[ii].camera
@@ -486,44 +491,50 @@ class Guider:
             )
 
 
-        print('\n\n\nwrite queue length %i\n\n\n'%len(self.write_background_tasks))
+        print('\nwrite queue length %i\n'%len(self.write_background_tasks))
         # write files in the background and move on
         # print("before pending writes", len(self.write_background_tasks))
         if write_proc and self.command.actor:
             self.command.debug("Saving proc- files.")
-            with concurrent.futures.ProcessPoolExecutor() as process_pool:
-                loop = asyncio.get_event_loop()
-                for d in guide_data:
-                    header_updates = get_proc_headers(
-                        ast_solution, self.command.actor.state, d
+            # with concurrent.futures.ProcessPoolExecutor() as process_pool:
+                # loop = asyncio.get_event_loop()
+            for d in guide_data:
+                header_updates = get_proc_headers(
+                    ast_solution, self.command.actor.state, d
+                )
+                gaia_matches = None
+                if self.solve_pointing is not None:
+                    header_updates += self.solve_pointing.getMetadata()
+                    zp = self.solve_pointing.median_zeropoint(d.camera_id)
+                    zptTuple = (
+                        "R_ZPT", zp, "median measured zeropoint of gaia sources"
                     )
-                    gaia_matches = None
-                    if self.solve_pointing is not None:
-                        header_updates += self.solve_pointing.getMetadata()
-                        zp = self.solve_pointing.median_zeropoint(d.camera_id)
-                        zptTuple = (
-                            "R_ZPT", zp, "median measured zeropoint of gaia sources"
-                        )
-                        header_updates.append(zptTuple)
-                        gaia_matches = self.solve_pointing.matchedSources.copy()
+                    header_updates.append(zptTuple)
+                    gaia_matches = self.solve_pointing.matchedSources.copy()
 
-                    func = partial(
-                        write_proc_image,
-                        d,
-                        overwrite=overwrite,
-                        bossExposing=bossExposing,
-                        bossExpNum=bossExpNum,
-                        header_updates=header_updates,
-                        gaia_matches=gaia_matches
-                    )
+                func = partial(
+                    write_proc_image,
+                    d,
+                    overwrite=overwrite,
+                    bossExposing=bossExposing,
+                    bossExpNum=bossExpNum,
+                    header_updates=header_updates,
+                    gaia_matches=gaia_matches
+                )
 
-                    task = loop.run_in_executor(process_pool, func)
-                    # fire and forget (eg no checking that the fits was
-                    # actually written ok)
-                    self.write_background_tasks.add(task)
-                    task.add_done_callback(self.write_background_tasks.discard)
+                # task = loop.run_in_executor(process_pool, func)
+                task = self.write_executor.submit(func)
+                # task = run_in_executor(func, executor="process")
 
-        print("\n\nfull loop time %.1f"%(time.time()-flp))
+                # task = asyncio.create_task(func())
+                # fire and forget (eg no checking that the fits was
+                # actually written ok)
+                self.write_background_tasks.add(task)
+                task.add_done_callback(self.write_background_tasks.discard)
+
+        # print("sleeping")
+        # await asyncio.sleep(4)
+        print("---------\nfull loop time %.1f\n-----------"%(time.time()-flp))
 
 
         return ast_solution
@@ -1619,6 +1630,9 @@ def write_proc_image(
     header_updates: list | None = None,
     gaia_matches: pandas.DataFrame | None = None
 ):
+
+    niceness = os.nice(5)
+    print("PID write", os.getpid(), niceness)
     # mostly coppied from write_proc_image method on guider
     ext_data = guide_data.extraction_data
 
@@ -1681,6 +1695,7 @@ def write_proc_image(
     proc_hdu.close()
     # probably not necessary to add this to the guide_data anymore
     guide_data.proc_image = proc_path
+    # print("wrote file:", proc_path)
 
 
 
