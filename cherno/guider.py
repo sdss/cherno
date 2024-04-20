@@ -17,6 +17,7 @@ import warnings
 from dataclasses import dataclass, field
 from functools import partial
 import os
+import multiprocessing as mp
 
 from typing import TYPE_CHECKING, Any, Coroutine
 
@@ -213,7 +214,7 @@ class Guider:
 
         # setup task queue for writing proc-*.fits files
         self.write_background_tasks = set()
-        self.write_executor = ProcessPoolExecutor() #max_workers=1)
+        self.write_executor = ProcessPoolExecutor(max_workers=3, mp_context=mp.get_context("spawn")) #"fork"))
 
         self._database_lock = asyncio.Lock()
 
@@ -297,6 +298,7 @@ class Guider:
             self.set_command(command)
 
         # get the state of the boss spectrograph up front
+        print("guide process niceness", os.getpid(), os.nice(0))
         print("getting boss state")
         bossExposing = False
         bossExpNum = -999
@@ -504,6 +506,8 @@ class Guider:
             self.command.debug("Saving proc- files.")
             # with concurrent.futures.ProcessPoolExecutor() as process_pool:
                 # loop = asyncio.get_event_loop()
+            # with ProcessPoolExecutor(1) as process_pool:
+            # loop = asyncio.get_event_loop()
             for d in guide_data:
                 header_updates = get_proc_headers(
                     ast_solution, self.command.actor.state, d
@@ -528,8 +532,9 @@ class Guider:
                     gaia_matches=gaia_matches
                 )
 
-                # task = loop.run_in_executor(process_pool, func)
+                # task = loop.run_in_executor(self.write_executor, func)
                 task = self.write_executor.submit(func)
+                # task = process_pool.submit(func)
                 # task = run_in_executor(func, executor="process")
 
                 # task = asyncio.create_task(func())
@@ -1628,8 +1633,6 @@ def get_proc_headers(
 
 
 def write_proc_image(
-    # data: AstrometricSolution,
-    # guider_state: ChernoState,
     guide_data: GuideData,
     overwrite: bool = False,
     bossExposing: bool = False,
@@ -1638,8 +1641,12 @@ def write_proc_image(
     gaia_matches: pandas.DataFrame | None = None
 ):
 
-    niceness = os.nice(5)
-    print("PID write", os.getpid(), niceness)
+    niceness = os.nice(0)
+    dnice = 5 - niceness
+    if dnice != 0:
+        niceness = os.nice(dnice)
+    print("PID write", os.getpid())
+    # time.sleep(20)
     # mostly coppied from write_proc_image method on guider
     ext_data = guide_data.extraction_data
 
