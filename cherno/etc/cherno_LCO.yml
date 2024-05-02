@@ -15,29 +15,29 @@ actor:
 
 calib:
   gfa1:
-    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa1s.fits
-    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa1s.fits
-    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa1s.fits
+    bias: /data/gcam/calib/60404/superstack_bias_lco_median_gfa1s.fits
+    dark: /data/gcam/calib/60404/superstack_dark_lco_median_gfa1s.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_lco_median_gfa1s.fits
   gfa2:
-    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa2s.fits
-    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa2s.fits
-    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa2s.fits
+    bias: /data/gcam/calib/60404/superstack_bias_lco_median_gfa2s.fits
+    dark: /data/gcam/calib/60404/superstack_dark_lco_median_gfa2s.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_lco_median_gfa2s.fits
   gfa3:
-    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa3s.fits
-    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa3s.fits
-    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa3s.fits
+    bias: /data/gcam/calib/60404/superstack_bias_lco_median_gfa3s.fits
+    dark: /data/gcam/calib/60404/superstack_dark_lco_median_gfa3s.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_lco_median_gfa3s.fits
   gfa4:
-    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa4s.fits
-    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa4s.fits
-    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa4s.fits
+    bias: /data/gcam/calib/60404/superstack_bias_lco_median_gfa4s.fits
+    dark: /data/gcam/calib/60404/superstack_dark_lco_median_gfa4s.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_lco_median_gfa4s.fits
   gfa5:
-    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa5s.fits
-    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa5s.fits
-    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa5s.fits
+    bias: /data/gcam/calib/60404/superstack_bias_lco_median_gfa5s.fits
+    dark: /data/gcam/calib/60404/superstack_dark_lco_median_gfa5s.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_lco_median_gfa5s.fits
   gfa6:
-    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa6s.fits
-    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa6s.fits
-    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa6s.fits
+    bias: /data/gcam/calib/60404/superstack_bias_lco_median_gfa6s.fits
+    dark: /data/gcam/calib/60404/superstack_dark_lco_median_gfa6s.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_lco_median_gfa6s.fits
 
 cameras:
   path: /data/gcam/
