@@ -94,7 +94,7 @@ class ChernoActor(clu.LegacyActor):
             # print("expState val", values)
             if len(values) > 0 and "EXPOSING" in values:
                 exposing = True
-                expNum = int(self.models["yao"]["next_exposure_no"])
+                expNum = int(self.models["yao"]["next_exposure_no"].value[0])
 
         return exposing, expNum
 
