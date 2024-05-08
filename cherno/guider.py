@@ -269,6 +269,17 @@ class Guider:
 
         return True
 
+    def check_wcs(self, guide_data):
+        guide_cameras = self.command.actor.state.guide_cameras
+        wcs_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in guide_cameras]
+        if len(wcs_solved) > 1:
+            # if 2 or more cameras have wcs solns, use "coordio"
+            for gd in guide_data:
+                gd.solved = True
+                gd.solve_method = "coordio"
+
+        return wcs_solved
+
     async def process(
         self,
         command: ChernoCommandType | None,
@@ -292,29 +303,21 @@ class Guider:
         stop_at_target_rms: bool = False,
     ):
         """Performs extraction and astrometry."""
-        # print("process begins!!!")
-        # import time; flp = time.time()
+
         if command is not None:
             self.set_command(command)
 
         # get the state of the boss spectrograph up front
-        # print("guide process niceness", os.getpid(), os.nice(0))
-        # print("getting boss state")
         bossExposing = False
         bossExpNum = -999
-        # print("self.command.actor", self.command.actor)
- 
-        # print("hasattr", hasattr(self.command.actor, "_process_boss_status"))
-        # print("dir actor", dir(self.command.actor))
-        # print("boss status", self.command.actor._process_boss_status())
+
         if self.command.actor is not None:
             if hasattr(self.command.actor, "_process_boss_status"):
                 bossExposing, bossExpNum = self.command.actor._process_boss_status()
                 print("boss state", bossExposing, bossExpNum)
         self.command.info("Extracting sources.")
 
-        # print("extracting")
-        # import time; tstart=time.time()
+
         ext_data = await asyncio.gather(
             *[
                 run_in_executor(
@@ -327,9 +330,6 @@ class Guider:
             ]
         )
 
-        # ext_data = [self.extractor.process(im, plot=plot) for im in images]
-
-        # print("extraction done in", time.time()-tstart)
         for d in ext_data:
             if d.nvalid == 0:
                 self.command.warning(f"Camera {d.camera}: not enough sources.")
@@ -347,11 +347,10 @@ class Guider:
         guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
 
         sp_guider_fit = None
-        _astronet_solved = []
+        _wcs_solved = []
         converged = self.check_convergence(ext_data, offset)
         if converged:
-            # try a rapid field resolve
-            # print("\n------------\nrunnin rapid solve\n-------------\n")
+
             dfList = []
             for ex in ext_data:
                 # import pdb; pdb.set_trace()
@@ -362,10 +361,6 @@ class Guider:
                 regions["gain"] = gain
                 dfList.append(regions)
             df = pandas.concat(dfList).reset_index(drop=True)
-
-            #exptime = fits.open(str(ex.path))[1].header["EXPTIMEN"]
-            #print("exptime", exptime)
-            # import pdb; pdb.set_trace()j
 
             sp_guider_fit = self.solve_pointing.reSolve(
                 ex.exposure_no, ex.obstime, ex.exptime, df
@@ -384,10 +379,8 @@ class Guider:
                     gd.solve_method = "coordio-fast"
 
 
-
         if sp_guider_fit is None:
-            # not converged get astronet solutions
-            # print("\n------------\nrunnin slow solve\n-------------\n")
+
             use_astrometry_net = (
                 use_astrometry_net
                 if use_astrometry_net is not None
@@ -403,19 +396,9 @@ class Guider:
 
             # check for astrometry.net solutions for cameras actively used
             # for guide corrections
-            _guide_cameras = self.command.actor.state.guide_cameras
-            _astronet_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in _guide_cameras]
-            # print("astronet_solved", _astronet_solved)
-            # print("_astronet_solved", _astronet_solved)
-            # _astronet_solved = []
-            if len(_astronet_solved) > 1:
-                # if 2 or more cameras have astonet solns, use "coordio"
-                for gd in guide_data:
-                    # print(gd.solved, gd.solve_method)
-                    gd.solved = True
-                    gd.solve_method = "coordio"
-
-            # _astronet_solved = []
+            # will modify solved attr on guide_data(s)
+            # if more than 1 wcs exists
+            _wcs_solved = check_wcs(guide_data)
 
             # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
             not_solved = [ad for ad in guide_data if ad.solved is False]
@@ -436,11 +419,17 @@ class Guider:
                     ],
                     return_exceptions=True,
                 )
-                # print("astronet took", time.time()-tstart)
+
                 for ii, rr in enumerate(res):
                     if isinstance(rr, Exception):
                         cam = not_solved[ii].camera
                         self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
+
+                # check for xmatch solutions for cameras actively used
+                # for guide corrections
+                # will modify solved attr on guide_data(s)
+                # if more than 1 wcs exists
+                _wcs_solved = check_wcs(guide_data)
 
 
         # Output all the camera_solution keywords at once.
@@ -448,11 +437,11 @@ class Guider:
             self.output_camera_solution(ad)
 
 
-        if sp_guider_fit != None or len(_astronet_solved) > 1:
-            # print("callig fit_sp", sp_guider_fit != None, len(_astronet_solved))
+        if sp_guider_fit != None or len(_wcs_solved) > 1:
+
             ast_solution = await self.fit_SP(
                 list(guide_data),
-                astronet_solved=_astronet_solved,
+                wcs_solved=_wcs_solved,
                 offset=offset,
                 scale_rms=scale_rms,
                 only_radec=only_radec,
@@ -499,15 +488,11 @@ class Guider:
             )
 
 
-        # print('\nwrite queue length %i\n'%len(self.write_background_tasks))
         # write files in the background and move on
-        # print("before pending writes", len(self.write_background_tasks))
+
         if write_proc and self.command.actor:
             self.command.debug("Saving proc- files.")
-            # with concurrent.futures.ProcessPoolExecutor() as process_pool:
-                # loop = asyncio.get_event_loop()
-            # with ProcessPoolExecutor(1) as process_pool:
-            # loop = asyncio.get_event_loop()
+
             for d in guide_data:
                 header_updates = get_proc_headers(
                     ast_solution, self.command.actor.state, d
@@ -532,20 +517,13 @@ class Guider:
                     gaia_matches=gaia_matches
                 )
 
-                # task = loop.run_in_executor(self.write_executor, func)
-                task = self.write_executor.submit(func)
-                # task = process_pool.submit(func)
-                # task = run_in_executor(func, executor="process")
 
-                # task = asyncio.create_task(func())
+                task = self.write_executor.submit(func)
+
                 # fire and forget (eg no checking that the fits was
                 # actually written ok)
                 self.write_background_tasks.add(task)
                 task.add_done_callback(self.write_background_tasks.discard)
-
-        # print("sleeping")
-        # await asyncio.sleep(4)
-        # print("---------\nfull loop time %.1f\n-----------"%(time.time()-flp))
 
 
         return ast_solution
@@ -853,7 +831,7 @@ class Guider:
     async def fit_SP(
         self,
         data: list[GuideData],
-        astronet_solved: list[str],
+        wcs_solved: list[str],
         offset: list[float] | None = None,
         scale_rms: bool = False,
         fit_focus: bool = True,
@@ -926,7 +904,7 @@ class Guider:
                 if d.extraction_data.nregions == 0:
                     continue
                 wcs = None
-                if d.camera in astronet_solved:
+                if d.camera in wcs_solved:
                     wcs = d.wcs
                 # gain = config["calib"][d.camera]["gain"]
                 self.solve_pointing.add_gimg(
