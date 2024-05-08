@@ -293,13 +293,13 @@ class Guider:
     ):
         """Performs extraction and astrometry."""
         # print("process begins!!!")
-        import time; flp = time.time()
+        # import time; flp = time.time()
         if command is not None:
             self.set_command(command)
 
         # get the state of the boss spectrograph up front
-        print("guide process niceness", os.getpid(), os.nice(0))
-        print("getting boss state")
+        # print("guide process niceness", os.getpid(), os.nice(0))
+        # print("getting boss state")
         bossExposing = False
         bossExpNum = -999
         # print("self.command.actor", self.command.actor)
@@ -313,8 +313,8 @@ class Guider:
                 print("boss state", bossExposing, bossExpNum)
         self.command.info("Extracting sources.")
 
-        print("extracting")
-        import time; tstart=time.time()
+        # print("extracting")
+        # import time; tstart=time.time()
         ext_data = await asyncio.gather(
             *[
                 run_in_executor(
@@ -329,7 +329,7 @@ class Guider:
 
         # ext_data = [self.extractor.process(im, plot=plot) for im in images]
 
-        print("extraction done in", time.time()-tstart)
+        # print("extraction done in", time.time()-tstart)
         for d in ext_data:
             if d.nvalid == 0:
                 self.command.warning(f"Camera {d.camera}: not enough sources.")
@@ -351,7 +351,7 @@ class Guider:
         converged = self.check_convergence(ext_data, offset)
         if converged:
             # try a rapid field resolve
-            print("\n------------\nrunnin rapid solve\n-------------\n")
+            # print("\n------------\nrunnin rapid solve\n-------------\n")
             dfList = []
             for ex in ext_data:
                 # import pdb; pdb.set_trace()
@@ -422,7 +422,7 @@ class Guider:
             if use_gaia and len(not_solved) > 0:
                 self.command.info("Running Gaia cross-match.")
                 # print("running gaia cross-match")
-                import time; tstart=time.time()
+                # import time; tstart=time.time()
                 res = await asyncio.gather(
                     *[
                         self._gaia_cross_match_one(
@@ -436,7 +436,7 @@ class Guider:
                     ],
                     return_exceptions=True,
                 )
-                print("astronet took", time.time()-tstart)
+                # print("astronet took", time.time()-tstart)
                 for ii, rr in enumerate(res):
                     if isinstance(rr, Exception):
                         cam = not_solved[ii].camera
@@ -449,7 +449,7 @@ class Guider:
 
 
         if sp_guider_fit != None or len(_astronet_solved) > 1:
-            print("callig fit_sp", sp_guider_fit != None, len(_astronet_solved))
+            # print("callig fit_sp", sp_guider_fit != None, len(_astronet_solved))
             ast_solution = await self.fit_SP(
                 list(guide_data),
                 astronet_solved=_astronet_solved,
@@ -499,7 +499,7 @@ class Guider:
             )
 
 
-        print('\nwrite queue length %i\n'%len(self.write_background_tasks))
+        # print('\nwrite queue length %i\n'%len(self.write_background_tasks))
         # write files in the background and move on
         # print("before pending writes", len(self.write_background_tasks))
         if write_proc and self.command.actor:
@@ -545,7 +545,7 @@ class Guider:
 
         # print("sleeping")
         # await asyncio.sleep(4)
-        print("---------\nfull loop time %.1f\n-----------"%(time.time()-flp))
+        # print("---------\nfull loop time %.1f\n-----------"%(time.time()-flp))
 
 
         return ast_solution
@@ -1645,7 +1645,7 @@ def write_proc_image(
     dnice = 5 - niceness
     if dnice != 0:
         niceness = os.nice(dnice)
-    print("PID write", os.getpid())
+    # print("PID write", os.getpid())
     # time.sleep(20)
     # mostly coppied from write_proc_image method on guider
     ext_data = guide_data.extraction_data
