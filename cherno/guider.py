@@ -591,7 +591,7 @@ class Guider:
         if self.command.actor is not None:
             if hasattr(self.command.actor, "_process_boss_status"):
                 bossExposing, bossExpNum = self.command.actor._process_boss_status()
-                print("boss state", bossExposing, bossExpNum)
+                # print("boss state", bossExposing, bossExpNum)
         self.command.info("Extracting sources.")
 
         ext_data = await asyncio.gather(
@@ -627,6 +627,7 @@ class Guider:
 
         if sp_guider_fit is None:
             # rapid solve didn't work
+            # print("running astro net")
             use_astrometry_net = (
                 use_astrometry_net
                 if use_astrometry_net is not None
@@ -643,11 +644,13 @@ class Guider:
             # for guide corrections
             # will modify solved attr on guide_data(s)
             # if more than 1 wcs exists
+
             _wcs_solved = self.check_wcs(guide_data)
 
             # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
             not_solved = [ad for ad in guide_data if ad.solved is False]
             if use_gaia and len(not_solved) > 0:
+                # print("running gaia xmatch")
                 self.command.info("Running Gaia cross-match.")
                 # print("running gaia cross-match")
                 # import time; tstart=time.time()
@@ -674,8 +677,8 @@ class Guider:
                 # for guide corrections
                 # will modify solved attr on guide_data(s)
                 # if more than 1 wcs exists
-                _wcs_solved = self.check_wcs(guide_data)
 
+                _wcs_solved = self.check_wcs(guide_data)
 
         # Output all the camera_solution keywords at once.
         for ad in guide_data:
@@ -695,9 +698,11 @@ class Guider:
 
             if sp_guider_fit:
                 # field was already solved in fast mode
+                # print("coordio-fast")
                 guider_fit = sp_guider_fit
 
             elif len(_wcs_solved) > 1:
+                # print("coordio-slow")
                 guider_fit = await self.fit_SP(
                     list(guide_data),
                     wcs_solved=_wcs_solved,
@@ -705,6 +710,7 @@ class Guider:
                 )
 
             else:
+                # print("old way")
                 guider_fit = await self.fit(
                     list(guide_data),
                     full_offset=full_offset,
@@ -863,7 +869,7 @@ class Guider:
             )
             fit_cameras.remove(cam_max_rms)
 
-    return guider_fit
+        return guider_fit
 
     async def fit_SP(
         self,
@@ -879,9 +885,7 @@ class Guider:
         field_dec = solved[0].field_dec
         field_pa = solved[0].field_pa
 
-
         guide_cameras = self.command.actor.state.guide_cameras
-
 
         self.solve_pointing = SolvePointing(
             raCen=field_ra,
@@ -910,7 +914,6 @@ class Guider:
         guider_fit = self.solve_pointing.solve()
 
         return guider_fit
-
 
     async def correct(
         self,
