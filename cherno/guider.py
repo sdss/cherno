@@ -9,15 +9,15 @@
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
+import multiprocessing as mp
+import os
 import pathlib
 import re
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
-import os
-import multiprocessing as mp
 
 from typing import TYPE_CHECKING, Any, Coroutine
 
@@ -35,10 +35,10 @@ from coordio.astrometry import AstrometryNet
 from coordio.guide import (
     GuiderFit,
     GuiderFitter,
+    SolvePointing,
     cross_match,
     gfa_to_radec,
     radec_to_gfa,
-    SolvePointing
 )
 
 from cherno import config, log
@@ -48,7 +48,6 @@ from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
 from cherno.utils import focus_fit, run_in_executor
-from concurrent.futures import ProcessPoolExecutor
 
 
 if TYPE_CHECKING:
@@ -58,7 +57,10 @@ if TYPE_CHECKING:
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
 warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
-warnings.filterwarnings("ignore", message="Card is too long, comment will be truncated.")
+warnings.filterwarnings(
+    "ignore",
+    message="Card is too long, comment will be truncated.",
+)
 
 
 __all__ = ["Guider", "GuideData", "AstrometricSolution", "AxesPID"]
@@ -170,10 +172,6 @@ class Guider:
         astrometry_params: dict = {},
         extraction_params: dict = {},
     ):
-        # self._db_conn_str = config["guider"]["gaia_connection_string"]
-        # self._db_table_str = config["guider"]["gaia_connection_table"] #"catalogdb.gaia_dr2_source_g19"
-        # print("config calib", config["calib"]["gfa1"]["dark"])
-
         self.extractor = extractor or Extraction(observatory, **extraction_params)
 
         if astrometry is not None:
@@ -214,7 +212,10 @@ class Guider:
 
         # setup task queue for writing proc-*.fits files
         self.write_background_tasks = set()
-        self.write_executor = ProcessPoolExecutor(max_workers=3, mp_context=mp.get_context("spawn")) #"fork"))
+        self.write_executor = ProcessPoolExecutor(
+            max_workers=3,
+            mp_context=mp.get_context("spawn"),
+        )
 
         self._database_lock = asyncio.Lock()
 
@@ -226,7 +227,7 @@ class Guider:
     def check_convergence(
         self,
         ex_data: list[ExtractionData],
-        offset: list[float] | None
+        offset: list[float] | None,
     ):
         if self.solve_pointing is None:
             return False
@@ -267,7 +268,11 @@ class Guider:
 
     def check_wcs(self, guide_data: list[GuideData]):
         guide_cameras = self.command.actor.state.guide_cameras
-        wcs_solved = [ad.camera for ad in guide_data if ad.solved is True and ad.camera in guide_cameras]
+        wcs_solved = [
+            ad.camera
+            for ad in guide_data
+            if ad.solved is True and ad.camera in guide_cameras
+        ]
         if len(wcs_solved) > 1:
             # if 2 or more cameras have wcs solns, use "coordio"
             for gd in guide_data:
@@ -280,7 +285,7 @@ class Guider:
         self,
         guide_data: list[GuideData],
         ext_data: list[ExtractionData],
-        offset: list[float] | None
+        offset: list[float] | None,
     ):
         sp_guider_fit = None
         converged = self.check_convergence(ext_data, offset)
@@ -288,11 +293,10 @@ class Guider:
         if converged:
             dfList = []
             for ex in ext_data:
-                # import pdb; pdb.set_trace()
                 regions = ex.regions.copy().reset_index(drop=True)
                 gfaNum = int(ex.camera.strip("gfa"))
                 regions["gfaNum"] = gfaNum
-                gain = ex.gain #config["calib"][ex.camera]["gain"]
+                gain = ex.gain
                 regions["gain"] = gain
                 dfList.append(regions)
             df = pandas.concat(dfList).reset_index(drop=True)
@@ -301,8 +305,7 @@ class Guider:
                 ex.exposure_no, ex.obstime, ex.exptime, df
             )
             if self.solve_pointing.guide_rms_sky > 1:
-                # guider probably jumped safer to revert to
-                # slow solve
+                # guider probably jumped safer to revert to slow solve
                 sp_guider_fit = None
                 self.solve_pointing = None
             else:
@@ -315,11 +318,7 @@ class Guider:
 
         return sp_guider_fit
 
-    def validate_astrometry(
-        self,
-        data: list[GuideData],
-        offset: list[float] | None
-    ):
+    def validate_astrometry(self, data: list[GuideData], offset: list[float] | None):
 
         isOK = False
 
@@ -365,7 +364,7 @@ class Guider:
 
     def get_full_offset(self, offset: list[float] | None):
         if offset is None:
-            offset = numpy.array([0,0,0])
+            offset = numpy.array([0, 0, 0])
 
         default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
         full_offset = numpy.array(offset) + numpy.array(default_offset)
@@ -383,7 +382,7 @@ class Guider:
         ast_solution: AstrometricSolution,
         data: list[GuideData],
         guider_fit: GuiderFit,
-        fit_focus: bool
+        fit_focus: bool,
     ):
 
         guide_cameras = self.command.actor.state.guide_cameras
@@ -584,14 +583,14 @@ class Guider:
         if command is not None:
             self.set_command(command)
 
-        # get the state of the boss spectrograph up front
+        # Get the state of the boss spectrograph up front
         bossExposing = False
         bossExpNum = -999
 
         if self.command.actor is not None:
             if hasattr(self.command.actor, "_process_boss_status"):
                 bossExposing, bossExpNum = self.command.actor._process_boss_status()
-                # print("boss state", bossExposing, bossExpNum)
+
         self.command.info("Extracting sources.")
 
         ext_data = await asyncio.gather(
@@ -626,8 +625,7 @@ class Guider:
         sp_guider_fit = self.try_rapid_solve(guide_data, ext_data, offset)
 
         if sp_guider_fit is None:
-            # rapid solve didn't work
-            # print("running astro net")
+            # Rapid solve didn't work
             use_astrometry_net = (
                 use_astrometry_net
                 if use_astrometry_net is not None
@@ -647,13 +645,11 @@ class Guider:
 
             _wcs_solved = self.check_wcs(guide_data)
 
-            # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
+            # Use Gaia cross-match for the cameras that did not solve with
+            # astrometry.net.
             not_solved = [ad for ad in guide_data if ad.solved is False]
             if use_gaia and len(not_solved) > 0:
-                # print("running gaia xmatch")
                 self.command.info("Running Gaia cross-match.")
-                # print("running gaia cross-match")
-                # import time; tstart=time.time()
                 res = await asyncio.gather(
                     *[
                         self._gaia_cross_match_one(
@@ -661,7 +657,9 @@ class Guider:
                             gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
                             gaia_cross_correlation_blur=gaia_cross_correlation_blur,
                             gaia_table_name=config["guider"]["gaia_connection_table"],
-                            gaia_connection_string=config["guider"]["gaia_connection_string"]
+                            gaia_connection_string=config["guider"][
+                                "gaia_connection_string"
+                            ],
                         )
                         for ad in not_solved
                     ],
@@ -671,7 +669,9 @@ class Guider:
                 for ii, rr in enumerate(res):
                     if isinstance(rr, Exception):
                         cam = not_solved[ii].camera
-                        self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
+                        self.command.warning(
+                            f"{cam}: Gaia cross-match failed: {str(rr)}"
+                        )
 
                 # check for xmatch solutions for cameras actively used
                 # for guide corrections
@@ -698,11 +698,9 @@ class Guider:
 
             if sp_guider_fit:
                 # field was already solved in fast mode
-                # print("coordio-fast")
                 guider_fit = sp_guider_fit
 
             elif len(_wcs_solved) > 1:
-                # print("coordio-slow")
                 guider_fit = await self.fit_SP(
                     list(guide_data),
                     wcs_solved=_wcs_solved,
@@ -710,7 +708,6 @@ class Guider:
                 )
 
             else:
-                # print("old way")
                 guider_fit = await self.fit(
                     list(guide_data),
                     full_offset=full_offset,
@@ -721,7 +718,10 @@ class Guider:
                 )
 
             self.update_ast_solution(
-                ast_solution, list(guide_data), guider_fit, fit_focus
+                ast_solution,
+                list(guide_data),
+                guider_fit,
+                fit_focus,
             )
 
             if (
@@ -762,7 +762,9 @@ class Guider:
                     header_updates += self.solve_pointing.getMetadata()
                     zp = self.solve_pointing.median_zeropoint(d.camera_id)
                     zptTuple = (
-                        "R_ZPT", zp, "median measured zeropoint of gaia sources"
+                        "R_ZPT",
+                        zp,
+                        "median measured zeropoint of gaia sources",
                     )
                     header_updates.append(zptTuple)
                     gaia_matches = self.solve_pointing.matchedSources.copy()
@@ -774,13 +776,12 @@ class Guider:
                     bossExposing=bossExposing,
                     bossExpNum=bossExpNum,
                     header_updates=header_updates,
-                    gaia_matches=gaia_matches
+                    gaia_matches=gaia_matches,
                 )
 
                 task = self.write_executor.submit(func)
 
-                # fire and forget (eg no checking that the fits was
-                # actually written ok)
+                # Fire and forget (eg no checking that the fits was actually written ok)
                 self.write_background_tasks.add(task)
                 task.add_done_callback(self.write_background_tasks.discard)
 
@@ -820,7 +821,6 @@ class Guider:
         field_dec = solved[0].field_dec
         field_pa = solved[0].field_pa
 
-
         guide_cameras = self.command.actor.state.guide_cameras
         fit_cameras = [d.camera_id for d in solved if d.camera in guide_cameras]
         fit_rms_sigma = config["guider"].get("fit_rms_sigma", 3)
@@ -835,7 +835,6 @@ class Guider:
                 only_radec=only_radec,
                 cameras=fit_cameras,
             )
-
 
             # If we already had a solution and this fit failed or the fit RMS is bad,
             # just use the previous fit.
@@ -895,7 +894,7 @@ class Guider:
             offset_dec=full_offset[1],
             offset_pa=full_offset[2],
             db_conn_st=config["guider"]["gaia_connection_string"],
-            db_tab_name=config["guider"]["gaia_connection_table"]
+            db_tab_name=config["guider"]["gaia_connection_table"],
         )
         for d in data:
             if d.camera not in guide_cameras:
@@ -905,10 +904,12 @@ class Guider:
             wcs = None
             if d.camera in wcs_solved:
                 wcs = d.wcs
-            # gain = config["calib"][d.camera]["gain"]
+
             self.solve_pointing.add_gimg(
-                d.path, d.extraction_data.regions.copy(),
-                wcs, d.extraction_data.gain
+                d.path,
+                d.extraction_data.regions.copy(),
+                wcs,
+                d.extraction_data.gain,
             )
 
         guider_fit = self.solve_pointing.solve()
@@ -1100,7 +1101,7 @@ class Guider:
             ext_data.field_dec,
             position_angle=ext_data.field_pa,
         )
-        # print("ra/dec cen", camera_id, ext_data.field_ra, ext_data.field_dec, radec_centre)
+
         if self.command.actor and self.command.actor.state:
             odds_to_solve = 10**self.command.actor.state.astrometry_net_odds
         else:
@@ -1113,7 +1114,7 @@ class Guider:
             ra=radec_centre[0],
             dec=radec_centre[1],
             odds_to_solve=odds_to_solve,
-            radius=1
+            radius=1,
         )
 
         guide_data = GuideData(ext_data.camera, ext_data, solve_time=proc.elapsed)
@@ -1176,7 +1177,7 @@ class Guider:
         gaia_phot_g_mean_mag_max: float | None = None,
         gaia_cross_correlation_blur: float | None = None,
         gaia_table_name: str = "catalogdb.gaia_dr2_source_g19",
-        gaia_connection_string: str = config["guider"]["gaia_connection_string"]
+        gaia_connection_string: str = config["guider"]["gaia_connection_string"],
     ):
         """Solves a field cross-matching to Gaia."""
 
@@ -1299,10 +1300,10 @@ class Guider:
 def get_proc_headers(
     data: AstrometricSolution, guider_state: ChernoState, guide_data: GuideData
 ):
-    # largely modified from update_proc_headers
+    # Largely modified from update_proc_headers
     # returns a list of headers to be updated in a separate
     # process (guider_state can't be offloaded to ProcessPool)
-    # but a list can
+    # but a list can.
     guide_loop = guider_state.guide_loop
 
     enabled_axes = guider_state.enabled_axes
@@ -1347,20 +1348,24 @@ def get_proc_headers(
 
     cra, cdec, crot, cscl, cfoc = data.correction_applied
 
-    # generate heder list
+    # generate header list
     header = []
 
     header.append(("SOLVED", guide_data.solved, "field was solved"))
-    header.append((
-        "SOLVMODE",
-        guide_data.solve_method,
-        "Method used to solve the field",
-    ))
-    header.append((
-        "SOLVTIME",
-        guide_data.solve_time,
-        "Time to solve the field or fail",
-    ))
+    header.append(
+        (
+            "SOLVMODE",
+            guide_data.solve_method,
+            "Method used to solve the field",
+        )
+    )
+    header.append(
+        (
+            "SOLVTIME",
+            guide_data.solve_time,
+            "Time to solve the field or fail",
+        )
+    )
 
     offsets = guider_state.offset
     header.append(("OFFRA", offsets[0], "Relative offset in RA [arcsec]"))
@@ -1377,7 +1382,13 @@ def get_proc_headers(
     header.append(("AOFFDEC", aoffset[1], "Absolute offset in Dec [arcsec]"))
     header.append(("AOFFPA", aoffset[2], "Absolute offset in PA [arcsec]"))
 
-    header.append(("EXTMETH", guide_data.e_data.algorithm, "Algorithm for star finding"))
+    header.append(
+        (
+            "EXTMETH",
+            guide_data.e_data.algorithm,
+            "Algorithm for star finding",
+        )
+    )
 
     header.append(("RAK", ra_pid_k, "PID K term for RA"))
     header.append(("RATD", ra_pid_td, "PID Td term for RA"))
@@ -1432,25 +1443,24 @@ def write_proc_image(
     bossExposing: bool = False,
     bossExpNum: int = -999,
     header_updates: list | None = None,
-    gaia_matches: pandas.DataFrame | None = None
+    gaia_matches: pandas.DataFrame | None = None,
 ):
 
     niceness = os.nice(0)
     dnice = 5 - niceness
     if dnice != 0:
         niceness = os.nice(dnice)
-    # print("PID write", os.getpid())
-    # time.sleep(20)
-    # mostly coppied from write_proc_image method on guider
+
+    # Mostly coppied from write_proc_image method on guider
     ext_data = guide_data.extraction_data
 
     proc_hdu = fits.open(str(guide_data.path)).copy()
     header = proc_hdu[1].header
 
-    # import pdb; pdb.set_trace()
     calibs = config["calib"][guide_data.camera]
-    # apply calibs again for writing the processed
-    # image data (done in extraction phase too, but data not saved)
+
+    # apply calibs again for writing the processed image data (done in extraction
+    # phase too, but data not saved)
     bias_path = calibs["bias"]
     dark_path = calibs["dark"]
     flat_path = calibs["flat"]
@@ -1462,18 +1472,17 @@ def write_proc_image(
         dark_path=dark_path,
         flat_path=flat_path,
         gain=proc_hdu[1].header["GAIN"],
-        exptime=proc_hdu[1].header["EXPTIMEN"]
+        exptime=proc_hdu[1].header["EXPTIMEN"],
     )
     proc_hdu[1].data = _calib_data
     header["BKG_ADU"] = (
-        numpy.median(_calib_data), "background (median) counts in calibrated frame"
+        numpy.median(_calib_data),
+        "background (median) counts in calibrated frame",
     )
 
     header["BIASFILE"] = bias_path
     header["FLATFILE"] = flat_path
     header["DARKFILE"] = dark_path
-
-
 
     rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
     proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
@@ -1501,15 +1510,6 @@ def write_proc_image(
 
     proc_hdu.writeto(proc_path, overwrite=overwrite, output_verify="silentfix")
     proc_hdu.close()
+
     # probably not necessary to add this to the guide_data anymore
     guide_data.proc_image = proc_path
-    # print("wrote file:", proc_path)
-
-
-
-
-
-
-
-
-

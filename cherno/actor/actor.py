@@ -57,7 +57,6 @@ class ChernoActor(clu.LegacyActor):
 
         self.models["fliswarm"].register_callback(self._process_fliswarm_status)
 
-
     async def _process_fliswarm_status(self, model: dict, key: TronKey):
         """Updates FLISwarm messages."""
 
@@ -83,15 +82,12 @@ class ChernoActor(clu.LegacyActor):
 
         if self.observatory == "APO":
             values = self.models["boss"]["exposureState"].value
-            # print("expState val", values)
-            # print("expNum val", self.models["boss"]["exposureId"].value[0])
             if len(values) > 0 and values[0] == "INTEGRATING":
                 exposing = True
-                # get the current exposure number
+                # Get the current exposure number
                 expNum = int(self.models["boss"]["exposureId"].value[0]) + 1
         else:
             values = self.models["yao"]["sp2_status_names"].value
-            # print("expState val", values)
             if len(values) > 0 and "EXPOSING" in values:
                 exposing = True
                 expNum = int(self.models["yao"]["next_exposure_no"].value[0])
@@ -169,9 +165,3 @@ class CameraState:
     name: str
     temperature: float | None = None
     status: CameraStatus = CameraStatus("unknown")
-
-# @dataclass
-# class BossState:
-#     """Stores the state of a camera."""
-#     exposing: bool = False
-#     expNum: int = -999

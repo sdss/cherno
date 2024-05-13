@@ -47,7 +47,7 @@ def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
         dark = ff[0].data / gain
     with fits.open(flat_path) as ff:
         flat = ff[0].data
-    data = (data - bias)
+    data = data - bias
     data = data - dark * exptime
     data = data / flat
     return data
@@ -106,36 +106,6 @@ class Extraction:
                 f"Invalid star finder. Valid values are {self.__VALID_METHODS}."
             )
 
-        # load calibration files into memory (3 per camera)
-        # self.bias_data = {}
-        # self.dark_data = {}
-        # self.flat_data = {}
-        # # self.reduced_data = {} # stores the last reduced frame per camera
-        # for camera in ["gfa1", "gfa2", "gfa3", "gfa4", "gfa5", "gfa6"]:
-        #     bias_file = config["calib"][camera]["bias"]
-        #     dark_file = config["calib"][camera]["dark"]
-        #     flat_file = config["calib"][camera]["flat"]
-
-        #     with fits.open(bias_file) as ff:
-        #         self.bias_data[camera] = ff[0].data
-        #     with fits.open(dark_file) as ff:
-        #         self.dark_data[camera] = ff[0].data
-        #     with fits.open(flat_file) as ff:
-        #         self.flat_data[camera] = ff[0].data
-            # self.reduced_data[camera] = None
-
-        # print(self.reduced_data)
-
-    # def apply_calibs(self, data, camera, gain, exptime):
-    #     bias = self.bias_data[camera]
-    #     dark = self.dark_data[camera] / gain  # Toms superdarks are in e per sec
-    #     flat = self.flat_data[camera]
-
-    #     data = data - bias
-    #     data = data - dark * exptime
-    #     data = data / flat
-    #     return data
-
     def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
         hdu = fits.open(image)
@@ -166,15 +136,8 @@ class Extraction:
             config["calib"][camera]["dark"],
             config["calib"][camera]["flat"],
             header["GAIN"],
-            header["EXPTIMEN"]
+            header["EXPTIMEN"],
         )
-
-        # data = self.apply_calibs(
-        #     data=data,
-        #     camera=camera,
-        #     gain=header["GAIN"],
-        #     exptime=header["EXPTIMEN"]
-        # )
 
         if plot is None:
             plot = config["extraction"]["plot"]
@@ -227,7 +190,7 @@ class Extraction:
             fwhm_median=fwhm_median_round,
             focus_offset=config["cameras"]["focus_offset"][camera],
             gain=header["GAIN"],
-            exptime=header["EXPTIMEN"]
+            exptime=header["EXPTIMEN"],
         )
 
         output_file = self._get_output_path(path).with_suffix(".csv")
@@ -355,10 +318,8 @@ class Extraction:
         default_columns = ["x1", "y1", "flux", "fwhm", "valid"]
         mock_regions = pandas.DataFrame([], columns=default_columns)
 
-        # calculate a 5 arcsecond radius in pixels
-        # for aperture photometry
+        # Calculate a 5 arcsecond radius in pixels for aperture photometry
         aper_radius = 5.0 / config["pixel_scale"]
-        # aper_radius = None
 
         try:
             regions = extract_marginal(
@@ -367,14 +328,11 @@ class Extraction:
                 sextractor_quick_options={"minarea": marginal_params["minarea"]},
                 max_detections=marginal_params.get("max_detections", None),
                 plot=plot_path,
-                aper_radius=aper_radius
+                aper_radius=aper_radius,
             )
         except Exception as err:
             warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)
             return mock_regions
-
-        # print(regions)
-        # import pdb; pdb.set_trace()
 
         if len(regions) == 0:
             return mock_regions
