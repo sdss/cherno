@@ -19,7 +19,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing import TYPE_CHECKING, Any, Coroutine
+from typing import TYPE_CHECKING, Any, Coroutine, Literal
 
 import numpy
 import pandas
@@ -201,7 +201,7 @@ class Guider:
         self.pids = AxesPID(command.actor if command is not None else None)
 
         # reference to solve pointing instance, initialize to None
-        self.solve_pointing = None
+        self.solve_pointing: SolvePointing | None = None
 
         # To cache Gaia sources.
         self._gaia_sources: dict = {}
@@ -364,7 +364,7 @@ class Guider:
 
     def get_full_offset(self, offset: list[float] | None):
         if offset is None:
-            offset = numpy.array([0, 0, 0])
+            offset = [0.0, 0.0, 0.0]
 
         default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
         full_offset = numpy.array(offset) + numpy.array(default_offset)
@@ -381,7 +381,7 @@ class Guider:
         self,
         ast_solution: AstrometricSolution,
         data: list[GuideData],
-        guider_fit: GuiderFit,
+        guider_fit: GuiderFit | Literal[False],
         fit_focus: bool,
     ):
 
@@ -394,7 +394,7 @@ class Guider:
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if guider_fit:
+        if guider_fit is not False:
             # If we have a guider_fit != False, the fit produced a good astrometric
             # solution.
             ast_solution.valid_solution = True
@@ -688,7 +688,7 @@ class Guider:
 
         if isOK:
             # continue with guide fitting
-            full_offset = self.get_full_offset(offset)
+            full_offset: list[float] = self.get_full_offset(offset).tolist()
 
             if only_radec is True:
                 self.command.warning(
@@ -790,7 +790,7 @@ class Guider:
     async def fit(
         self,
         data: list[GuideData],
-        full_offset: list[float] | None = None,
+        full_offset: list[float],
         scale_rms: bool = False,
         only_radec: bool = False,
         auto_radec_min: int = 2,
@@ -874,7 +874,7 @@ class Guider:
         self,
         data: list[GuideData],
         wcs_solved: list[str],
-        full_offset: list[float] | None = None,
+        full_offset: list[float],
     ):
         """Calculate the astrometric solution."""
 
