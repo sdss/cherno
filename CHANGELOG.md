@@ -2,6 +2,10 @@
 
 ## Next version
 
+### 🚀 New
+
+* [#19](https://github.com/sdss/cherno/pull/19) Major rewrite of the guide algorithm, now using Conor's `SolvePointing` class.
+
 ### 🔧 Fixed
 
 * Fix a case in which the exposure time could increase in an uncontrolled way.
