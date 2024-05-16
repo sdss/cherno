@@ -33,7 +33,13 @@ class ChernoActor(clu.LegacyActor):
     def __init__(self, *args, **kwargs):
         self.observatory: str = config["observatory"].upper()
 
-        models = list(set(kwargs.pop("models", []) + ["fliswarm"]))
+        _models = ["fliswarm"]
+        if self.observatory == "APO":
+            _models.append("boss")
+        elif self.observatory == "LCO":
+            _models.append("yao")
+
+        models = list(set(kwargs.pop("models", []) + _models))
 
         schema = kwargs.pop("schema", None)
         if schema is not None and os.path.isabs(schema) is False:
@@ -69,6 +75,24 @@ class ChernoActor(clu.LegacyActor):
             camera_state[camera_name].temperature = temperature
         else:
             pass
+
+    def _process_boss_status(self):
+        exposing = False
+        expNum = -999
+
+        if self.observatory == "APO":
+            values = self.models["boss"]["exposureState"].value
+            if len(values) > 0 and values[0] == "INTEGRATING":
+                exposing = True
+                # Get the current exposure number
+                expNum = int(self.models["boss"]["exposureId"].value[0]) + 1
+        else:
+            values = self.models["yao"]["sp2_status_names"].value
+            if len(values) > 0 and "EXPOSING" in values:
+                exposing = True
+                expNum = int(self.models["yao"]["next_exposure_no"].value[0])
+
+        return exposing, expNum
 
 
 @dataclass

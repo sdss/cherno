@@ -14,6 +14,32 @@ actor:
   schema: etc/schema.json
   log_dir: /data/logs/actors/cherno
 
+calib:
+  gfa1:
+    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa1n.fits
+    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa1n.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa1n.fits
+  gfa2:
+    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa2n.fits
+    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa2n.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa2n.fits
+  gfa3:
+    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa3n.fits
+    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa3n.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa3n.fits
+  gfa4:
+    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa4n.fits
+    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa4n.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa4n.fits
+  gfa5:
+    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa5n.fits
+    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa5n.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa5n.fits
+  gfa6:
+    bias: /data/gcam/calib/60404/superstack_bias_apo_median_gfa6n.fits
+    dark: /data/gcam/calib/60404/superstack_dark_apo_median_gfa6n.fits
+    flat: /data/gcam/calib/60404/superstack_skyflat_apo_median_gfa6n.fits
+
 cameras:
   path: /data/gcam/
   names: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
@@ -85,6 +111,7 @@ guider:
   use_astrometry_net: true
   astrometry_net_odds: 9
   gaia_connection_string: postgresql://sdss_user@sdss5-db/chernodb
+  gaia_connection_table: catalogdb.gaia_dr2_source_g19_2
   gaia_phot_g_mean_mag_max: 19
   gaia_search_radius: 0.09
   gaia_use_cross_correlation_shift: true

@@ -40,6 +40,19 @@ seaborn.set_theme(style="white")
 PathLike = TypeVar("PathLike", pathlib.Path, str)
 
 
+def apply_calibs(data, bias_path, dark_path, flat_path, gain, exptime):
+    with fits.open(bias_path) as ff:
+        bias = ff[0].data
+    with fits.open(dark_path) as ff:
+        dark = ff[0].data / gain
+    with fits.open(flat_path) as ff:
+        flat = ff[0].data
+    data = data - bias
+    data = data - dark * exptime
+    data = data / flat
+    return data
+
+
 @dataclass
 class ExtractionData:
     """Data from extraction."""
@@ -61,6 +74,8 @@ class ExtractionData:
     nvalid: int = 0
     fwhm_median: float = -999.0
     focus_offset: float = 0.0
+    gain: float = 1
+    exptime: float = 15
 
 
 class Extraction:
@@ -93,7 +108,6 @@ class Extraction:
 
     def process(self, image: PathLike, plot: bool | None = None) -> ExtractionData:
         """Process an image."""
-
         hdu = fits.open(image)
         data = hdu[1].data
         header = hdu[1].header
@@ -115,6 +129,15 @@ class Extraction:
         else:
             cam_no = 0
             exp_no = 0
+
+        data = apply_calibs(
+            data,
+            config["calib"][camera]["bias"],
+            config["calib"][camera]["dark"],
+            config["calib"][camera]["flat"],
+            header["GAIN"],
+            header["EXPTIMEN"],
+        )
 
         if plot is None:
             plot = config["extraction"]["plot"]
@@ -166,13 +189,14 @@ class Extraction:
             nvalid=sum(regions.valid == 1),
             fwhm_median=fwhm_median_round,
             focus_offset=config["cameras"]["focus_offset"][camera],
+            gain=header["GAIN"],
+            exptime=header["EXPTIMEN"],
         )
 
         output_file = self._get_output_path(path).with_suffix(".csv")
         output_file.unlink(missing_ok=True)
 
         regions.to_csv(str(output_file))
-
         return extraction_data
 
     def multiprocess(
@@ -294,6 +318,9 @@ class Extraction:
         default_columns = ["x1", "y1", "flux", "fwhm", "valid"]
         mock_regions = pandas.DataFrame([], columns=default_columns)
 
+        # Calculate a 5 arcsecond radius in pixels for aperture photometry
+        aper_radius = 5.0 / config["pixel_scale"]
+
         try:
             regions = extract_marginal(
                 data,
@@ -301,6 +328,7 @@ class Extraction:
                 sextractor_quick_options={"minarea": marginal_params["minarea"]},
                 max_detections=marginal_params.get("max_detections", None),
                 plot=plot_path,
+                aper_radius=aper_radius,
             )
         except Exception as err:
             warnings.warn(f"extract_marginal failed with error: {err}", UserWarning)

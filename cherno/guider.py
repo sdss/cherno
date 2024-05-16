@@ -9,14 +9,17 @@
 from __future__ import annotations
 
 import asyncio
+import multiprocessing as mp
+import os
 import pathlib
 import re
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing import TYPE_CHECKING, Any, Coroutine
+from typing import TYPE_CHECKING, Any, Coroutine, Literal
 
 import numpy
 import pandas
@@ -32,6 +35,7 @@ from coordio.astrometry import AstrometryNet
 from coordio.guide import (
     GuiderFit,
     GuiderFitter,
+    SolvePointing,
     cross_match,
     gfa_to_radec,
     radec_to_gfa,
@@ -39,7 +43,7 @@ from coordio.guide import (
 
 from cherno import config, log
 from cherno.exceptions import ChernoError
-from cherno.extraction import Extraction, ExtractionData, PathLike
+from cherno.extraction import Extraction, ExtractionData, PathLike, apply_calibs
 from cherno.lcotcc import apply_correction_lco
 from cherno.maskbits import GuiderStatus
 from cherno.tcc import apply_axes_correction, apply_focus_correction
@@ -53,6 +57,10 @@ if TYPE_CHECKING:
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
 warnings.filterwarnings("ignore", module="astropy.wcs.wcs")
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
+warnings.filterwarnings(
+    "ignore",
+    message="Card is too long, comment will be truncated.",
+)
 
 
 __all__ = ["Guider", "GuideData", "AstrometricSolution", "AxesPID"]
@@ -192,12 +200,22 @@ class Guider:
         self.target_rms = target_rms
         self.pids = AxesPID(command.actor if command is not None else None)
 
+        # reference to solve pointing instance, initialize to None
+        self.solve_pointing: SolvePointing | None = None
+
         # To cache Gaia sources.
         self._gaia_sources: dict = {}
 
         # Clear RMS history.
         if self.command.actor:
             self.command.actor.state.rms_history.clear()
+
+        # setup task queue for writing proc-*.fits files
+        self.write_background_tasks = set()
+        self.write_executor = ProcessPoolExecutor(
+            max_workers=3,
+            mp_context=mp.get_context("spawn"),
+        )
 
         self._database_lock = asyncio.Lock()
 
@@ -206,157 +224,111 @@ class Guider:
 
         self.command = command
 
-    async def process(
+    def check_convergence(
         self,
-        command: ChernoCommandType | None,
-        images: list[PathLike],
-        write_proc: bool = True,
-        overwrite: bool = False,
-        correct: bool = True,
-        full_correction: bool = False,
-        offset: list[float] | None = None,
-        scale_rms: bool = True,
-        wait_for_correction: bool = True,
-        only_radec: bool = False,
-        auto_radec_min: int = 2,
-        use_astrometry_net: bool | None = None,
-        use_gaia: bool = True,
-        gaia_phot_g_mean_mag_max: float | None = None,
-        gaia_cross_correlation_blur: float | None = None,
-        fit_all_detections: bool = True,
-        fit_focus: bool = True,
-        plot: bool | None = None,
-        stop_at_target_rms: bool = False,
+        ex_data: list[ExtractionData],
+        offset: list[float] | None,
     ):
-        """Performs extraction and astrometry."""
+        if self.solve_pointing is None:
+            return False
 
-        if command is not None:
-            self.set_command(command)
+        nSources = numpy.sum([len(ex.regions) for ex in ex_data])
+        if nSources < 6:
+            return False
 
-        self.command.info("Extracting sources.")
+        ex = ex_data[0]
 
-        ext_data = await asyncio.gather(
-            *[
-                run_in_executor(
-                    self.extractor.process,
-                    im,
-                    plot=plot,
-                    executor="process",
-                )
-                for im in images
-            ]
-        )
+        assert self.solve_pointing and self.solve_pointing.imgNum is not None
 
-        for d in ext_data:
-            if d.nvalid == 0:
-                self.command.warning(f"Camera {d.camera}: not enough sources.")
+        if ex.exposure_no != self.solve_pointing.imgNum + 1:
+            return False
+
+        if self.solve_pointing.guide_rms_sky > 1:
+            return False
+
+        if self.solve_pointing._raCen != ex.field_ra:
+            return False
+
+        if self.solve_pointing._decCen != ex.field_dec:
+            return False
+
+        if self.solve_pointing._paCen != ex.field_pa:
+            return False
+
+        full_offset = self.get_full_offset(offset)
+
+        if self.solve_pointing.offset_ra != full_offset[0]:
+            return False
+
+        if self.solve_pointing.offset_dec != full_offset[1]:
+            return False
+
+        if self.solve_pointing.offset_pa != full_offset[2]:
+            return False
+
+        return True
+
+    def check_wcs(self, guide_data: list[GuideData]):
+        guide_cameras = self.command.actor.state.guide_cameras
+        wcs_solved = [
+            ad.camera
+            for ad in guide_data
+            if ad.solved is True and ad.camera in guide_cameras
+        ]
+        if len(wcs_solved) > 1:
+            # if 2 or more cameras have wcs solns, use "coordio"
+            for gd in guide_data:
+                gd.solved = True
+                gd.solve_method = "coordio"
+
+        return wcs_solved
+
+    def try_rapid_solve(
+        self,
+        guide_data: list[GuideData],
+        ext_data: list[ExtractionData],
+        offset: list[float] | None,
+    ):
+        sp_guider_fit = None
+        converged = self.check_convergence(ext_data, offset)
+
+        if converged:
+            dfList = []
+            for ex in ext_data:
+                regions = ex.regions.copy().reset_index(drop=True)
+                gfaNum = int(ex.camera.strip("gfa"))
+                regions["gfaNum"] = gfaNum
+                gain = ex.gain
+                regions["gain"] = gain
+                dfList.append(regions)
+            df = pandas.concat(dfList).reset_index(drop=True)
+
+            assert self.solve_pointing
+            sp_guider_fit = self.solve_pointing.reSolve(
+                ex.exposure_no,
+                ex.obstime,
+                ex.exptime,
+                df,
+            )
+
+            assert self.solve_pointing
+            if self.solve_pointing.guide_rms_sky > 1:
+                # guider probably jumped safer to revert to slow solve
+                sp_guider_fit = None
+                self.solve_pointing = None
             else:
-                self.command.info(
-                    fwhm_camera=[
-                        d.camera,
-                        d.exposure_no,
-                        d.fwhm_median,
-                        d.nregions,
-                        d.nvalid,
-                    ]
-                )
+                for gd in guide_data:
+                    gfaNum = int(ex.camera.strip("gfa"))
+                    gd.solved = True
+                    wcs = self.solve_pointing.fitWCS(gfaNum)
+                    gd.wcs = wcs
+                    gd.solve_method = "coordio-fast"
 
-        guide_data: list[GuideData]
+        return sp_guider_fit
 
-        use_astrometry_net = (
-            use_astrometry_net
-            if use_astrometry_net is not None
-            else config["guider"].get("use_astrometry_net", True)
-        )
+    def validate_astrometry(self, data: list[GuideData], offset: list[float] | None):
 
-        if use_astrometry_net:
-            self.command.info("Running astrometry.net.")
-            guide_data = await asyncio.gather(
-                *[self._astrometry_one(d) for d in ext_data]
-            )
-        else:
-            guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
-
-        # Use Gaia cross-match for the cameras that did not solve with astrometry.net.
-        not_solved = [ad for ad in guide_data if ad.solved is False]
-        if use_gaia and len(not_solved) > 0:
-            self.command.info("Running Gaia cross-match.")
-            res = await asyncio.gather(
-                *[
-                    self._gaia_cross_match_one(
-                        ad,
-                        gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
-                        gaia_cross_correlation_blur=gaia_cross_correlation_blur,
-                    )
-                    for ad in not_solved
-                ],
-                return_exceptions=True,
-            )
-            for ii, rr in enumerate(res):
-                if isinstance(rr, Exception):
-                    cam = not_solved[ii].camera
-                    self.command.warning(f"{cam}: Gaia cross-match failed: {str(rr)}")
-
-        # Output all the camera_solution keywords at once.
-        for ad in guide_data:
-            self.output_camera_solution(ad)
-
-        self.command.debug("Saving proc- file.")
-        if write_proc:
-            await asyncio.gather(
-                *[self.write_proc_image(d, overwrite=overwrite) for d in guide_data]
-            )
-
-        ast_solution = await self.fit(
-            list(guide_data),
-            offset=offset,
-            scale_rms=scale_rms,
-            only_radec=only_radec,
-            auto_radec_min=auto_radec_min,
-            fit_all_detections=fit_all_detections,
-            fit_focus=fit_focus,
-        )
-
-        if (
-            self.target_rms is not None
-            and ast_solution.valid_solution
-            and ast_solution.rms > 0
-            and ast_solution.rms <= self.target_rms
-            and stop_at_target_rms
-        ):
-            self.command.warning("RMS has been reached. Not applying correction.")
-            correct = False
-
-        if correct and ast_solution.valid_solution is True:
-            await self.correct(
-                ast_solution,
-                full=full_correction,
-                wait_for_correction=wait_for_correction,
-                apply_focus=fit_focus,
-            )
-        else:
-            self.command.info(
-                acquisition_valid=ast_solution.valid_solution,
-                did_correct=any(ast_solution.correction_applied),
-                correction_applied=ast_solution.correction_applied,
-            )
-
-        if self.command.actor:
-            update_proc_headers(ast_solution, self.command.actor.state)
-
-        return ast_solution
-
-    async def fit(
-        self,
-        data: list[GuideData],
-        offset: list[float] | None = None,
-        scale_rms: bool = False,
-        fit_focus: bool = True,
-        only_radec: bool = False,
-        auto_radec_min: int = 2,
-        fit_all_detections: bool = True,
-    ):
-        """Calculate the astrometric solution."""
+        isOK = False
 
         ast_solution = AstrometricSolution(False, data)
 
@@ -365,7 +337,7 @@ class Guider:
 
         if len(solved) == 0:
             self.command.error(acquisition_valid=False, did_correct=False)
-            return ast_solution
+            return ast_solution, isOK
 
         fwhm = [d.e_data.fwhm_median for d in data if d.e_data.fwhm_median > 0]
         fwhm_weights = [
@@ -383,7 +355,9 @@ class Guider:
         if solved[0].field_ra == "NaN" or isinstance(solved[0].field_ra, str):
             self.command.error(acquisition_valid=False, did_correct=False)
             self.command.error("Field not defined. Cannot run astrometric fit.")
-            return ast_solution
+            return ast_solution, isOK
+
+        isOK = True
 
         if offset is None:
             if self.command.actor:
@@ -394,18 +368,11 @@ class Guider:
         if not numpy.allclose(offset, [0.0, 0.0, 0.0]):
             self.command.warning("Using non-zero offsets for astrometric fit.")
 
-        self.fitter.reset()
-        for d in solved:
-            if fit_all_detections:
-                regions = d.extraction_data.regions
-                pixels = regions.loc[:, ["x", "y"]].copy().values
-            else:
-                pixels = None
-            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd, pixels=pixels)
+        return ast_solution, isOK
 
-        field_ra = solved[0].field_ra
-        field_dec = solved[0].field_dec
-        field_pa = solved[0].field_pa
+    def get_full_offset(self, offset: list[float] | None):
+        if offset is None:
+            offset = [0.0, 0.0, 0.0]
 
         default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
         full_offset = numpy.array(offset) + numpy.array(default_offset)
@@ -416,72 +383,26 @@ class Guider:
         else:
             self.command.debug(offset=offset)
 
-        if only_radec is True:
-            self.command.warning(
-                "Only fitting RA/Dec. The rotation and scale offsets "
-                "are informational-only and not corrected."
-            )
-        elif auto_radec_min >= 0 and len(solved) <= auto_radec_min:
-            only_radec = True
-            self.command.warning(
-                f"Only {len(solved)} cameras solved. Only fitting RA/Dec. "
-                "The rotation and scale offsets are informational-only "
-                "and not corrected."
-            )
+        return full_offset
+
+    def update_ast_solution(
+        self,
+        ast_solution: AstrometricSolution,
+        data: list[GuideData],
+        guider_fit: GuiderFit | Literal[False],
+        fit_focus: bool,
+    ):
 
         guide_cameras = self.command.actor.state.guide_cameras
+        solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
         fit_cameras = [d.camera_id for d in solved if d.camera in guide_cameras]
-        fit_rms_sigma = config["guider"].get("fit_rms_sigma", 3)
-        guider_fit = False
-        while True:
-            tmp_guider_fit = self.fitter.fit(
-                field_ra,
-                field_dec,
-                field_pa,
-                offset=full_offset,
-                scale_rms=scale_rms,
-                only_radec=only_radec,
-                cameras=fit_cameras,
-            )
-
-            # If we already had a solution and this fit failed or the fit RMS is bad,
-            # just use the previous fit.
-            if guider_fit is not False and (fit_rms_sigma <= 0 or not tmp_guider_fit):
-                break
-
-            # Update the fit with the previous one.
-            guider_fit = tmp_guider_fit
-
-            # If the fit failed, exit.
-            if guider_fit is False:
-                break
-
-            # If only 3 cameras remain we exit. We don't want to reject any more.
-            if len(fit_cameras) <= 3:
-                break
-
-            sc = SigmaClip(fit_rms_sigma)
-            rms_clip = sc(guider_fit.fit_rms.loc[fit_cameras, "rms"])
-
-            # All the camera fit RMS are within X sigma. Exit.
-            if rms_clip.mask.sum() == 0:
-                break
-
-            # Find the camera with the largest fit RMS and remove it. Redo the fit.
-            cam_max_rms = int(guider_fit.fit_rms.loc[fit_cameras, "rms"].idxmax())
-
-            self.command.warning(
-                "Fit RMS found outlier detections. "
-                f"Refitting without camera {cam_max_rms}."
-            )
-            fit_cameras.remove(cam_max_rms)
 
         plate_scale = defaults.PLATE_SCALE[self.observatory]
         mm_to_arcsec = 1 / plate_scale * 3600
 
         exp_no = solved[0].exposure_no  # Should be the same for all.
 
-        if guider_fit:
+        if guider_fit is not False:
             # If we have a guider_fit != False, the fit produced a good astrometric
             # solution.
             ast_solution.valid_solution = True
@@ -585,9 +506,9 @@ class Guider:
                 len(solved),
                 -999.0,
                 -999.0,
-                numpy.round(fwhm, 2),
+                numpy.round(ast_solution.fwhm_median, 2),
                 -999,
-                numpy.round(camera_rotation, 3),
+                numpy.round(ast_solution.camera_rotation, 3),
                 delta_ra,
                 delta_dec,
                 delta_rot,
@@ -623,7 +544,7 @@ class Guider:
         if (
             delta_scale > 0
             and self.command.actor
-            and fwhm < 2.5
+            and ast_solution.fwhm_median < 2.5
             and rms > 0
             and rms <= 1
             and guider_fit
@@ -643,7 +564,365 @@ class Guider:
             outpath.parent.mkdir(exist_ok=True)
             self.fitter.plot_fit(outpath)
 
+    async def process(
+        self,
+        command: ChernoCommandType | None,
+        images: list[PathLike],
+        write_proc: bool = True,
+        overwrite: bool = False,
+        correct: bool = True,
+        full_correction: bool = False,
+        offset: list[float] | None = None,
+        scale_rms: bool = True,
+        wait_for_correction: bool = True,
+        only_radec: bool = False,
+        auto_radec_min: int = 2,
+        use_astrometry_net: bool | None = None,
+        use_gaia: bool = True,
+        gaia_phot_g_mean_mag_max: float | None = None,
+        gaia_cross_correlation_blur: float | None = None,
+        fit_all_detections: bool = True,
+        fit_focus: bool = True,
+        plot: bool | None = None,
+        stop_at_target_rms: bool = False,
+    ):
+        """Performs extraction and astrometry."""
+
+        if command is not None:
+            self.set_command(command)
+
+        # Get the state of the boss spectrograph up front
+        bossExposing = False
+        bossExpNum = -999
+
+        if self.command.actor is not None:
+            if hasattr(self.command.actor, "_process_boss_status"):
+                bossExposing, bossExpNum = self.command.actor._process_boss_status()
+
+        self.command.info("Extracting sources.")
+
+        ext_data = await asyncio.gather(
+            *[
+                run_in_executor(
+                    self.extractor.process,
+                    im,
+                    plot=plot,
+                    executor="process",
+                )
+                for im in images
+            ]
+        )
+
+        for d in ext_data:
+            if d.nvalid == 0:
+                self.command.warning(f"Camera {d.camera}: not enough sources.")
+            else:
+                self.command.info(
+                    fwhm_camera=[
+                        d.camera,
+                        d.exposure_no,
+                        d.fwhm_median,
+                        d.nregions,
+                        d.nvalid,
+                    ]
+                )
+
+        guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
+
+        _wcs_solved = []
+        sp_guider_fit = self.try_rapid_solve(guide_data, ext_data, offset)
+
+        if sp_guider_fit is None:
+            # Rapid solve didn't work
+            use_astrometry_net = (
+                use_astrometry_net
+                if use_astrometry_net is not None
+                else config["guider"].get("use_astrometry_net", True)
+            )
+
+            if use_astrometry_net:
+                self.command.info("Running astrometry.net.")
+                guide_data = await asyncio.gather(
+                    *[self._astrometry_one(d) for d in ext_data]
+                )
+
+            # check for astrometry.net solutions for cameras actively used
+            # for guide corrections
+            # will modify solved attr on guide_data(s)
+            # if more than 1 wcs exists
+
+            _wcs_solved = self.check_wcs(guide_data)
+
+            # Use Gaia cross-match for the cameras that did not solve with
+            # astrometry.net.
+            not_solved = [ad for ad in guide_data if ad.solved is False]
+            if use_gaia and len(not_solved) > 0:
+                self.command.info("Running Gaia cross-match.")
+                res = await asyncio.gather(
+                    *[
+                        self._gaia_cross_match_one(
+                            ad,
+                            gaia_phot_g_mean_mag_max=gaia_phot_g_mean_mag_max,
+                            gaia_cross_correlation_blur=gaia_cross_correlation_blur,
+                            gaia_table_name=config["guider"]["gaia_connection_table"],
+                            gaia_connection_string=config["guider"][
+                                "gaia_connection_string"
+                            ],
+                        )
+                        for ad in not_solved
+                    ],
+                    return_exceptions=True,
+                )
+
+                for ii, rr in enumerate(res):
+                    if isinstance(rr, Exception):
+                        cam = not_solved[ii].camera
+                        self.command.warning(
+                            f"{cam}: Gaia cross-match failed: {str(rr)}"
+                        )
+
+                # check for xmatch solutions for cameras actively used
+                # for guide corrections
+                # will modify solved attr on guide_data(s)
+                # if more than 1 wcs exists
+
+                _wcs_solved = self.check_wcs(guide_data)
+
+        # Output all the camera_solution keywords at once.
+        for ad in guide_data:
+            self.output_camera_solution(ad)
+
+        ast_solution, isOK = self.validate_astrometry(guide_data, offset)
+
+        if isOK:
+            # continue with guide fitting
+            full_offset: list[float] = self.get_full_offset(offset).tolist()
+
+            if only_radec is True:
+                self.command.warning(
+                    "Only fitting RA/Dec. The rotation and scale offsets "
+                    "are informational-only and not corrected."
+                )
+
+            if sp_guider_fit:
+                # field was already solved in fast mode
+                guider_fit = sp_guider_fit
+
+            elif len(_wcs_solved) > 1:
+                guider_fit = await self.fit_SP(
+                    list(guide_data),
+                    wcs_solved=_wcs_solved,
+                    full_offset=full_offset,
+                )
+
+            else:
+                guider_fit = await self.fit(
+                    list(guide_data),
+                    full_offset=full_offset,
+                    scale_rms=scale_rms,
+                    only_radec=only_radec,
+                    auto_radec_min=auto_radec_min,
+                    fit_all_detections=fit_all_detections,
+                )
+
+            self.update_ast_solution(
+                ast_solution,
+                list(guide_data),
+                guider_fit,
+                fit_focus,
+            )
+
+            if (
+                self.target_rms is not None
+                and ast_solution.valid_solution
+                and ast_solution.rms > 0
+                and ast_solution.rms <= self.target_rms
+                and stop_at_target_rms
+            ):
+                self.command.warning("RMS has been reached. Not applying correction.")
+                correct = False
+
+        if correct and ast_solution.valid_solution is True:
+            await self.correct(
+                ast_solution,
+                full=full_correction,
+                wait_for_correction=wait_for_correction,
+                apply_focus=fit_focus,
+            )
+        else:
+            self.command.info(
+                acquisition_valid=ast_solution.valid_solution,
+                did_correct=any(ast_solution.correction_applied),
+                correction_applied=ast_solution.correction_applied,
+            )
+
+        # write files in the background and move on
+
+        if write_proc and self.command.actor:
+            self.command.debug("Saving proc- files.")
+
+            for d in guide_data:
+                header_updates = get_proc_headers(
+                    ast_solution, self.command.actor.state, d
+                )
+                gaia_matches = None
+                if self.solve_pointing is not None:
+                    header_updates += self.solve_pointing.getMetadata()
+                    zp = self.solve_pointing.median_zeropoint(d.camera_id)
+                    zptTuple = (
+                        "R_ZPT",
+                        zp,
+                        "median measured zeropoint of gaia sources",
+                    )
+                    header_updates.append(zptTuple)
+                    gaia_matches = self.solve_pointing.matchedSources.copy()
+
+                func = partial(
+                    write_proc_image,
+                    d,
+                    overwrite=overwrite,
+                    bossExposing=bossExposing,
+                    bossExpNum=bossExpNum,
+                    header_updates=header_updates,
+                    gaia_matches=gaia_matches,
+                )
+
+                task = self.write_executor.submit(func)
+
+                # Fire and forget (eg no checking that the fits was actually written ok)
+                self.write_background_tasks.add(task)
+                task.add_done_callback(self.write_background_tasks.discard)
+
         return ast_solution
+
+    async def fit(
+        self,
+        data: list[GuideData],
+        full_offset: list[float],
+        scale_rms: bool = False,
+        only_radec: bool = False,
+        auto_radec_min: int = 2,
+        fit_all_detections: bool = True,
+    ):
+        """Calculate the astrometric solution."""
+
+        solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
+
+        if auto_radec_min >= 0 and len(solved) <= auto_radec_min:
+            only_radec = True
+            self.command.warning(
+                f"Only {len(solved)} cameras solved. Only fitting RA/Dec. "
+                "The rotation and scale offsets are informational-only "
+                "and not corrected."
+            )
+
+        self.fitter.reset()
+        for d in solved:
+            if fit_all_detections:
+                regions = d.extraction_data.regions
+                pixels = regions.loc[:, ["x", "y"]].copy().values
+            else:
+                pixels = None
+            self.fitter.add_wcs(d.camera, d.wcs, d.obstime.jd, pixels=pixels)
+
+        field_ra = solved[0].field_ra
+        field_dec = solved[0].field_dec
+        field_pa = solved[0].field_pa
+
+        guide_cameras = self.command.actor.state.guide_cameras
+        fit_cameras = [d.camera_id for d in solved if d.camera in guide_cameras]
+        fit_rms_sigma = config["guider"].get("fit_rms_sigma", 3)
+        guider_fit = False
+        while True:
+            tmp_guider_fit = self.fitter.fit(
+                field_ra,
+                field_dec,
+                field_pa,
+                offset=numpy.array(full_offset),
+                scale_rms=scale_rms,
+                only_radec=only_radec,
+                cameras=fit_cameras,
+            )
+
+            # If we already had a solution and this fit failed or the fit RMS is bad,
+            # just use the previous fit.
+            if guider_fit is not False and (fit_rms_sigma <= 0 or not tmp_guider_fit):
+                break
+
+            # Update the fit with the previous one.
+            guider_fit = tmp_guider_fit
+
+            # If the fit failed, exit.
+            if guider_fit is False:
+                break
+
+            # If only 3 cameras remain we exit. We don't want to reject any more.
+            if len(fit_cameras) <= 3:
+                break
+
+            sc = SigmaClip(fit_rms_sigma)
+            rms_clip = sc(guider_fit.fit_rms.loc[fit_cameras, "rms"])
+
+            # All the camera fit RMS are within X sigma. Exit.
+            if rms_clip.mask.sum() == 0:
+                break
+
+            # Find the camera with the largest fit RMS and remove it. Redo the fit.
+            cam_max_rms = int(guider_fit.fit_rms.loc[fit_cameras, "rms"].idxmax())
+
+            self.command.warning(
+                "Fit RMS found outlier detections. "
+                f"Refitting without camera {cam_max_rms}."
+            )
+            fit_cameras.remove(cam_max_rms)
+
+        return guider_fit
+
+    async def fit_SP(
+        self,
+        data: list[GuideData],
+        wcs_solved: list[str],
+        full_offset: list[float],
+    ):
+        """Calculate the astrometric solution."""
+
+        solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
+
+        field_ra = solved[0].field_ra
+        field_dec = solved[0].field_dec
+        field_pa = solved[0].field_pa
+
+        guide_cameras = self.command.actor.state.guide_cameras
+
+        self.solve_pointing = SolvePointing(
+            raCen=field_ra,
+            decCen=field_dec,
+            paCen=field_pa,
+            offset_ra=full_offset[0],
+            offset_dec=full_offset[1],
+            offset_pa=full_offset[2],
+            db_conn_st=config["guider"]["gaia_connection_string"],
+            db_tab_name=config["guider"]["gaia_connection_table"],
+        )
+        for d in data:
+            if d.camera not in guide_cameras:
+                continue
+            if d.extraction_data.nregions == 0:
+                continue
+            wcs = None
+            if d.camera in wcs_solved:
+                wcs = d.wcs
+
+            self.solve_pointing.add_gimg(
+                d.path,
+                d.extraction_data.regions.copy(),
+                wcs,
+                d.extraction_data.gain,
+            )
+
+        guider_fit = self.solve_pointing.solve()
+
+        return guider_fit
 
     async def correct(
         self,
@@ -843,6 +1122,7 @@ class Guider:
             ra=radec_centre[0],
             dec=radec_centre[1],
             odds_to_solve=odds_to_solve,
+            radius=1,
         )
 
         guide_data = GuideData(ext_data.camera, ext_data, solve_time=proc.elapsed)
@@ -860,7 +1140,7 @@ class Guider:
 
         wcs = guide_data.wcs
 
-        if wcs and guide_data.solved:
+        if wcs and hasattr(wcs.wcs, "cd") and guide_data.solved:
             racen, deccen = wcs.pixel_to_world_values([[1024, 1024]])[0]
             guide_data.camera_racen = float(numpy.round(racen, 6))
             guide_data.camera_deccen = float(numpy.round(deccen, 6))
@@ -904,6 +1184,8 @@ class Guider:
         guide_data: GuideData,
         gaia_phot_g_mean_mag_max: float | None = None,
         gaia_cross_correlation_blur: float | None = None,
+        gaia_table_name: str = "catalogdb.gaia_dr2_source_g19",
+        gaia_connection_string: str = config["guider"]["gaia_connection_string"],
     ):
         """Solves a field cross-matching to Gaia."""
 
@@ -962,11 +1244,11 @@ class Guider:
 
         else:
             gaia_stars = pandas.read_sql(
-                "SELECT * FROM catalogdb.gaia_dr2_source_g19 "
+                f"SELECT * FROM {gaia_table_name} "
                 "WHERE q3c_radial_query(ra, dec, "
                 f"{ccd_centre[0]}, {ccd_centre[1]}, {gaia_search_radius}) AND "
                 f"phot_g_mean_mag < {g_mag}",
-                config["guider"]["gaia_connection_string"],
+                gaia_connection_string,
             )
             self._gaia_sources[(fid, cam_id)] = gaia_stars
 
@@ -1022,77 +1304,14 @@ class Guider:
             guide_data.solve_method = "gaia"
             guide_data.wcs = wcs
 
-    async def write_proc_image(
-        self,
-        guide_data: GuideData,
-        outpath: PathLike | None = None,
-        overwrite: bool = False,
-    ):
-        """Writes the proc-gimg image."""
 
-        ext_data = guide_data.extraction_data
-
-        proc_hdu = fits.open(str(guide_data.path)).copy()
-
-        rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
-        proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
-
-        gfa_coords = calibration.gfaCoords.reset_index()
-        gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
-        proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
-
-        proc_hdu[1].header["SOLVED"] = guide_data.solved
-        proc_hdu[1].header["SOLVMODE"] = (
-            guide_data.solve_method,
-            "Method used to solve the field",
-        )
-        proc_hdu[1].header["SOLVTIME"] = (
-            guide_data.solve_time,
-            "Time to solve the field or fail",
-        )
-
-        if self.command.actor is not None:
-            offsets = self.command.actor.state.offset
-        else:
-            offsets = [-999.0] * 3
-
-        proc_hdu[1].header["OFFRA"] = (offsets[0], "Relative offset in RA [arcsec]")
-        proc_hdu[1].header["OFFDEC"] = (offsets[1], "Relative offset in Dec [arcsec]")
-        proc_hdu[1].header["OFFPA"] = (offsets[2], "Relative offset in PA [arcsec]")
-
-        default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
-        aoffset = (
-            default_offset[0] + offsets[0],
-            default_offset[1] + offsets[1],
-            default_offset[2] + offsets[2],
-        )
-        proc_hdu[1].header["AOFFRA"] = (aoffset[0], "Absolute offset in RA [arcsec]")
-        proc_hdu[1].header["AOFFDEC"] = (aoffset[1], "Absolute offset in Dec [arcsec]")
-        proc_hdu[1].header["AOFFPA"] = (aoffset[2], "Absolute offset in PA [arcsec]")
-
-        proc_hdu[1].header.update(guide_data.wcs.to_header())
-
-        proc_path: pathlib.Path
-        if outpath is not None:
-            proc_path = pathlib.Path(outpath)
-            if proc_path.is_dir():
-                proc_path = proc_path / ("proc-" + ext_data.path.name)
-        else:
-            proc_path = ext_data.path.parent / ("proc-" + ext_data.path.name)
-
-        loop = asyncio.get_running_loop()
-        func = partial(
-            proc_hdu.writeto,
-            proc_path,
-            overwrite=overwrite,
-            output_verify="silentfix",
-        )
-        await loop.run_in_executor(None, func)
-
-        guide_data.proc_image = proc_path
-
-
-def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
+def get_proc_headers(
+    data: AstrometricSolution, guider_state: ChernoState, guide_data: GuideData
+):
+    # Largely modified from update_proc_headers
+    # returns a list of headers to be updated in a separate
+    # process (guider_state can't be offloaded to ProcessPool)
+    # but a list can.
     guide_loop = guider_state.guide_loop
 
     enabled_axes = guider_state.enabled_axes
@@ -1135,56 +1354,170 @@ def update_proc_headers(data: AstrometricSolution, guider_state: ChernoState):
     delta_scale = data.delta_scale
     delta_focus = data.delta_focus
 
-    # Update headers of proc images with deltas.
-    for a_data in data.guide_data:
-        if a_data.proc_image is not None:
-            hdus = fits.open(str(a_data.proc_image), mode="update")
-            header = hdus[1].header
+    cra, cdec, crot, cscl, cfoc = data.correction_applied
 
-            header["EXTMETH"] = (a_data.e_data.algorithm, "Algorithm for star finding")
+    # generate header list
+    header = []
 
-            header["RAK"] = (ra_pid_k, "PID K term for RA")
-            header["RATD"] = (ra_pid_td, "PID Td term for RA")
-            header["RATI"] = (ra_pid_ti, "PID Ti term for RA")
+    header.append(("SOLVED", guide_data.solved, "field was solved"))
+    header.append(
+        (
+            "SOLVMODE",
+            guide_data.solve_method,
+            "Method used to solve the field",
+        )
+    )
+    header.append(
+        (
+            "SOLVTIME",
+            guide_data.solve_time,
+            "Time to solve the field or fail",
+        )
+    )
 
-            header["DECK"] = (dec_pid_k, "PID K term for Dec")
-            header["DECTD"] = (dec_pid_td, "PID Td term for Dec")
-            header["DECTI"] = (dec_pid_ti, "PID Ti term for Dec")
+    offsets = guider_state.offset
+    header.append(("OFFRA", offsets[0], "Relative offset in RA [arcsec]"))
+    header.append(("OFFDEC", offsets[1], "Relative offset in Dec [arcsec]"))
+    header.append(("OFFPA", offsets[2], "Relative offset in PA [arcsec]"))
 
-            header["ROTK"] = (rot_pid_k, "PID K term for Rot.")
-            header["ROTTD"] = (rot_pid_td, "PID Td term for Rot.")
-            header["ROTTI"] = (rot_pid_ti, "PID Ti term for Rot.")
+    default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
+    aoffset = (
+        default_offset[0] + offsets[0],
+        default_offset[1] + offsets[1],
+        default_offset[2] + offsets[2],
+    )
+    header.append(("AOFFRA", aoffset[0], "Absolute offset in RA [arcsec]"))
+    header.append(("AOFFDEC", aoffset[1], "Absolute offset in Dec [arcsec]"))
+    header.append(("AOFFPA", aoffset[2], "Absolute offset in PA [arcsec]"))
 
-            header["SCLK"] = (scale_pid_k, "PID K term for Scale")
-            header["SCLTD"] = (scale_pid_td, "PID Td term for Scale")
-            header["SCLTI"] = (scale_pid_ti, "PID Ti term for Scale")
+    header.append(
+        (
+            "EXTMETH",
+            guide_data.e_data.algorithm,
+            "Algorithm for star finding",
+        )
+    )
 
-            header["FOCUSK"] = (focus_pid_k, "PID K term for Focus")
-            header["FOCUSTD"] = (focus_pid_td, "PID Td term for Focus")
-            header["FOCUSTI"] = (focus_pid_ti, "PID Ti term for Focus")
+    header.append(("RAK", ra_pid_k, "PID K term for RA"))
+    header.append(("RATD", ra_pid_td, "PID Td term for RA"))
+    header.append(("RATI", ra_pid_ti, "PID Ti term for RA"))
 
-            header["FWHM"] = (a_data.e_data.fwhm_median, "Mesured FWHM [arcsec]")
-            header["FWHMFIT"] = (data.fwhm_fit, "Fitted FWHM [arcsec]")
+    header.append(("DECK", dec_pid_k, "PID K term for Dec"))
+    header.append(("DECTD", dec_pid_td, "PID Td term for Dec"))
+    header.append(("DECTI", dec_pid_ti, "PID Ti term for Dec"))
 
-            header["RMS"] = (rms, "Guide RMS [arcsec]")
-            header["FITMODE"] = (data.fit_mode, "Fit mode (full or RA/Dec)")
+    header.append(("ROTK", rot_pid_k, "PID K term for Rot."))
+    header.append(("ROTTD", rot_pid_td, "PID Td term for Rot."))
+    header.append(("ROTTI", rot_pid_ti, "PID Ti term for Rot."))
 
-            header["E_RA"] = (enabled_ra, "RA corrections enabled?")
-            header["E_DEC"] = (enabled_dec, "Dec corrections enabled?")
-            header["E_ROT"] = (enabled_rot, "Rotator corrections enabled?")
-            header["E_FOCUS"] = (enabled_focus, "Focus corrections enabled?")
-            header["E_SCL"] = (False, "Scale corrections enabled?")
+    header.append(("SCLK", scale_pid_k, "PID K term for Scale"))
+    header.append(("SCLTD", scale_pid_td, "PID Td term for Scale"))
+    header.append(("SCLTI", scale_pid_ti, "PID Ti term for Scale"))
 
-            header["DELTARA"] = (delta_ra, "RA measured delta [arcsec]")
-            header["DELTADEC"] = (delta_dec, "Dec measured delta [arcsec]")
-            header["DELTAROT"] = (delta_rot, "Rotator measured delta [arcsec]")
-            header["DELTASCL"] = (delta_scale, "Scale measured factor")
-            header["DELTAFOC"] = (delta_focus, "Focus delta [microns]")
+    header.append(("FOCUSK", focus_pid_k, "PID K term for Focus"))
+    header.append(("FOCUSTD", focus_pid_td, "PID Td term for Focus"))
+    header.append(("FOCUSTI", focus_pid_ti, "PID Ti term for Focus"))
 
-            header["CORR_RA"] = (cra, "RA applied correction [arcsec]")
-            header["CORR_DEC"] = (cdec, "Dec applied correction [arcsec]")
-            header["CORR_ROT"] = (crot, "Rotator applied correction [arcsec]")
-            header["CORR_SCL"] = (cscl, "Scale applied correction")
-            header["CORR_FOC"] = (cfoc, "Focus applied correction [microns]")
+    header.append(("FWHM", guide_data.e_data.fwhm_median, "Mesured FWHM [arcsec]"))
+    header.append(("FWHMFIT", data.fwhm_fit, "Fitted FWHM [arcsec]"))
 
-            hdus.close()
+    header.append(("RMS", rms, "Guide RMS [arcsec]"))
+    header.append(("FITMODE", data.fit_mode, "Fit mode (full or RA/Dec)"))
+
+    header.append(("E_RA", enabled_ra, "RA corrections enabled?"))
+    header.append(("E_DEC", enabled_dec, "Dec corrections enabled?"))
+    header.append(("E_ROT", enabled_rot, "Rotator corrections enabled?"))
+    header.append(("E_FOCUS", enabled_focus, "Focus corrections enabled?"))
+    header.append(("E_SCL", False, "Scale corrections enabled?"))
+
+    header.append(("DELTARA", delta_ra, "RA measured delta [arcsec]"))
+    header.append(("DELTADEC", delta_dec, "Dec measured delta [arcsec]"))
+    header.append(("DELTAROT", delta_rot, "Rotator measured delta [arcsec]"))
+    header.append(("DELTASCL", delta_scale, "Scale measured factor"))
+    header.append(("DELTAFOC", delta_focus, "Focus delta [microns]"))
+
+    header.append(("CORR_RA", cra, "RA applied correction [arcsec]"))
+    header.append(("CORR_DEC", cdec, "Dec applied correction [arcsec]"))
+    header.append(("CORR_ROT", crot, "Rotator applied correction [arcsec]"))
+    header.append(("CORR_SCL", cscl, "Scale applied correction"))
+    header.append(("CORR_FOC", cfoc, "Focus applied correction [microns]"))
+
+    return header
+
+
+def write_proc_image(
+    guide_data: GuideData,
+    overwrite: bool = False,
+    bossExposing: bool = False,
+    bossExpNum: int = -999,
+    header_updates: list | None = None,
+    gaia_matches: pandas.DataFrame | None = None,
+):
+
+    niceness = os.nice(0)
+    dnice = 5 - niceness
+    if dnice != 0:
+        niceness = os.nice(dnice)
+
+    # Mostly coppied from write_proc_image method on guider
+    ext_data = guide_data.extraction_data
+
+    proc_hdu = fits.open(str(guide_data.path)).copy()
+    header = proc_hdu[1].header
+
+    calibs = config["calib"][guide_data.camera]
+
+    # apply calibs again for writing the processed image data (done in extraction
+    # phase too, but data not saved)
+    bias_path = calibs["bias"]
+    dark_path = calibs["dark"]
+    flat_path = calibs["flat"]
+
+    # flat/bias/dark adjust the raw image
+    _calib_data = apply_calibs(
+        data=proc_hdu[1].data,
+        bias_path=bias_path,
+        dark_path=dark_path,
+        flat_path=flat_path,
+        gain=proc_hdu[1].header["GAIN"],
+        exptime=proc_hdu[1].header["EXPTIMEN"],
+    )
+    proc_hdu[1].data = _calib_data
+    header["BKG_ADU"] = (
+        numpy.median(_calib_data),
+        "background (median) counts in calibrated frame",
+    )
+
+    header["BIASFILE"] = bias_path
+    header["FLATFILE"] = flat_path
+    header["DARKFILE"] = dark_path
+
+    rec = Table.from_pandas(guide_data.extraction_data.regions).as_array()
+    proc_hdu.append(fits.BinTableHDU(rec, name="CENTROIDS"))
+
+    gfa_coords = calibration.gfaCoords.reset_index()
+    gfa_coords_rec = Table.from_pandas(gfa_coords).as_array()
+    proc_hdu.append(fits.BinTableHDU(gfa_coords_rec, name="GFACOORD"))
+
+    if guide_data.wcs is not None:
+        header.update(guide_data.wcs.to_header())
+
+    proc_path: pathlib.Path
+
+    proc_path = ext_data.path.parent / ("proc-" + ext_data.path.name)
+
+    if header_updates is not None:
+        for kw, val, comment in header_updates:
+            header[kw] = (val, comment)
+    if gaia_matches is not None:
+        rec = Table.from_pandas(gaia_matches).as_array()
+        proc_hdu.append(fits.BinTableHDU(rec, name="GAIAMATCH"))
+
+    header["SPEXPNG"] = (bossExposing, "BOSS spectrograph exposing")
+    header["SPIMGNO"] = (bossExpNum, "BOSS spectrograph current exposure number")
+
+    proc_hdu.writeto(proc_path, overwrite=overwrite, output_verify="silentfix")
+    proc_hdu.close()
+
+    # probably not necessary to add this to the guide_data anymore
+    guide_data.proc_image = proc_path
