@@ -238,6 +238,8 @@ class Guider:
 
         ex = ex_data[0]
 
+        assert self.solve_pointing and self.solve_pointing.imgNum is not None
+
         if ex.exposure_no != self.solve_pointing.imgNum + 1:
             return False
 
@@ -302,8 +304,13 @@ class Guider:
             df = pandas.concat(dfList).reset_index(drop=True)
 
             sp_guider_fit = self.solve_pointing.reSolve(
-                ex.exposure_no, ex.obstime, ex.exptime, df
+                ex.exposure_no,
+                ex.obstime,
+                ex.exptime,
+                df,
             )
+
+            assert self.solve_pointing
             if self.solve_pointing.guide_rms_sky > 1:
                 # guider probably jumped safer to revert to slow solve
                 sp_guider_fit = None
@@ -830,7 +837,7 @@ class Guider:
                 field_ra,
                 field_dec,
                 field_pa,
-                offset=full_offset,
+                offset=numpy.array(full_offset),
                 scale_rms=scale_rms,
                 only_radec=only_radec,
                 cameras=fit_cameras,
