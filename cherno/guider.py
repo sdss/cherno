@@ -303,6 +303,7 @@ class Guider:
                 dfList.append(regions)
             df = pandas.concat(dfList).reset_index(drop=True)
 
+            assert self.solve_pointing
             sp_guider_fit = self.solve_pointing.reSolve(
                 ex.exposure_no,
                 ex.obstime,
