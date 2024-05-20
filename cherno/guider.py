@@ -359,20 +359,24 @@ class Guider:
 
         isOK = True
 
+        # if offset is None:
+        #     if self.command.actor:
+        #         offset = list(self.command.actor.state.offset)
+        #     else:
+        #         offset = list(config.get("offset", [0.0, 0.0, 0.0]))
+
+        # if not numpy.allclose(offset, [0.0, 0.0, 0.0]):
+        #     self.command.warning("Using non-zero offsets for astrometric fit.")
+
+        return ast_solution, isOK
+
+    def get_full_offset(self, offset: list[float] | None):
+
         if offset is None:
             if self.command.actor:
                 offset = list(self.command.actor.state.offset)
             else:
                 offset = list(config.get("offset", [0.0, 0.0, 0.0]))
-
-        if not numpy.allclose(offset, [0.0, 0.0, 0.0]):
-            self.command.warning("Using non-zero offsets for astrometric fit.")
-
-        return ast_solution, isOK
-
-    def get_full_offset(self, offset: list[float] | None):
-        if offset is None:
-            offset = [0.0, 0.0, 0.0]
 
         default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
         full_offset = numpy.array(offset) + numpy.array(default_offset)
