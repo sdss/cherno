@@ -229,6 +229,8 @@ class Guider:
         ex_data: list[ExtractionData],
         offset: list[float] | None,
     ):
+        """Determine whether the guider has converged."""
+
         if self.solve_pointing is None:
             return False
 
@@ -269,6 +271,8 @@ class Guider:
         return True
 
     def check_wcs(self, guide_data: list[GuideData]):
+        """Returns WCS objects for cameras that solved."""
+
         guide_cameras = self.command.actor.state.guide_cameras
         wcs_solved = [
             ad.camera
@@ -276,7 +280,7 @@ class Guider:
             if ad.solved is True and ad.camera in guide_cameras
         ]
         if len(wcs_solved) > 1:
-            # if 2 or more cameras have wcs solns, use "coordio"
+            # if 2 or more cameras have wcs solutions, use "coordio"
             for gd in guide_data:
                 gd.solved = True
                 gd.solve_method = "coordio"
@@ -327,6 +331,7 @@ class Guider:
         return sp_guider_fit
 
     def validate_astrometry(self, data: list[GuideData], offset: list[float] | None):
+        """Checks if the astrometry.net solution is valid."""
 
         isOK = False
 
@@ -371,6 +376,7 @@ class Guider:
         return ast_solution, isOK
 
     def get_full_offset(self, offset: list[float] | None):
+        """Outputs and returns the full offset (absolute plus user-commanded)."""
 
         if offset is None:
             if self.command.actor:
@@ -968,6 +974,8 @@ class Guider:
         full: bool = False,
         apply_focus: bool = True,
     ):
+        """Apply corrections at APO."""
+
         actor_state = self.command.actor.state
 
         min_isolated = actor_state.guide_loop["rot"]["min_isolated_correction"]
@@ -1029,6 +1037,8 @@ class Guider:
         wait_for_correction: bool = True,
         apply_focus: bool = True,
     ):
+        """Apply corrections at LCO"""
+
         do_focus: bool = False
 
         enabled_axes = self.command.actor.state.enabled_axes
@@ -1310,8 +1320,12 @@ class Guider:
 
 
 def get_proc_headers(
-    data: AstrometricSolution, guider_state: ChernoState, guide_data: GuideData
+    data: AstrometricSolution,
+    guider_state: ChernoState,
+    guide_data: GuideData,
 ):
+    """Builds the header object for the ``proc-gimg`` files."""
+
     # Largely modified from update_proc_headers
     # returns a list of headers to be updated in a separate
     # process (guider_state can't be offloaded to ProcessPool)
@@ -1457,6 +1471,7 @@ def write_proc_image(
     header_updates: list | None = None,
     gaia_matches: pandas.DataFrame | None = None,
 ):
+    """Writes the processed image to disk."""
 
     niceness = os.nice(0)
     dnice = 5 - niceness
