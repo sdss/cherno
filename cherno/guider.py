@@ -645,7 +645,7 @@ class Guider:
             sp_guider_fit = self.try_rapid_solve(guide_data, ext_data, offset)
         except Exception as err:
             self.command.warning(f"Rapid solve failed: {err}")
-            self.command.warning(f"Reverting to non-converged mode.")
+            self.command.warning("Reverting to non-converged mode.")
             sp_guider_fit = None
 
         if sp_guider_fit is None:
