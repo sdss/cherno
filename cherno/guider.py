@@ -61,7 +61,7 @@ warnings.filterwarnings(
     "ignore",
     message="Card is too long, comment will be truncated.",
 )
-
+warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 __all__ = ["Guider", "GuideData", "AstrometricSolution", "AxesPID"]
 
@@ -300,14 +300,17 @@ class Guider:
             dfList = []
             for ex in ext_data:
                 regions = ex.regions.copy().reset_index(drop=True)
+                if len(regions) == 0:
+                    continue
                 gfaNum = int(ex.camera.strip("gfa"))
                 regions["gfaNum"] = gfaNum
                 gain = ex.gain
                 regions["gain"] = gain
                 dfList.append(regions)
+
             df = pandas.concat(dfList).reset_index(drop=True)
 
-            assert self.solve_pointing
+            # assert self.solve_pointing
             sp_guider_fit = self.solve_pointing.reSolve(
                 ex.exposure_no,
                 ex.obstime,
@@ -315,14 +318,14 @@ class Guider:
                 df,
             )
 
-            assert self.solve_pointing
+            # assert self.solve_pointing
             if self.solve_pointing.guide_rms_sky > 1:
                 # guider probably jumped safer to revert to slow solve
                 sp_guider_fit = None
                 self.solve_pointing = None
             else:
                 for gd in guide_data:
-                    gfaNum = int(ex.camera.strip("gfa"))
+                    gfaNum = int(gd.camera.strip("gfa"))
                     gd.solved = True
                     wcs = self.solve_pointing.fitWCS(gfaNum)
                     gd.wcs = wcs
@@ -405,7 +408,15 @@ class Guider:
 
         guide_cameras = self.command.actor.state.guide_cameras
         solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
-        fit_cameras = [d.camera_id for d in solved if d.camera in guide_cameras]
+        #fit_cameras1 = [d.camera_id for d in solved if d.camera in guide_cameras]
+        fit_cameras = []
+        for d in solved:
+            if d.camera not in guide_cameras:
+                continue
+            if d.wcs is None:
+                continue
+            fit_cameras.append(d.camera_id)
+
 
         plate_scale = defaults.PLATE_SCALE[self.observatory]
         mm_to_arcsec = 1 / plate_scale * 3600
@@ -597,7 +608,6 @@ class Guider:
         stop_at_target_rms: bool = False,
     ):
         """Performs extraction and astrometry."""
-
         if command is not None:
             self.set_command(command)
 
@@ -610,7 +620,6 @@ class Guider:
                 bossExposing, bossExpNum = self.command.actor._process_boss_status()
 
         self.command.info("Extracting sources.")
-
         ext_data = await asyncio.gather(
             *[
                 run_in_executor(
@@ -641,12 +650,14 @@ class Guider:
 
         _wcs_solved = []
 
-        try:
-            sp_guider_fit = self.try_rapid_solve(guide_data, ext_data, offset)
-        except Exception as err:
-            self.command.warning(f"Rapid solve failed: {err}")
-            self.command.warning("Reverting to non-converged mode.")
-            sp_guider_fit = None
+        sp_guider_fit = self.try_rapid_solve(guide_data, ext_data, offset)
+
+        # try:
+        #     sp_guider_fit = self.try_rapid_solve(guide_data, ext_data, offset)
+        # except Exception as err:
+        #     self.command.warning(f"Rapid solve failed: {err}")
+        #     self.command.warning("Reverting to non-converged mode.")
+        #     sp_guider_fit = None
 
         if sp_guider_fit is None:
             # Rapid solve didn't work
@@ -785,6 +796,8 @@ class Guider:
                 if self.solve_pointing is not None:
                     header_updates += self.solve_pointing.getMetadata()
                     zp = self.solve_pointing.median_zeropoint(d.camera_id)
+                    if numpy.isnan(zp):
+                        zp = -999
                     zptTuple = (
                         "R_ZPT",
                         zp,
@@ -937,6 +950,11 @@ class Guider:
             )
 
         guider_fit = self.solve_pointing.solve()
+
+        for gd in data:
+            gfaNum = int(gd.camera.strip("gfa"))
+            wcs = self.solve_pointing.fitWCS(gfaNum)
+            gd.wcs = wcs
 
         return guider_fit
 
