@@ -61,7 +61,7 @@ warnings.filterwarnings(
     "ignore",
     message="Card is too long, comment will be truncated.",
 )
-warnings.filterwarnings('ignore', category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 __all__ = ["Guider", "GuideData", "AstrometricSolution", "AxesPID"]
 
@@ -408,7 +408,7 @@ class Guider:
 
         guide_cameras = self.command.actor.state.guide_cameras
         solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
-        #fit_cameras1 = [d.camera_id for d in solved if d.camera in guide_cameras]
+        # fit_cameras1 = [d.camera_id for d in solved if d.camera in guide_cameras]
         fit_cameras = []
         for d in solved:
             if d.camera not in guide_cameras:
@@ -416,7 +416,6 @@ class Guider:
             if d.wcs is None:
                 continue
             fit_cameras.append(d.camera_id)
-
 
         plate_scale = defaults.PLATE_SCALE[self.observatory]
         mm_to_arcsec = 1 / plate_scale * 3600
