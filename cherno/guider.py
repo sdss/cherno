@@ -331,6 +331,8 @@ class Guider:
                     gd.wcs = wcs
                     gd.solve_method = "coordio-fast"
 
+        self.solve_pointing = None
+
         return sp_guider_fit
 
     def validate_astrometry(self, data: list[GuideData], offset: list[float] | None):
@@ -520,12 +522,17 @@ class Guider:
             except Exception as err:
                 self.command.warning(f"Failed fitting focus curve: {err}.")
 
+        ra_bore = dec_bore = -999.
+        if self.solve_pointing:
+            ra_bore = self.solve_pointing.raCenMeas
+            dec_bore = self.solve_pointing.decCenMeas
+
         self.command.info(
             astrometry_fit=[
                 exp_no,
                 len(solved),
-                -999.0,
-                -999.0,
+                ra_bore,
+                dec_bore,
                 numpy.round(ast_solution.fwhm_median, 2),
                 -999,
                 numpy.round(ast_solution.camera_rotation, 3),
