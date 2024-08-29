@@ -331,8 +331,6 @@ class Guider:
                     gd.wcs = wcs
                     gd.solve_method = "coordio-fast"
 
-        self.solve_pointing = None
-
         return sp_guider_fit
 
     def validate_astrometry(self, data: list[GuideData], offset: list[float] | None):
