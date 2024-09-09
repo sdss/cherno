@@ -5,6 +5,7 @@
 ### ✨ Improved
 
 * Report boresight position in `astrometry_fit`.
+* Add `--reset/--no-reset` flag to the `offset` command.
 
 ### ⚙️ Engineering
 

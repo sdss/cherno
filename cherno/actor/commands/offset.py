@@ -22,11 +22,17 @@ __all__ = ["offset"]
 @click.argument("RA", type=float, required=False)
 @click.argument("DEC", type=float, required=False)
 @click.argument("PA", type=float, required=False, default=0.0)
+@click.option(
+    "--reset/--no-reset",
+    default=False,
+    help="Resets the PID loop if a guider loop is active.",
+)
 async def offset(
     command: ChernoCommandType,
     ra: float | None = None,
     dec: float | None = None,
     pa: float = 0.0,
+    reset: bool = False,
 ):
     """Offsets the field boresight by RA/DEC/PA arcsec."""
 
@@ -42,6 +48,17 @@ async def offset(
 
     assert command.actor
     command.actor.state.offset = (ra, dec, pa)
+
+    if reset:
+        if command.actor.state._guider_obj is not None:
+            pids = command.actor.state._guider_obj.pids
+
+            pids.ra.reset()
+            pids.dec.reset()
+            pids.rot.reset()
+            pids.focus.reset()
+
+        command.warning("PID loop internals have been reset.")
 
     default_offset = config.get("default_offset", (0.0, 0.0, 0.0))
 
