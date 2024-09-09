@@ -405,7 +405,6 @@ class Guider:
         guider_fit: GuiderFit | Literal[False],
         fit_focus: bool,
     ):
-
         guide_cameras = self.command.actor.state.guide_cameras
         solved = sorted([d for d in data if d.solved is True], key=lambda x: x.camera)
         # fit_cameras1 = [d.camera_id for d in solved if d.camera in guide_cameras]
@@ -520,7 +519,7 @@ class Guider:
             except Exception as err:
                 self.command.warning(f"Failed fitting focus curve: {err}.")
 
-        ra_bore = dec_bore = -999.
+        ra_bore = dec_bore = -999.0
         if self.solve_pointing:
             ra_bore = self.solve_pointing.raCenMeas
             dec_bore = self.solve_pointing.decCenMeas

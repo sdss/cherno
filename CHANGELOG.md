@@ -1,5 +1,16 @@
 # Changelog
 
+## Next version
+
+### ✨ Improved
+
+* Report boresight position in `astrometry_fit`.
+
+### ⚙️ Engineering
+
+* Format code using `ruff`.
+
+
 ## 1.0.0 - May 30, 2024
 
 ### 🚀 New

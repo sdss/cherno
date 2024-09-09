@@ -26,21 +26,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade wheel pip setuptools
-          pip install .
-
       - name: Lint with ruff
         run: |
           pip install ruff
           ruff check cherno/ tests/
+          ruff format --check cherno/ tests/
 
-      - name: Lint with black
+      - name: Install dependencies
         run: |
-          pip install black
-          black --check cherno
-          black --check tests
+          pip install --upgrade wheel pip setuptools
+          pip install .
 
       - name: Test with pytest
         run: |
