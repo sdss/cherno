@@ -38,6 +38,7 @@ tables = ">=3.6.1"
 simple-pid = "^1.0.1"
 sqlalchemy = "^2.0.0"
 psycopg2-binary = "^2.9.5"
+numpy = ">1,<2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ipython = ">=8.0.0rc1"

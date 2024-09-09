@@ -10,6 +10,7 @@
 ### ⚙️ Engineering
 
 * Format code using `ruff`.
+* Pin `numpy<2`.
 
 
 ## 1.0.0 - May 30, 2024
