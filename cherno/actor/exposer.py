@@ -143,6 +143,7 @@ class Exposer:
             self.actor_state.exposure_time = exposure_time
 
         n_exp = 0
+        is_retry = False
         while True:
             if self.is_stopping() or (count is not None and n_exp >= count):
                 self.actor_state.set_status(GuiderStatus.STOPPING, mode="remove")
@@ -190,7 +191,12 @@ class Exposer:
                     etime + timeout if timeout is not None else None,
                 )
             except asyncio.TimeoutError:
-                self.fail("Timed out waiting for the exposure to finish.")
+                if is_retry:
+                    self.fail("Timed out waiting for the exposure to finish.")
+                else:
+                    # Try again but only once more.
+                    is_retry = True
+                    continue
 
             if expose_command.status.did_fail:
                 self.fail("Expose command failed.")
@@ -233,6 +239,9 @@ class Exposer:
                     mode="remove",
                     report=False,
                 )
+
+            # Everything worked fine so we can reset the retry flag.
+            is_retry = False
 
     def _check_ffs(self):
         """Checks that the FFS are open."""

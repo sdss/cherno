@@ -6,6 +6,7 @@
 
 * Report boresight position in `astrometry_fit`.
 * Add `--reset/--no-reset` flag to the `offset` command.
+* Allow one retry when an exposure times out.
 
 ### ⚙️ Engineering
 
