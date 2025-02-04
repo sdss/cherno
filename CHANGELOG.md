@@ -9,6 +9,7 @@
 
 ### ⚙️ Engineering
 
+* Use `uv` for dependency management and packaging.
 * Format code using `ruff`.
 * Pin `numpy<2`.
 
