@@ -1,6 +1,6 @@
 [project]
 name = "sdss-cherno"
-version = "1.0.1a0"
+version = "1.1.0"
 description = "SDSS guider actor"
 authors = [
     { name = "José Sánchez-Gallego", email = "gallegoj@uw.edu" }
