@@ -27,7 +27,7 @@ from astropy.io import fits
 from astropy.stats.sigma_clipping import SigmaClip
 from astropy.table import Table
 from astropy.wcs import WCS, FITSFixedWarning
-from simple_pid.PID import PID
+from simple_pid.pid import PID
 
 from clu.command import FakeCommand
 from coordio import calibration, defaults

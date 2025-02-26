@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 - February 26, 2025
+
+### 🔧 Fixed
+
+* Import `from simple_pid.pid import PID` which changed in `simple-pid` 2.0.
+
+
 ## 1.1.0 - February 26, 2025
 
 ### ✨ Improved
