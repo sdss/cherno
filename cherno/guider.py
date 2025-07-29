@@ -613,6 +613,7 @@ class Guider:
         stop_at_target_rms: bool = False,
     ):
         """Performs extraction and astrometry."""
+
         if command is not None:
             self.set_command(command)
 
@@ -625,7 +626,7 @@ class Guider:
                 bossExposing, bossExpNum = self.command.actor._process_boss_status()
 
         self.command.info("Extracting sources.")
-        ext_data = await asyncio.gather(
+        ext_data: list[ExtractionData] = await asyncio.gather(
             *[
                 run_in_executor(
                     self.extractor.process,
@@ -650,6 +651,12 @@ class Guider:
                         d.nvalid,
                     ]
                 )
+
+            # Check CCD temperature
+            if d.ccd_temperature is None:
+                self.command.warning(f"Camera {d.camera}: CCD temperature not found.")
+            elif d.ccd_temperature > config["cameras"]["max_ccd_temperature"]:
+                self.command.warning(f"Camera {d.camera}: CCD temperature is too high.")
 
         guide_data = [GuideData(ed.camera, ed) for ed in ext_data]
 

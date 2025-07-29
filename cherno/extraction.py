@@ -76,6 +76,7 @@ class ExtractionData:
     focus_offset: float = 0.0
     gain: float = 1
     exptime: float = 15
+    ccd_temperature: float | None = None
 
 
 class Extraction:
@@ -114,6 +115,7 @@ class Extraction:
 
         camera = header["CAMNAME"][0:-1]  # Remove the n/s at the end of the camera name
         observatory = header["OBSERVAT"]
+        ccd_temperature = header["CCDTEMP"]
 
         obstime = Time(header["DATE-OBS"], format="iso", scale="tai")
         obstime += TimeDelta(header["EXPTIMEN"] / 2.0, format="sec")
@@ -191,6 +193,7 @@ class Extraction:
             focus_offset=config["cameras"]["focus_offset"][camera],
             gain=header["GAIN"],
             exptime=header["EXPTIMEN"],
+            ccd_temperature=ccd_temperature,
         )
 
         output_file = self._get_output_path(path).with_suffix(".csv")

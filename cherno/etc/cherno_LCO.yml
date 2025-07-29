@@ -45,6 +45,7 @@ cameras:
   enabled: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   guide: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
   focus: [gfa1, gfa2, gfa3, gfa4, gfa5, gfa6]
+  max_ccd_temperature: -8
   focus_offset:
     gfa1: 0
     gfa2: 0
