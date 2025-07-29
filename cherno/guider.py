@@ -293,6 +293,8 @@ class Guider:
         ext_data: list[ExtractionData],
         offset: list[float] | None,
     ):
+        assert self.solve_pointing is not None
+
         sp_guider_fit = None
         converged = self.check_convergence(ext_data, offset)
 
@@ -894,6 +896,7 @@ class Guider:
 
             sc = SigmaClip(fit_rms_sigma)
             rms_clip = sc(guider_fit.fit_rms.loc[fit_cameras, "rms"])
+            assert isinstance(rms_clip, numpy.ma.MaskedArray)
 
             # All the camera fit RMS are within X sigma. Exit.
             if rms_clip.mask.sum() == 0:
