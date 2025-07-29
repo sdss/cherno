@@ -1,5 +1,16 @@
 # Changelog
 
+## Next release
+
+### ✨ Improved
+
+* Add `ccd_temperature` to the `ExtractionData` class and report if the CCD temperature is too high.
+
+### 🔧 Fixed
+
+* Pin several versions to avoid dependencies that require NumPy greater than 2.3.0, which requires GCC 9.3 or higher, which is not available in CentOS 7.
+
+
 ## 1.1.1 - February 26, 2025
 
 ### 🔧 Fixed
