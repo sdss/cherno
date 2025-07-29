@@ -2721,7 +2721,7 @@ requires-dist = [
     { name = "sdsstools", specifier = ">=1.5.5" },
     { name = "simple-pid", specifier = ">=1.0.1" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
-    { name = "tables", specifier = ">=3.6.1" },
+    { name = "tables" },
 ]
 
 [package.metadata.requires-dev]
