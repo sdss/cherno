@@ -22,7 +22,8 @@ dependencies =[
     "simple-pid>=1.0.1",
     "sqlalchemy>=2.0.0",
     "psycopg2-binary>=2.9.5",
-    "numpy>1,<2.0.0"
+    "numpy>1,<2.0.0",
+    "numexpr<2.11.0"
 ]
 
 [project.urls]
