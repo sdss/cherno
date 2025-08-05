@@ -293,10 +293,11 @@ class Guider:
         ext_data: list[ExtractionData],
         offset: list[float] | None,
     ):
-        assert self.solve_pointing is not None
-
         sp_guider_fit = None
         converged = self.check_convergence(ext_data, offset)
+
+        if not self.solve_pointing:
+            return None
 
         if converged:
             dfList = []
