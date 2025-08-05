@@ -1,5 +1,12 @@
 # Changelog
 
+## Next release
+
+### 🔧 Fixed
+
+* Fix assertion check that was crashing the guide loop.
+
+
 ## 1.2.0 - July 29, 2025
 
 ### ✨ Improved
