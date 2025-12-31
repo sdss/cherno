@@ -1,5 +1,12 @@
 # Changelog
 
+## Next release
+
+### ⚙️ Engineering
+
+* Update workflow versions.
+
+
 ## 1.2.1 - August 05, 2025
 
 ### 🔧 Fixed
