@@ -2,6 +2,10 @@
 
 ## Next release
 
+### ✨ Improved
+
+* Update `sdss-coordio` dependency to `>=1.18.1`.
+
 ### ⚙️ Engineering
 
 * Update workflow versions.
