@@ -16,13 +16,13 @@ from glob import glob
 from typing import Any, Callable, NoReturn, Union
 
 from clu import Command
+from sdsstools.retrier import Retrier
 from sdsstools.time import get_sjd
 
 from cherno import config
+from cherno.actor import ChernoCommandType
 from cherno.exceptions import ExposerError
 from cherno.maskbits import GuiderStatus
-
-from . import ChernoCommandType
 
 
 CallbackType = Union[Callable[[ChernoCommandType, list[str]], Any], None]
@@ -143,7 +143,6 @@ class Exposer:
             self.actor_state.exposure_time = exposure_time
 
         n_exp = 0
-        is_retry = False
         while True:
             if self.is_stopping() or (count is not None and n_exp >= count):
                 self.actor_state.set_status(GuiderStatus.STOPPING, mode="remove")
@@ -162,19 +161,9 @@ class Exposer:
             if names is None or len(names) == 0:
                 self.fail("No cameras defined.")
 
-            num = self._get_num(names)
-
-            names_comma = ",".join(names)
-
             # Issue a fliswarm talk status to the cameras to update their status.
             try:
-                status_command = await asyncio.wait_for(
-                    self.actor.tron.send_command(
-                        "fliswarm",
-                        f"talk -n {names_comma} status",
-                    ),
-                    10,
-                )
+                status_command = await self.update_status(names)
             except asyncio.TimeoutError:
                 self.fail("Timed out updating camera status.")
 
@@ -182,21 +171,12 @@ class Exposer:
                 self.fail("Failed updating camera status.")
 
             try:
-                etime = self.actor_state.exposure_time
-                expose_command = await asyncio.wait_for(
-                    self.actor.tron.send_command(
-                        "fliswarm",
-                        f"talk -n {names_comma} -- expose -n {num} {etime}",
-                    ),
-                    etime + timeout if timeout is not None else None,
+                expose_command = await self.send_exposure_command(
+                    names,
+                    timeout=timeout,
                 )
             except asyncio.TimeoutError:
-                if is_retry:
-                    self.fail("Timed out waiting for the exposure to finish.")
-                else:
-                    # Try again but only once more.
-                    is_retry = True
-                    continue
+                self.fail("Timed out waiting for the exposure to finish.")
 
             if expose_command.status.did_fail:
                 self.fail("Expose command failed.")
@@ -240,8 +220,41 @@ class Exposer:
                     report=False,
                 )
 
-            # Everything worked fine so we can reset the retry flag.
-            is_retry = False
+    @Retrier(max_attempts=2, delay=3)
+    async def update_status(self, names: list[str]):
+        """Sends the camera update command."""
+
+        assert self.actor.tron is not None
+
+        names_comma = ",".join(names)
+        await asyncio.wait_for(
+            self.actor.tron.send_command("fliswarm", f"talk -n {names_comma} status"),
+            timeout=10,
+        )
+
+    @Retrier(max_attempts=2, delay=3)
+    async def send_exposure_command(
+        self,
+        names: list[str],
+        timeout: float | None = None,
+    ):
+        """Sends the camera exposure command."""
+
+        assert self.actor.tron is not None
+
+        etime = self.actor_state.exposure_time
+        names_comma = ",".join(names)
+        num = self._get_num(names)
+
+        expose_command = await asyncio.wait_for(
+            self.actor.tron.send_command(
+                "fliswarm",
+                f"talk -n {names_comma} -- expose -n {num} {etime}",
+            ),
+            etime + timeout if timeout is not None else None,
+        )
+
+        return expose_command
 
     def _check_ffs(self):
         """Checks that the FFS are open."""

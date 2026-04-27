@@ -4,6 +4,7 @@
 
 ### ✨ Improved
 
+* Add retry when updating camera status or exposing.
 * Update `sdss-coordio` dependency to `>=1.18.1`.
 
 ### ⚙️ Engineering
