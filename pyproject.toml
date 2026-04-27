@@ -17,7 +17,7 @@ dependencies =[
     "astropy>=6.0.0",
     "click-default-group>=1.2.2",
     "sdss-coordio>=1.18.1",
-    "pandas>=2.0.0",
+    "pandas>=2.0.0,<3.0.0",
     "tables",
     "simple-pid>=1.0.1",
     "sqlalchemy>=2.0.0",
