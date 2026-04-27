@@ -220,7 +220,7 @@ class Exposer:
                     report=False,
                 )
 
-    @Retrier(max_attempts=2, delay=3)
+    @Retrier(max_attempts=3, delay=1)
     async def update_status(self, names: list[str]):
         """Sends the camera update command."""
 
@@ -229,7 +229,7 @@ class Exposer:
         names_comma = ",".join(names)
         await asyncio.wait_for(
             self.actor.tron.send_command("fliswarm", f"talk -n {names_comma} status"),
-            timeout=10,
+            timeout=5,
         )
 
     @Retrier(max_attempts=2, delay=3)
