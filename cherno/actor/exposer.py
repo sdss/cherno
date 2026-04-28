@@ -227,10 +227,12 @@ class Exposer:
         assert self.actor.tron is not None
 
         names_comma = ",".join(names)
-        await asyncio.wait_for(
+        status_command = await asyncio.wait_for(
             self.actor.tron.send_command("fliswarm", f"talk -n {names_comma} status"),
             timeout=5,
         )
+
+        return status_command
 
     @Retrier(max_attempts=2, delay=3)
     async def send_exposure_command(
